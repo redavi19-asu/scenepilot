@@ -202,7 +202,6 @@ function App() {
 
     const handleConnect = () => {
       setSignalStatus("SIGNAL CONNECTED");
-      socket.emit("director:join", { room: roomCode });
     };
 
     const handleDisconnect = () => {
@@ -217,6 +216,7 @@ function App() {
     socket.on("webrtc:ice", handleIce);
     socket.on("camera:left", handleCameraLeft);
 
+    socket.emit("director:join", { room: roomCode });
     socket.connect();
 
     return () => {
@@ -357,12 +357,6 @@ function App() {
 
       const handleConnect = () => {
         setSignalStatus("SIGNAL CONNECTED");
-
-        socket.emit("camera:join", {
-          room: roomCode,
-          name: "ROAMING 1",
-          slotId: 7
-        });
       };
 
       const handleDisconnect = () => {
@@ -381,6 +375,11 @@ function App() {
       socket.on("webrtc:ice", handleIce);
       socket.on("camera:registered", handleRegistered);
 
+      socket.emit("camera:join", {
+        room: roomCode,
+        name: "ROAMING 1",
+        slotId: 7
+      });
       socket.connect();
     } catch (error) {
       setSignalStatus("CAMERA ACCESS FAILED");
