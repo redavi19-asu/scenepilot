@@ -246,3 +246,32 @@ footer span:last-child{margin-left:auto}
     aspect-ratio:auto
   }
 }
+
+
+.source-row{margin-top:12px}
+.source-row label{display:block;margin-bottom:6px}
+.source-select-line{display:flex;gap:7px}
+.source-select-line select{
+  min-width:0;
+  flex:1;
+  background:#101210;
+  border:1px solid #4b4e48;
+  color:white;
+  padding:11px;
+  font:inherit
+}
+.source-select-line button{
+  border:1px solid #5b5e58;
+  background:#242723;
+  color:#eee;
+  padding:0 12px;
+  font-size:8px;
+  font-weight:900
+}
+.source-row small{
+  display:block;
+  margin-top:6px;
+  color:#777c75;
+  font-size:8px;
+  line-height:1.4
+}
