@@ -13,6 +13,7 @@ const io = new Server(httpServer, {
 });
 
 const rooms = new Map();
+const directors = new Map();
 const WIRELESS_SLOTS = [7, 8, 9];
 
 function chooseCameraSlot(roomMap, requestedSlot, socketId) {
@@ -354,10 +355,18 @@ io.on("connection", socket => {
       return;
     }
 
+    if (
+      socket.data.role === "director" &&
+      socket.data.room === room
+    ) {
+      return;
+    }
+
     socket.join(room);
 
     socket.data.room = room;
     socket.data.role = "director";
+    directors.set(room, socket.id);
 
     if (!rooms.has(room)) {
       rooms.set(room, new Map());
@@ -375,7 +384,8 @@ io.on("connection", socket => {
     console.log(
       "DIRECTOR JOINED:",
       room,
-      socket.id
+      socket.id,
+      "(ACTIVE)"
     );
   });
 
@@ -405,21 +415,37 @@ io.on("connection", socket => {
         slotId: assignedSlot
       };
 
+      const wasRegistered = roomMap.has(socket.id);
       roomMap.set(socket.id, camera);
 
-      socket
-        .to(room)
-        .emit(
+      const directorId = directors.get(room);
+
+      if (
+        directorId &&
+        io.sockets.sockets.has(directorId)
+      ) {
+        io.to(directorId).emit(
           "camera:joined",
           camera
         );
+      }
+
+      socket.emit("camera:registered", {
+        room,
+        slotId: assignedSlot,
+        directorAvailable: Boolean(
+          directorId &&
+          io.sockets.sockets.has(directorId)
+        )
+      });
 
       console.log(
-        "CAMERA JOINED:",
+        wasRegistered ? "CAMERA UPDATED:" : "CAMERA JOINED:",
         room,
         socket.id,
         "CAM",
-        assignedSlot
+        assignedSlot,
+        directorId ? "DIRECTOR " + directorId : "NO DIRECTOR"
       );
     }
   );
@@ -486,6 +512,14 @@ io.on("connection", socket => {
   socket.on("disconnect", () => {
     const room =
       socket.data.room;
+
+    if (
+      socket.data.role === "director" &&
+      room &&
+      directors.get(room) === socket.id
+    ) {
+      directors.delete(room);
+    }
 
     if (
       socket.data.role === "camera" &&
