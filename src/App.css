@@ -713,3 +713,68 @@ footer span:last-child{margin-left:auto}
     min-height:44px
   }
 }
+
+
+.operator-live.ready{
+  background:#304d31;
+}
+.operator-live.on-air{
+  background:#b5322d;
+  box-shadow:0 0 0 2px rgba(255,255,255,.12),0 0 18px rgba(181,50,45,.55);
+}
+.operator-live.on-air i{
+  background:#fff;
+}
+.on-air-banner{
+  position:absolute;
+  left:10px;
+  top:44px;
+  z-index:5;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  max-width:250px;
+  padding:10px 12px;
+  border-radius:10px;
+  backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 8px 24px rgba(0,0,0,.28)
+}
+.on-air-banner div{
+  display:flex;
+  flex-direction:column;
+  gap:2px
+}
+.on-air-banner strong{
+  font-size:11px;
+  letter-spacing:.8px
+}
+.on-air-banner span{
+  font-size:8px;
+  font-weight:800;
+  opacity:.88
+}
+.on-air-banner.standby{
+  background:rgba(31,50,31,.84);
+  color:#eef5eb
+}
+.on-air-banner.live{
+  background:rgba(181,50,45,.92);
+  color:white;
+  animation:onAirPulse 1.35s ease-in-out infinite
+}
+@keyframes onAirPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(210,72,64,.35),0 8px 24px rgba(0,0,0,.28)}
+  50%{box-shadow:0 0 0 8px rgba(210,72,64,0),0 8px 24px rgba(0,0,0,.28)}
+}
+
+@media(max-width:700px){
+  .on-air-banner{
+    left:8px;
+    top:42px;
+    max-width:210px;
+    padding:8px 10px
+  }
+  .on-air-banner strong{font-size:10px}
+  .on-air-banner span{font-size:7px}
+}
