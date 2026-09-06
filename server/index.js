@@ -346,7 +346,7 @@ app.get("/", (req, res) => {
 io.on("connection", socket => {
   console.log("CONNECTED:", socket.id);
 
-  socket.on("director:join", ({ room }) => {
+  socket.on("director:join", ({ room, visible }) => {
     if (socket.data.role === "camera") {
       console.log(
         "IGNORED DIRECTOR JOIN FROM CAMERA:",
@@ -366,26 +366,55 @@ io.on("connection", socket => {
 
     socket.data.room = room;
     socket.data.role = "director";
+
+    if (!rooms.has(room)) {
+      rooms.set(room, new Map());
+    }
+
+    const currentDirector = directors.get(room);
+    const currentIsAlive =
+      currentDirector &&
+      io.sockets.sockets.has(currentDirector);
+
+    const shouldActivate =
+      Boolean(visible) ||
+      !currentIsAlive;
+
+    if (shouldActivate) {
+      directors.set(room, socket.id);
+
+      socket.emit(
+        "room:cameras",
+        [...rooms.get(room).values()]
+      );
+    }
+
+    console.log(
+      "DIRECTOR JOINED:",
+      room,
+      socket.id,
+      shouldActivate ? "(ACTIVE)" : "(STANDBY)"
+    );
+  });
+
+  socket.on("director:focus", ({ room }) => {
+    if (socket.data.role !== "director") return;
+
     directors.set(room, socket.id);
 
     if (!rooms.has(room)) {
       rooms.set(room, new Map());
     }
 
-    const cameras = [
-      ...rooms.get(room).values()
-    ];
-
     socket.emit(
       "room:cameras",
-      cameras
+      [...rooms.get(room).values()]
     );
 
     console.log(
-      "DIRECTOR JOINED:",
+      "DIRECTOR FOCUSED:",
       room,
-      socket.id,
-      "(ACTIVE)"
+      socket.id
     );
   });
 
@@ -519,6 +548,28 @@ io.on("connection", socket => {
       directors.get(room) === socket.id
     ) {
       directors.delete(room);
+
+      const standbyDirector = [
+        ...io.sockets.sockets.values()
+      ].find(candidate =>
+        candidate.id !== socket.id &&
+        candidate.data.role === "director" &&
+        candidate.data.room === room
+      );
+
+      if (standbyDirector) {
+        directors.set(
+          room,
+          standbyDirector.id
+        );
+
+        standbyDirector.emit(
+          "room:cameras",
+          rooms.has(room)
+            ? [...rooms.get(room).values()]
+            : []
+        );
+      }
     }
 
     if (
