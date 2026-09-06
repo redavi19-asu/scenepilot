@@ -14,6 +14,44 @@ const io = new Server(httpServer, {
 
 const rooms = new Map();
 
+app.get("/", (req, res) => {
+  res.send(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>ScenePilot Signal Server</title>
+        <style>
+          body{
+            font-family:Arial,sans-serif;
+            background:#111;
+            color:#eee;
+            display:grid;
+            place-items:center;
+            height:100vh;
+            margin:0;
+          }
+          .box{
+            border:1px solid #555;
+            padding:32px 40px;
+            border-radius:12px;
+            background:#1b1b1b;
+            text-align:center;
+          }
+          .ok{color:#8fd18f}
+          small{color:#999}
+        </style>
+      </head>
+      <body>
+        <div class="box">
+          <h1>SCENEPILOT</h1>
+          <h2 class="ok">SIGNAL SERVER ONLINE</h2>
+          <small>WebRTC coordination service • Port 3001</small>
+        </div>
+      </body>
+    </html>
+  `);
+});
+
 io.on("connection", socket => {
   console.log("ScenePilot client connected:", socket.id);
 
@@ -26,6 +64,8 @@ io.on("connection", socket => {
 
     const cameras = [...rooms.get(room).values()];
     socket.emit("room:cameras", cameras);
+
+    socket.to(room).emit("director:ready");
 
     console.log(`Director joined ${room}`);
   });
@@ -75,7 +115,11 @@ io.on("connection", socket => {
   socket.on("disconnect", () => {
     const room = socket.data.room;
 
-    if (socket.data.role === "camera" && room && rooms.has(room)) {
+    if (
+      socket.data.role === "camera" &&
+      room &&
+      rooms.has(room)
+    ) {
       rooms.get(room).delete(socket.id);
 
       socket.to(room).emit("camera:left", {
