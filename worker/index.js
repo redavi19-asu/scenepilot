@@ -62,7 +62,7 @@ export class ScenePilotRoom {
   }
 
   assignSlot(requestedSlot, sessionId) {
-    const allowed = [7, 8, 9];
+    const allowed = [7, 8, 9, 1, 2, 3, 4, 5, 6];
 
     const used = new Set(
       [...this.cameras.values()]
