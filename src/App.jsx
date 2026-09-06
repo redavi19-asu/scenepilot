@@ -38,8 +38,10 @@ function App() {
   const cameraVideo = useRef(null);
   const remoteVideos = useRef({});
   const peers = useRef({});
+  const pendingIce = useRef({});
   const [remoteStreams, setRemoteStreams] = useState({});
   const [wirelessCameras, setWirelessCameras] = useState([]);
+  const [signalStatus, setSignalStatus] = useState("OFFLINE");
 
   const roomCode =
     new URLSearchParams(window.location.search).get("room") || "SP-4827";
@@ -50,19 +52,34 @@ function App() {
    useEffect(() => {
     if (showCamera) return;
 
-    socket.connect();
+    const queueIce = (peerId, candidate) => {
+      if (!candidate) return;
+      if (!pendingIce.current[peerId]) {
+        pendingIce.current[peerId] = [];
+      }
+      pendingIce.current[peerId].push(candidate);
+    };
 
-    socket.emit("director:join", { room: roomCode });
+    const flushIce = async peerId => {
+      const peer = peers.current[peerId];
+      if (!peer?.remoteDescription) return;
 
-    socket.on("room:cameras", list => {
-      setWirelessCameras(list);
-    });
+      const queued = pendingIce.current[peerId] || [];
+      delete pendingIce.current[peerId];
 
-    socket.on("camera:joined", async camera => {
-      setWirelessCameras(prev => {
-        if (prev.some(c => c.socketId === camera.socketId)) return prev;
-        return [...prev, camera];
-      });
+      for (const candidate of queued) {
+        try {
+          await peer.addIceCandidate(candidate);
+        } catch (error) {
+          console.error("Director queued ICE error", error);
+        }
+      }
+    };
+
+    const startPeer = async camera => {
+      if (!camera?.socketId) return;
+
+      peers.current[camera.socketId]?.close();
 
       const peer = createPeerConnection({
         onIceCandidate: candidate => {
@@ -77,58 +94,98 @@ function App() {
             ...prev,
             [camera.socketId]: incomingStream
           }));
+          setSignalStatus("VIDEO CONNECTED");
+        },
+
+        onConnectionState: state => {
+          if (state === "connecting") {
+            setSignalStatus("WEBRTC CONNECTING");
+          } else if (state === "connected") {
+            setSignalStatus("VIDEO CONNECTED");
+          } else if (state === "failed") {
+            setSignalStatus("WEBRTC FAILED");
+          } else if (state === "disconnected") {
+            setSignalStatus("WEBRTC DISCONNECTED");
+          }
         }
       });
 
       peers.current[camera.socketId] = peer;
 
-      const offer = await peer.createOffer({
-        offerToReceiveVideo: true,
-        offerToReceiveAudio: true
+      try {
+        const offer = await peer.createOffer({
+          offerToReceiveVideo: true,
+          offerToReceiveAudio: true
+        });
+
+        await peer.setLocalDescription(offer);
+
+        socket.emit("webrtc:offer", {
+          target: camera.socketId,
+          offer: peer.localDescription
+        });
+
+        setSignalStatus("OFFER SENT");
+      } catch (error) {
+        console.error("Director offer error", error);
+        setSignalStatus("OFFER FAILED");
+      }
+    };
+
+    const handleRoomCameras = list => {
+      setWirelessCameras(list);
+      setSignalStatus(list.length ? "CAMERA FOUND" : "WAITING FOR CAMERA");
+
+      list.forEach(camera => {
+        startPeer(camera);
+      });
+    };
+
+    const handleCameraJoined = camera => {
+      setWirelessCameras(prev => {
+        const rest = prev.filter(c => c.socketId !== camera.socketId);
+        return [...rest, camera];
       });
 
-      await peer.setLocalDescription(offer);
+      setSignalStatus("CAMERA JOINED");
+      startPeer(camera);
+    };
 
-      socket.emit("webrtc:offer", {
-        target: camera.socketId,
-        offer
-      });
-    });
-
-    socket.on("webrtc:answer", async ({ from, answer }) => {
+    const handleAnswer = async ({ from, answer }) => {
       const peer = peers.current[from];
       if (!peer) return;
 
-      await peer.setRemoteDescription(
-        new RTCSessionDescription(answer)
-      );
-    });
+      try {
+        await peer.setRemoteDescription(answer);
+        await flushIce(from);
+        setSignalStatus("ANSWER RECEIVED");
+      } catch (error) {
+        console.error("Director answer error", error);
+        setSignalStatus("ANSWER FAILED");
+      }
+    };
 
-    socket.on("webrtc:ice", async ({ from, candidate }) => {
+    const handleIce = async ({ from, candidate }) => {
+      if (!candidate) return;
+
       const peer = peers.current[from];
-      if (!peer || !candidate) return;
+
+      if (!peer || !peer.remoteDescription) {
+        queueIce(from, candidate);
+        return;
+      }
 
       try {
-        let attempts = 0;
-
-        while (!peer.remoteDescription && attempts < 40) {
-          await new Promise(resolve => setTimeout(resolve, 50));
-          attempts++;
-        }
-
-        if (!peer.remoteDescription) return;
-
-        await peer.addIceCandidate(
-          new RTCIceCandidate(candidate)
-        );
+        await peer.addIceCandidate(candidate);
       } catch (error) {
-        console.error("ICE error", error);
+        console.error("Director ICE error", error);
       }
-    });
+    };
 
-    socket.on("camera:left", ({ socketId }) => {
+    const handleCameraLeft = ({ socketId }) => {
       peers.current[socketId]?.close();
       delete peers.current[socketId];
+      delete pendingIce.current[socketId];
 
       setWirelessCameras(prev =>
         prev.filter(c => c.socketId !== socketId)
@@ -139,21 +196,45 @@ function App() {
         delete next[socketId];
         return next;
       });
-    });
+
+      setSignalStatus("CAMERA LEFT");
+    };
+
+    const handleConnect = () => {
+      setSignalStatus("SIGNAL CONNECTED");
+      socket.emit("director:join", { room: roomCode });
+    };
+
+    const handleDisconnect = () => {
+      setSignalStatus("SIGNAL DISCONNECTED");
+    };
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("room:cameras", handleRoomCameras);
+    socket.on("camera:joined", handleCameraJoined);
+    socket.on("webrtc:answer", handleAnswer);
+    socket.on("webrtc:ice", handleIce);
+    socket.on("camera:left", handleCameraLeft);
+
+    socket.connect();
 
     return () => {
-      socket.off("room:cameras");
-      socket.off("camera:joined");
-      socket.off("webrtc:answer");
-      socket.off("webrtc:ice");
-      socket.off("camera:left");
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("room:cameras", handleRoomCameras);
+      socket.off("camera:joined", handleCameraJoined);
+      socket.off("webrtc:answer", handleAnswer);
+      socket.off("webrtc:ice", handleIce);
+      socket.off("camera:left", handleCameraLeft);
 
       Object.values(peers.current).forEach(peer => peer.close());
       peers.current = {};
+      pendingIce.current = {};
 
       socket.disconnect();
     };
-  }, [showCamera]);
+  }, [showCamera, roomCode]);
 
   useEffect(() => {
     if (cameraVideo.current && stream) {
@@ -163,6 +244,8 @@ function App() {
 
   async function enableCamera() {
     try {
+      setSignalStatus("REQUESTING CAMERA");
+
       const media = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
@@ -174,18 +257,51 @@ function App() {
 
       setStream(media);
 
-      socket.connect();
+      const queueIce = (peerId, candidate) => {
+        if (!candidate) return;
+        if (!pendingIce.current[peerId]) {
+          pendingIce.current[peerId] = [];
+        }
+        pendingIce.current[peerId].push(candidate);
+      };
 
-      socket.off("webrtc:offer");
-      socket.off("webrtc:ice");
+      const flushIce = async peerId => {
+        const peer = peers.current[peerId];
+        if (!peer?.remoteDescription) return;
 
-      socket.on("webrtc:offer", async ({ from, offer }) => {
+        const queued = pendingIce.current[peerId] || [];
+        delete pendingIce.current[peerId];
+
+        for (const candidate of queued) {
+          try {
+            await peer.addIceCandidate(candidate);
+          } catch (error) {
+            console.error("Camera queued ICE error", error);
+          }
+        }
+      };
+
+      const handleOffer = async ({ from, offer }) => {
+        peers.current[from]?.close();
+
         const peer = createPeerConnection({
           onIceCandidate: candidate => {
             socket.emit("webrtc:ice", {
               target: from,
               candidate
             });
+          },
+
+          onConnectionState: state => {
+            if (state === "connecting") {
+              setSignalStatus("WEBRTC CONNECTING");
+            } else if (state === "connected") {
+              setSignalStatus("LIVE TO DIRECTOR");
+            } else if (state === "failed") {
+              setSignalStatus("WEBRTC FAILED");
+            } else if (state === "disconnected") {
+              setSignalStatus("WEBRTC DISCONNECTED");
+            }
           }
         });
 
@@ -195,50 +311,79 @@ function App() {
           peer.addTrack(track, media);
         });
 
-        await peer.setRemoteDescription(
-          new RTCSessionDescription(offer)
-        );
+        try {
+          await peer.setRemoteDescription(offer);
+          await flushIce(from);
 
-        const answer = await peer.createAnswer();
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
 
-        await peer.setLocalDescription(answer);
+          socket.emit("webrtc:answer", {
+            target: from,
+            answer: peer.localDescription
+          });
 
-        socket.emit("webrtc:answer", {
-          target: from,
-          answer
-        });
-      });
+          setSignalStatus("ANSWER SENT");
+        } catch (error) {
+          console.error("Camera offer error", error);
+          setSignalStatus("ANSWER FAILED");
+        }
+      };
 
-      socket.on("webrtc:ice", async ({ from, candidate }) => {
+      const handleIce = async ({ from, candidate }) => {
+        if (!candidate) return;
+
         const peer = peers.current[from];
 
-        if (!peer || !candidate) return;
+        if (!peer || !peer.remoteDescription) {
+          queueIce(from, candidate);
+          return;
+        }
 
         try {
-          let attempts = 0;
-
-          while (!peer.remoteDescription && attempts < 40) {
-            await new Promise(resolve => setTimeout(resolve, 50));
-            attempts++;
-          }
-
-          if (!peer.remoteDescription) return;
-
-          await peer.addIceCandidate(
-            new RTCIceCandidate(candidate)
-          );
+          await peer.addIceCandidate(candidate);
         } catch (error) {
           console.error("Camera ICE error", error);
         }
-      });
+      };
 
-      socket.emit("camera:join", {
-        room: roomCode,
-        name: "ROAMING 1",
-        slotId: 7
-      });
+      const handleRegistered = ({ slotId, directorAvailable }) => {
+        setSignalStatus(
+          directorAvailable
+            ? `CAM ${String(slotId).padStart(2, "0")} REGISTERED`
+            : `CAM ${String(slotId).padStart(2, "0")} WAITING FOR DIRECTOR`
+        );
+      };
 
+      const handleConnect = () => {
+        setSignalStatus("SIGNAL CONNECTED");
+
+        socket.emit("camera:join", {
+          room: roomCode,
+          name: "ROAMING 1",
+          slotId: 7
+        });
+      };
+
+      const handleDisconnect = () => {
+        setSignalStatus("SIGNAL DISCONNECTED");
+      };
+
+      socket.off("connect");
+      socket.off("disconnect");
+      socket.off("webrtc:offer");
+      socket.off("webrtc:ice");
+      socket.off("camera:registered");
+
+      socket.on("connect", handleConnect);
+      socket.on("disconnect", handleDisconnect);
+      socket.on("webrtc:offer", handleOffer);
+      socket.on("webrtc:ice", handleIce);
+      socket.on("camera:registered", handleRegistered);
+
+      socket.connect();
     } catch (error) {
+      setSignalStatus("CAMERA ACCESS FAILED");
       alert(`Camera access failed: ${error.message}`);
     }
   }
@@ -248,10 +393,17 @@ function App() {
 
     Object.values(peers.current).forEach(peer => peer.close());
     peers.current = {};
+    pendingIce.current = {};
 
+    socket.off("connect");
+    socket.off("disconnect");
+    socket.off("webrtc:offer");
+    socket.off("webrtc:ice");
+    socket.off("camera:registered");
     socket.disconnect();
 
     setStream(null);
+    setSignalStatus("OFFLINE");
   }
 
   function take() {
@@ -305,7 +457,7 @@ function App() {
             <label>CAMERA NAME</label>
             <input defaultValue="ROAMING 1" />
             <div className="operator-status">
-              <span><Wifi size={17}/> Production LAN</span>
+              <span><Wifi size={17}/> {signalStatus}</span>
               <span><BatteryFull size={17}/> Battery</span>
               <span><Mic2 size={17}/> Audio</span>
             </div>
@@ -361,7 +513,7 @@ function App() {
         </div>
 
         <div className="top-actions">
-          <span className="network"><i/> PRODUCTION LAN</span>
+          <span className="network"><i/> {signalStatus}</span>
           <button onClick={() => setShowJoin(true)}><Users size={18}/> ADD CAMERA</button>
           <button className="icon-button"><Settings size={19}/></button>
         </div>
