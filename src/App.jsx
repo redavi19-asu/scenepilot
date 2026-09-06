@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
-import { socket, SIGNAL_URL } from "./socket";
+import { socket } from "./socket";
 import { createPeerConnection } from "./webrtc";
 
 const initialCameras = [
@@ -30,101 +30,37 @@ function App() {
   const [duration, setDuration] = useState(500);
   const [recording, setRecording] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
+  const [showCamera, setShowCamera] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("camera") === "1";
+  });
   const [stream, setStream] = useState(null);
   const cameraVideo = useRef(null);
+  const remoteVideos = useRef({});
   const peers = useRef({});
-  const pendingIce = useRef({});
   const [remoteStreams, setRemoteStreams] = useState({});
   const [wirelessCameras, setWirelessCameras] = useState([]);
 
   const roomCode = "SP-4827";
   const joinUrl =
-    `${SIGNAL_URL}/camera?room=${encodeURIComponent(roomCode)}`;
+    `${window.location.origin}${window.location.pathname}?camera=1&room=${roomCode}`;
 
-  function queueIceCandidate(peerId, candidate) {
-    if (!candidate) return;
-
-    if (!pendingIce.current[peerId]) {
-      pendingIce.current[peerId] = [];
-    }
-
-    pendingIce.current[peerId].push(candidate);
-  }
-
-  async function addOrQueueIceCandidate(peerId, candidate) {
-    if (!candidate) return;
-
-    const peer = peers.current[peerId];
-
-    if (!peer || !peer.remoteDescription) {
-      queueIceCandidate(peerId, candidate);
-      return;
-    }
-
-    try {
-      await peer.addIceCandidate(candidate);
-    } catch (error) {
-      console.error("ScenePilot ICE error", error);
-    }
-  }
-
-  async function flushIceCandidates(peerId) {
-    const peer = peers.current[peerId];
-
-    if (!peer || !peer.remoteDescription) return;
-
-    const queued = pendingIce.current[peerId] || [];
-    delete pendingIce.current[peerId];
-
-    for (const candidate of queued) {
-      try {
-        await peer.addIceCandidate(candidate);
-      } catch (error) {
-        console.error("ScenePilot queued ICE error", error);
-      }
-    }
-  }
-
-  useEffect(() => {
+   useEffect(() => {
     if (showCamera) return;
 
-    const upsertCamera = camera => {
+    socket.connect();
+
+    socket.emit("director:join", { room: roomCode });
+
+    socket.on("room:cameras", list => {
+      setWirelessCameras(list);
+    });
+
+    socket.on("camera:joined", async camera => {
       setWirelessCameras(prev => {
-        const index = prev.findIndex(
-          item => item.socketId === camera.socketId
-        );
-
-        if (index === -1) {
-          return [...prev, camera];
-        }
-
-        const next = [...prev];
-        next[index] = camera;
-        return next;
+        if (prev.some(c => c.socketId === camera.socketId)) return prev;
+        return [...prev, camera];
       });
-    };
-
-    const removeRemoteCamera = socketId => {
-      peers.current[socketId]?.close();
-      delete peers.current[socketId];
-      delete pendingIce.current[socketId];
-
-      setWirelessCameras(prev =>
-        prev.filter(camera => camera.socketId !== socketId)
-      );
-
-      setRemoteStreams(prev => {
-        const next = { ...prev };
-        delete next[socketId];
-        return next;
-      });
-    };
-
-    const startDirectorPeer = async camera => {
-      if (!camera?.socketId || peers.current[camera.socketId]) {
-        return;
-      }
 
       const peer = createPeerConnection({
         onIceCandidate: candidate => {
@@ -139,132 +75,79 @@ function App() {
             ...prev,
             [camera.socketId]: incomingStream
           }));
-        },
-
-        onConnectionState: state => {
-          if (state === "failed" || state === "closed") {
-            setRemoteStreams(prev => {
-              const next = { ...prev };
-              delete next[camera.socketId];
-              return next;
-            });
-          }
         }
       });
 
       peers.current[camera.socketId] = peer;
 
-      peer.addTransceiver("video", {
-        direction: "recvonly"
+      const offer = await peer.createOffer({
+        offerToReceiveVideo: true,
+        offerToReceiveAudio: true
       });
 
-      peer.addTransceiver("audio", {
-        direction: "recvonly"
+      await peer.setLocalDescription(offer);
+
+      socket.emit("webrtc:offer", {
+        target: camera.socketId,
+        offer
       });
+    });
 
-      try {
-        const offer = await peer.createOffer();
-        await peer.setLocalDescription(offer);
-
-        socket.emit("webrtc:offer", {
-          target: camera.socketId,
-          offer: peer.localDescription
-        });
-      } catch (error) {
-        console.error("ScenePilot offer error", error);
-        removeRemoteCamera(camera.socketId);
-      }
-    };
-
-    const handleRoomCameras = list => {
-      setWirelessCameras(list);
-
-      list.forEach(camera => {
-        startDirectorPeer(camera);
-      });
-
-      const firstCamera = list[0];
-      if (firstCamera?.slotId) {
-        setPreview(firstCamera.slotId);
-      }
-    };
-
-    const handleCameraJoined = camera => {
-      upsertCamera(camera);
-
-      if (camera.slotId) {
-        setPreview(camera.slotId);
-      }
-
-      startDirectorPeer(camera);
-    };
-
-    const handleAnswer = async ({ from, answer }) => {
+    socket.on("webrtc:answer", async ({ from, answer }) => {
       const peer = peers.current[from];
       if (!peer) return;
 
+      await peer.setRemoteDescription(
+        new RTCSessionDescription(answer)
+      );
+    });
+
+    socket.on("webrtc:ice", async ({ from, candidate }) => {
+      const peer = peers.current[from];
+      if (!peer || !candidate) return;
+
       try {
-        await peer.setRemoteDescription(answer);
-        await flushIceCandidates(from);
+        let attempts = 0;
+
+        while (!peer.remoteDescription && attempts < 40) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          attempts++;
+        }
+
+        if (!peer.remoteDescription) return;
+
+        await peer.addIceCandidate(
+          new RTCIceCandidate(candidate)
+        );
       } catch (error) {
-        console.error("ScenePilot answer error", error);
+        console.error("ICE error", error);
       }
-    };
+    });
 
-    const handleIce = ({ from, candidate }) => {
-      addOrQueueIceCandidate(from, candidate);
-    };
+    socket.on("camera:left", ({ socketId }) => {
+      peers.current[socketId]?.close();
+      delete peers.current[socketId];
 
-    const handleCameraLeft = ({ socketId }) => {
-      removeRemoteCamera(socketId);
-    };
+      setWirelessCameras(prev =>
+        prev.filter(c => c.socketId !== socketId)
+      );
 
-    const joinDirector = () => {
-      socket.emit("director:join", {
-        room: roomCode,
-        visible: !document.hidden
+      setRemoteStreams(prev => {
+        const next = { ...prev };
+        delete next[socketId];
+        return next;
       });
-    };
-
-    const claimDirector = () => {
-      if (!document.hidden && socket.connected) {
-        socket.emit("director:focus", {
-          room: roomCode
-        });
-      }
-    };
-
-    socket.on("room:cameras", handleRoomCameras);
-    socket.on("camera:joined", handleCameraJoined);
-    socket.on("webrtc:answer", handleAnswer);
-    socket.on("webrtc:ice", handleIce);
-    socket.on("camera:left", handleCameraLeft);
-    socket.on("connect", joinDirector);
-
-    window.addEventListener("focus", claimDirector);
-    document.addEventListener("visibilitychange", claimDirector);
-
-    if (socket.connected) {
-      joinDirector();
-      claimDirector();
-    } else {
-      socket.connect();
-    }
+    });
 
     return () => {
-      socket.off("room:cameras", handleRoomCameras);
-      socket.off("camera:joined", handleCameraJoined);
-      socket.off("webrtc:answer", handleAnswer);
-      socket.off("webrtc:ice", handleIce);
-      socket.off("camera:left", handleCameraLeft);
-      socket.off("connect", joinDirector);
-
-      window.removeEventListener("focus", claimDirector);
-      document.removeEventListener("visibilitychange", claimDirector);
+      socket.off("room:cameras");
+      socket.off("camera:joined");
+      socket.off("webrtc:answer");
+      socket.off("webrtc:ice");
+      socket.off("camera:left");
 
       Object.values(peers.current).forEach(peer => peer.close());
       peers.current = {};
-      pendingIce.current = {};
 
       socket.disconnect();
     };
@@ -289,10 +172,12 @@ function App() {
 
       setStream(media);
 
-      const handleOffer = async ({ from, offer }) => {
-        peers.current[from]?.close();
-        delete peers.current[from];
+      socket.connect();
 
+      socket.off("webrtc:offer");
+      socket.off("webrtc:ice");
+
+      socket.on("webrtc:offer", async ({ from, offer }) => {
         const peer = createPeerConnection({
           onIceCandidate: candidate => {
             socket.emit("webrtc:ice", {
@@ -308,47 +193,48 @@ function App() {
           peer.addTrack(track, media);
         });
 
-        try {
-          await peer.setRemoteDescription(offer);
-          await flushIceCandidates(from);
+        await peer.setRemoteDescription(
+          new RTCSessionDescription(offer)
+        );
 
-          const answer = await peer.createAnswer();
-          await peer.setLocalDescription(answer);
+        const answer = await peer.createAnswer();
 
-          socket.emit("webrtc:answer", {
-            target: from,
-            answer: peer.localDescription
-          });
-        } catch (error) {
-          console.error("ScenePilot camera answer error", error);
-        }
-      };
+        await peer.setLocalDescription(answer);
 
-      const handleIce = ({ from, candidate }) => {
-        addOrQueueIceCandidate(from, candidate);
-      };
-
-      const joinCamera = () => {
-        socket.emit("camera:join", {
-          room: roomCode,
-          name: "ROAMING 1",
-          slotId: 7
+        socket.emit("webrtc:answer", {
+          target: from,
+          answer
         });
-      };
+      });
 
-      socket.off("webrtc:offer");
-      socket.off("webrtc:ice");
-      socket.off("connect");
+      socket.on("webrtc:ice", async ({ from, candidate }) => {
+        const peer = peers.current[from];
 
-      socket.on("webrtc:offer", handleOffer);
-      socket.on("webrtc:ice", handleIce);
-      socket.on("connect", joinCamera);
+        if (!peer || !candidate) return;
 
-      if (socket.connected) {
-        joinCamera();
-      } else {
-        socket.connect();
-      }
+        try {
+          let attempts = 0;
+
+          while (!peer.remoteDescription && attempts < 40) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            attempts++;
+          }
+
+          if (!peer.remoteDescription) return;
+
+          await peer.addIceCandidate(
+            new RTCIceCandidate(candidate)
+          );
+        } catch (error) {
+          console.error("Camera ICE error", error);
+        }
+      });
+
+      socket.emit("camera:join", {
+        room: roomCode,
+        name: "WIRELESS CAMERA"
+      });
+
     } catch (error) {
       alert(`Camera access failed: ${error.message}`);
     }
@@ -359,11 +245,7 @@ function App() {
 
     Object.values(peers.current).forEach(peer => peer.close());
     peers.current = {};
-    pendingIce.current = {};
 
-    socket.off("webrtc:offer");
-    socket.off("webrtc:ice");
-    socket.off("connect");
     socket.disconnect();
 
     setStream(null);
@@ -451,23 +333,6 @@ function App() {
   const programCam = cameras.find(c => c.id === program);
   const previewCam = cameras.find(c => c.id === preview);
 
-  const cameraForSlot = slotId =>
-    wirelessCameras.find(camera => camera.slotId === slotId);
-
-  const streamForSlot = slotId => {
-    const camera = cameraForSlot(slotId);
-    return camera ? remoteStreams[camera.socketId] : null;
-  };
-
-  const previewStream = streamForSlot(preview);
-  const programStream = streamForSlot(program);
-
-  const connectedCount = cameras.filter(
-    camera =>
-      camera.status !== "OFFLINE" ||
-      Boolean(cameraForSlot(camera.id))
-  ).length;
-
   return (
     <div className="console">
       <header className="topbar">
@@ -499,29 +364,11 @@ function App() {
               <strong>PVW</strong>
             </div>
             <div className="screen">
-              {previewStream ? (
-                <video
-                  autoPlay
-                  playsInline
-                  muted
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover"
-                  }}
-                  ref={el => {
-                    if (el && el.srcObject !== previewStream) {
-                      el.srcObject = previewStream;
-                    }
-                  }}
-                />
-              ) : (
-                <div className="fake-feed preview-feed">
-                  <Camera size={54}/>
-                  <strong>CAM {String(preview).padStart(2,"0")}</strong>
-                  <span>{previewCam?.name}</span>
-                </div>
-              )}
+              <div className="fake-feed preview-feed">
+                <Camera size={54}/>
+                <strong>CAM {String(preview).padStart(2,"0")}</strong>
+                <span>{previewCam?.name}</span>
+              </div>
               <span className="source-tag">CAM {preview}</span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
             </div>
@@ -533,29 +380,11 @@ function App() {
               <strong>PGM</strong>
             </div>
             <div className="screen">
-              {programStream ? (
-                <video
-                  autoPlay
-                  playsInline
-                  muted
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover"
-                  }}
-                  ref={el => {
-                    if (el && el.srcObject !== programStream) {
-                      el.srcObject = programStream;
-                    }
-                  }}
-                />
-              ) : (
-                <div className="fake-feed program-feed">
-                  <Camera size={54}/>
-                  <strong>CAM {String(program).padStart(2,"0")}</strong>
-                  <span>{programCam?.name}</span>
-                </div>
-              )}
+              <div className="fake-feed program-feed">
+                <Camera size={54}/>
+                <strong>CAM {String(program).padStart(2,"0")}</strong>
+                <span>{programCam?.name}</span>
+              </div>
               <span className="live-badge"><i/> LIVE</span>
               <span className="source-tag">CAM {program}</span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
@@ -566,59 +395,56 @@ function App() {
         <section className="camera-bank">
           <div className="section-title">
             <div><span>SOURCES</span><strong>CAMERA MULTIVIEW</strong></div>
-            <span>{connectedCount} / 9 CONNECTED</span>
+            <span>{cameras.filter(c => c.status !== "OFFLINE").length} / 9 CONNECTED</span>
           </div>
 
           <div className="camera-grid">
-            {cameras.map(cam => {
-              const wirelessCamera = cameraForSlot(cam.id);
-              const liveStream = streamForSlot(cam.id);
-              const isOffline =
-                cam.status === "OFFLINE" && !wirelessCamera;
+            {cameras.map(cam => (
+              <button
+                key={cam.id}
+                disabled={cam.status === "OFFLINE"}
+                onClick={() => setPreview(cam.id)}
+                className={`camera-tile
+                  ${cam.id === program ? "is-program" : ""}
+                  ${cam.id === preview ? "is-preview" : ""}
+                  ${cam.status === "OFFLINE" ? "offline" : ""}`}
+              >
+                <div className="tile-feed">
+                  {wirelessCameras[cam.id - 1] &&
+                   remoteStreams[wirelessCameras[cam.id - 1].socketId] ? (
+                    <video
+                      autoPlay
+                      playsInline
+                      muted
+                      ref={el => {
+                        if (el) {
+                          el.srcObject =
+                            remoteStreams[
+                              wirelessCameras[cam.id - 1].socketId
+                            ];
+                        }
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <Camera size={27}/>
+                      <span>CAM {String(cam.id).padStart(2,"0")}</span>
+                    </>
+                  )}
+                </div>
 
-              return (
-                <button
-                  key={cam.id}
-                  disabled={isOffline}
-                  onClick={() => setPreview(cam.id)}
-                  className={`camera-tile
-                    ${cam.id === program ? "is-program" : ""}
-                    ${cam.id === preview ? "is-preview" : ""}
-                    ${isOffline ? "offline" : ""}`}
-                >
-                  <div className="tile-feed">
-                    {liveStream ? (
-                      <video
-                        autoPlay
-                        playsInline
-                        muted
-                        ref={el => {
-                          if (el && el.srcObject !== liveStream) {
-                            el.srcObject = liveStream;
-                          }
-                        }}
-                      />
-                    ) : (
-                      <>
-                        <Camera size={27}/>
-                        <span>CAM {String(cam.id).padStart(2,"0")}</span>
-                      </>
-                    )}
+                <div className="tile-meta">
+                  <strong>{cam.name}</strong>
+                  <div>
+                    <span><Wifi size={12}/>{cam.signal || "—"}</span>
+                    <span><BatteryFull size={13}/>{cam.battery || "—"}%</span>
                   </div>
+                </div>
 
-                  <div className="tile-meta">
-                    <strong>{wirelessCamera?.name || cam.name}</strong>
-                    <div>
-                      <span><Wifi size={12}/>{cam.signal || "—"}</span>
-                      <span><BatteryFull size={13}/>{cam.battery || "—"}%</span>
-                    </div>
-                  </div>
-
-                  {cam.id === program && <span className="bus-label pgm">PGM</span>}
-                  {cam.id === preview && <span className="bus-label pvw">PVW</span>}
-                </button>
-              );
-            })}
+                {cam.id === program && <span className="bus-label pgm">PGM</span>}
+                {cam.id === preview && <span className="bus-label pvw">PVW</span>}
+              </button>
+            ))}
           </div>
         </section>
 
