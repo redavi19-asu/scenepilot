@@ -151,3 +151,28 @@ footer span:last-child{margin-left:auto}
 .camera-tile:has(video) .tile-meta strong{
   color:#f2f2ed;
 }
+
+
+.quality-row{margin-top:12px}
+.quality-row label{display:block;margin-bottom:6px}
+.quality-row select{
+  width:100%;
+  background:#101210;
+  border:1px solid #4b4e48;
+  color:white;
+  padding:11px;
+  font:inherit
+}
+.tips-trigger{display:flex;align-items:center;justify-content:center;gap:7px}
+.tips-modal{text-align:left}
+.tips-modal .join-icon,.tips-modal .eyebrow,.tips-modal h2{text-align:center}
+.tips-list{margin-top:18px;display:grid;gap:9px}
+.tips-list p{
+  margin:0;
+  padding:10px 11px;
+  border:1px solid #c9c6bd;
+  background:#f4f1e8;
+  color:#464841;
+  line-height:1.45
+}
+.tips-list strong{color:#171915}
