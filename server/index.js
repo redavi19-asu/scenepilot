@@ -91,7 +91,7 @@ io.on("connection", socket => {
 
   socket.on(
     "camera:join",
-    ({ room, name }) => {
+    ({ room, name, slotId }) => {
       socket.join(room);
 
       socket.data.room = room;
@@ -104,6 +104,7 @@ io.on("connection", socket => {
       const camera = {
         socketId: socket.id,
         name: name || "WIRELESS CAMERA",
+        slotId: Number(slotId) || null,
         connected: true
       };
 
@@ -118,6 +119,12 @@ io.on("connection", socket => {
           camera
         );
 
+      socket.emit("camera:registered", {
+        slotId: camera.slotId,
+        directorAvailable: [...io.sockets.adapter.rooms.get(room) || []]
+          .some(id => io.sockets.sockets.get(id)?.data?.role === "director")
+      });
+
       console.log(
         "CAMERA JOINED:",
         room,
@@ -125,6 +132,19 @@ io.on("connection", socket => {
       );
     }
   );
+
+  socket.on("program:update", ({ room, liveSlots }) => {
+    if (socket.data.role !== "director") return;
+
+    const targetRoom = room || socket.data.room;
+    if (!targetRoom) return;
+
+    io.to(targetRoom).emit("program:status", {
+      liveSlots: Array.isArray(liveSlots)
+        ? liveSlots.map(Number).filter(Number.isFinite)
+        : []
+    });
+  });
 
   socket.on(
     "webrtc:offer",
