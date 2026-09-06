@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
-import { socket } from "./socket";
+import { socket, SIGNAL_URL } from "./socket";
 import { createPeerConnection } from "./webrtc";
 
 const initialCameras = [
@@ -30,26 +30,7 @@ function App() {
   const [duration, setDuration] = useState(500);
   const [recording, setRecording] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
-  const [showCamera, setShowCamera] = useState(() => {
-    const search = new URLSearchParams(window.location.search);
-    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    const explicitDirector = search.get("director") === "1";
-
-    const ua = navigator.userAgent || "";
-    const mobileLike =
-      /iPhone|iPad|iPod|Android|Mobile/i.test(ua) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-    return (
-      !explicitDirector &&
-      (
-        window.location.pathname.endsWith("/camera") ||
-        search.get("camera") === "1" ||
-        hash.get("camera") === "1" ||
-        mobileLike
-      )
-    );
-  });
+  const [showCamera, setShowCamera] = useState(false);
   const [stream, setStream] = useState(null);
   const cameraVideo = useRef(null);
   const peers = useRef({});
@@ -59,7 +40,7 @@ function App() {
 
   const roomCode = "SP-4827";
   const joinUrl =
-    `${window.location.origin}/camera?camera=1#camera=1`;
+    `${SIGNAL_URL}/camera?room=${encodeURIComponent(roomCode)}`;
 
   function queueIceCandidate(peerId, candidate) {
     if (!candidate) return;
