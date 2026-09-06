@@ -46,6 +46,11 @@ class ScenePilotSocket {
     });
   }
 
+  setRoom(room) {
+    this.room = room || null;
+    return this;
+  }
+
   connect() {
     this.wantConnected = true;
     this.manualClose = false;
