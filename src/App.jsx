@@ -49,6 +49,7 @@ function App() {
   const [remoteStreams, setRemoteStreams] = useState({});
   const [wirelessCameras, setWirelessCameras] = useState([]);
   const [signalStatus, setSignalStatus] = useState("OFFLINE");
+  const [isOnAir, setIsOnAir] = useState(false);
   const [assignedSlot, setAssignedSlot] = useState(7);
   const [cameraName, setCameraName] = useState("ROAMING 1");
   const [qualityProfile, setQualityProfile] = useState("1080p");
@@ -304,6 +305,19 @@ function App() {
       cameraVideo.current.srcObject = stream;
     }
   }, [stream, showCamera]);
+
+  useEffect(() => {
+    if (showCamera || !socket.connected) return;
+
+    const liveSlots = programComposition.mode === "single"
+      ? [programComposition.primary]
+      : [programComposition.primary, programComposition.secondary].filter(Boolean);
+
+    socket.emit("program:update", {
+      room: roomCode,
+      liveSlots
+    });
+  }, [showCamera, roomCode, programComposition]);
 
   function readZoomCapability(mediaStream) {
     const videoTrack = mediaStream?.getVideoTracks?.()[0];
@@ -565,13 +579,19 @@ function App() {
       };
 
       const handleRegistered = ({ slotId, directorAvailable }) => {
-        setAssignedSlot(slotId);
+        if (slotId) {
+          setAssignedSlot(slotId);
+        }
 
         setSignalStatus(
           directorAvailable
-            ? `CAM ${String(slotId).padStart(2, "0")} REGISTERED`
-            : `CAM ${String(slotId).padStart(2, "0")} WAITING FOR DIRECTOR`
+            ? `CAM ${String(slotId || assignedSlot).padStart(2, "0")} CONNECTED / READY`
+            : `CAM ${String(slotId || assignedSlot).padStart(2, "0")} WAITING FOR DIRECTOR`
         );
+      };
+
+      const handleProgramStatus = ({ liveSlots = [] }) => {
+        setIsOnAir(liveSlots.map(Number).includes(Number(assignedSlot)));
       };
 
       const handleConnect = () => {
@@ -593,12 +613,14 @@ function App() {
       socket.off("webrtc:offer");
       socket.off("webrtc:ice");
       socket.off("camera:registered");
+      socket.off("program:status");
 
       socket.on("connect", handleConnect);
       socket.on("disconnect", handleDisconnect);
       socket.on("webrtc:offer", handleOffer);
       socket.on("webrtc:ice", handleIce);
       socket.on("camera:registered", handleRegistered);
+      socket.on("program:status", handleProgramStatus);
 
       socket.setRoom(roomCode);
       socket.connect();
@@ -620,9 +642,11 @@ function App() {
     socket.off("webrtc:offer");
     socket.off("webrtc:ice");
     socket.off("camera:registered");
+    socket.off("program:status");
     socket.disconnect();
 
     setStream(null);
+    setIsOnAir(false);
     setZoomRange(null);
     setZoomValue(1);
     setSignalStatus("OFFLINE");
@@ -684,7 +708,29 @@ function App() {
 
             {stream && (
               <>
-                <span className="operator-live"><i /> CONNECTED</span>
+                <span className={`operator-live ${isOnAir ? "on-air" : "ready"}`}>
+                  <i /> {isOnAir ? "YOU ARE LIVE" : "CONNECTED / READY"}
+                </span>
+
+                <div className={`on-air-banner ${isOnAir ? "live" : "standby"}`}>
+                  {isOnAir ? (
+                    <>
+                      <Radio size={22}/>
+                      <div>
+                        <strong>YOU ARE ON AIR</strong>
+                        <span>CAMERA {String(assignedSlot).padStart(2, "0")} IS LIVE</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Camera size={22}/>
+                      <div>
+                        <strong>CONNECTED — STANDBY</strong>
+                        <span>Camera feed is ready for the director.</span>
+                      </div>
+                    </>
+                  )}
+                </div>
 
                 <div className="camera-live-controls">
                   <button
@@ -789,7 +835,7 @@ function App() {
             )}
 
             <div className="operator-status">
-              <span><Wifi size={17}/> {signalStatus}</span>
+              <span><Wifi size={17}/> {isOnAir ? "ON AIR" : signalStatus}</span>
               <span><BatteryFull size={17}/> Battery</span>
               <span><Mic2 size={17}/> Audio</span>
             </div>
