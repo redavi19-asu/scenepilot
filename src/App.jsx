@@ -41,9 +41,11 @@ function App() {
   const [remoteStreams, setRemoteStreams] = useState({});
   const [wirelessCameras, setWirelessCameras] = useState([]);
 
-  const roomCode = "SP-4827";
+  const roomCode =
+    new URLSearchParams(window.location.search).get("room") || "SP-4827";
+
   const joinUrl =
-    `${window.location.origin}${window.location.pathname}?camera=1&room=${roomCode}`;
+    `${window.location.origin}${window.location.pathname}?camera=1&room=${encodeURIComponent(roomCode)}`;
 
    useEffect(() => {
     if (showCamera) return;
@@ -232,7 +234,8 @@ function App() {
 
       socket.emit("camera:join", {
         room: roomCode,
-        name: "WIRELESS CAMERA"
+        name: "ROAMING 1",
+        slotId: 7
       });
 
     } catch (error) {
@@ -333,6 +336,14 @@ function App() {
   const programCam = cameras.find(c => c.id === program);
   const previewCam = cameras.find(c => c.id === preview);
 
+  const cameraForSlot = slotId =>
+    wirelessCameras.find(camera => camera.slotId === slotId);
+
+  const streamForSlot = slotId => {
+    const camera = cameraForSlot(slotId);
+    return camera ? remoteStreams[camera.socketId] : null;
+  };
+
   return (
     <div className="console">
       <header className="topbar">
@@ -410,18 +421,20 @@ function App() {
                   ${cam.status === "OFFLINE" ? "offline" : ""}`}
               >
                 <div className="tile-feed">
-                  {wirelessCameras[cam.id - 1] &&
-                   remoteStreams[wirelessCameras[cam.id - 1].socketId] ? (
+                  {streamForSlot(cam.id) ? (
                     <video
                       autoPlay
                       playsInline
                       muted
                       ref={el => {
-                        if (el) {
-                          el.srcObject =
-                            remoteStreams[
-                              wirelessCameras[cam.id - 1].socketId
-                            ];
+                        const liveStream = streamForSlot(cam.id);
+
+                        if (
+                          el &&
+                          liveStream &&
+                          el.srcObject !== liveStream
+                        ) {
+                          el.srcObject = liveStream;
                         }
                       }}
                     />
