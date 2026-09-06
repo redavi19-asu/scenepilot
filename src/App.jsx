@@ -3,7 +3,7 @@ import {
   Radio, Circle, Mic2, Volume2, Wifi, BatteryFull,
   Settings, Maximize2, MonitorUp, Users, QrCode,
   Type, Layers, PictureInPicture2, Video, Camera,
-  Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut,
+  Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut, PhoneOff, ShieldCheck,
   Scissors, Play, Save, Download, SkipBack, Film
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -53,6 +53,9 @@ function App() {
   const [cameraName, setCameraName] = useState("ROAMING 1");
   const [qualityProfile, setQualityProfile] = useState("1080p");
   const [showTips, setShowTips] = useState(false);
+  const [showCallShield, setShowCallShield] = useState(false);
+  const [liveShieldEnabled, setLiveShieldEnabled] = useState(false);
+  const wakeLock = useRef(null);
   const [facingMode, setFacingMode] = useState("environment");
   const [zoomRange, setZoomRange] = useState(null);
   const [zoomValue, setZoomValue] = useState(1);
@@ -416,6 +419,32 @@ function App() {
     }
   }
 
+  async function enableLiveShield() {
+    setLiveShieldEnabled(true);
+
+    try {
+      if ("wakeLock" in navigator) {
+        wakeLock.current = await navigator.wakeLock.request("screen");
+      }
+    } catch (error) {
+      console.warn("ScenePilot wake lock unavailable", error);
+    }
+
+    setShowCallShield(true);
+  }
+
+  async function disableLiveShield() {
+    setLiveShieldEnabled(false);
+
+    try {
+      await wakeLock.current?.release?.();
+    } catch (error) {
+      console.warn("ScenePilot wake lock release failed", error);
+    }
+
+    wakeLock.current = null;
+  }
+
   async function enableCamera() {
     try {
       setSignalStatus("REQUESTING CAMERA");
@@ -597,6 +626,7 @@ function App() {
     setZoomRange(null);
     setZoomValue(1);
     setSignalStatus("OFFLINE");
+    disableLiveShield();
   }
 
   function take() {
@@ -659,33 +689,48 @@ function App() {
                 <div className="camera-live-controls">
                   <button
                     type="button"
-                    onClick={flipCamera}
-                    title="Switch front / rear camera"
-                  >
-                    <RefreshCw size={19}/>
-                    <span>FLIP</span>
-                  </button>
-
-                  <button
-                    type="button"
+                    className="camera-control-button"
                     onClick={() => changeZoom(-1)}
                     disabled={!zoomRange || zoomValue <= zoomRange.min}
-                    title={zoomRange ? "Zoom out" : "Zoom unavailable on this device"}
+                    title={zoomRange ? "Zoom out" : "Optical zoom is unavailable on this camera"}
                   >
-                    <ZoomOut size={19}/>
+                    <ZoomOut size={24}/>
+                    <span>ZOOM OUT</span>
                   </button>
 
                   <span className="zoom-readout">
-                    {zoomRange ? `${zoomValue.toFixed(1)}×` : "ZOOM N/A"}
+                    {zoomRange ? `${zoomValue.toFixed(1)}×` : "1.0×"}
                   </span>
 
                   <button
                     type="button"
+                    className="camera-control-button"
                     onClick={() => changeZoom(1)}
                     disabled={!zoomRange || zoomValue >= zoomRange.max}
-                    title={zoomRange ? "Zoom in" : "Zoom unavailable on this device"}
+                    title={zoomRange ? "Zoom in" : "Optical zoom is unavailable on this camera"}
                   >
-                    <ZoomIn size={19}/>
+                    <ZoomIn size={24}/>
+                    <span>ZOOM IN</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="camera-control-button flip-control"
+                    onClick={flipCamera}
+                    title="Switch front / rear camera"
+                  >
+                    <RefreshCw size={24}/>
+                    <span>SWITCH CAMERA</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`camera-control-button shield-control ${liveShieldEnabled ? "active" : ""}`}
+                    onClick={liveShieldEnabled ? disableLiveShield : enableLiveShield}
+                    title="Protect the live camera session from interruptions"
+                  >
+                    {liveShieldEnabled ? <ShieldCheck size={24}/> : <PhoneOff size={24}/>}
+                    <span>{liveShieldEnabled ? "LIVE SHIELD ON" : "LIVE SHIELD"}</span>
                   </button>
                 </div>
 
@@ -772,6 +817,33 @@ function App() {
             Return to Director
           </button>
         </main>
+
+        {showCallShield && (
+          <div className="modal-backdrop" onClick={() => setShowCallShield(false)}>
+            <div className="join-modal call-shield-modal" onClick={e => e.stopPropagation()}>
+              <button className="modal-close" onClick={() => setShowCallShield(false)}><X/></button>
+              <div className="join-icon"><PhoneOff size={29}/></div>
+              <span className="eyebrow">SCENEPILOT LIVE SHIELD</span>
+              <h2>Protect this camera phone</h2>
+              <p>
+                ScenePilot will keep the screen awake while Live Shield is on. Your browser cannot
+                turn off cellular calls by itself, so enable the phone's Focus / Do Not Disturb mode
+                before going live.
+              </p>
+              <div className="call-shield-steps">
+                <strong>iPHONE</strong>
+                <span>Open Control Center → Focus → Do Not Disturb.</span>
+                <span>For the cleanest live session, silence people/apps and disable repeated-call bypass.</span>
+                <strong>ANDROID</strong>
+                <span>Open Quick Settings → Do Not Disturb.</span>
+                <span>Set calls, messages and app interruptions to none for the production.</span>
+              </div>
+              <button className="camera-demo" onClick={() => setShowCallShield(false)}>
+                DONE — RETURN TO CAMERA
+              </button>
+            </div>
+          </div>
+        )}
 
         {showTips && (
           <div className="modal-backdrop" onClick={() => setShowTips(false)}>
