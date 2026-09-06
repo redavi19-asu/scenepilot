@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
+import { socket } from "./socket";
+import { createPeerConnection } from "./webrtc";
 
 const initialCameras = [
   { id: 1, name: "STAGE LEFT", status: "LIVE", battery: 92, signal: 4 },
@@ -31,6 +33,10 @@ function App() {
   const [showCamera, setShowCamera] = useState(false);
   const [stream, setStream] = useState(null);
   const cameraVideo = useRef(null);
+  const remoteVideos = useRef({});
+  const peers = useRef({});
+  const [remoteStreams, setRemoteStreams] = useState({});
+  const [wirelessCameras, setWirelessCameras] = useState([]);
 
   const roomCode = "SP-4827";
   const joinUrl = `${window.location.origin}${window.location.pathname}?camera=1&room=${roomCode}`;
@@ -39,6 +45,105 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("camera") === "1") setShowCamera(true);
   }, []);
+
+  useEffect(() => {
+    if (showCamera) return;
+
+    socket.connect();
+
+    socket.emit("director:join", { room: roomCode });
+
+    socket.on("room:cameras", list => {
+      setWirelessCameras(list);
+    });
+
+    socket.on("camera:joined", async camera => {
+      setWirelessCameras(prev => {
+        if (prev.some(c => c.socketId === camera.socketId)) return prev;
+        return [...prev, camera];
+      });
+
+      const peer = createPeerConnection({
+        onIceCandidate: candidate => {
+          socket.emit("webrtc:ice", {
+            target: camera.socketId,
+            candidate
+          });
+        },
+
+        onTrack: incomingStream => {
+          setRemoteStreams(prev => ({
+            ...prev,
+            [camera.socketId]: incomingStream
+          }));
+        }
+      });
+
+      peers.current[camera.socketId] = peer;
+
+      const offer = await peer.createOffer({
+        offerToReceiveVideo: true,
+        offerToReceiveAudio: true
+      });
+
+      await peer.setLocalDescription(offer);
+
+      socket.emit("webrtc:offer", {
+        target: camera.socketId,
+        offer
+      });
+    });
+
+    socket.on("webrtc:answer", async ({ from, answer }) => {
+      const peer = peers.current[from];
+      if (!peer) return;
+
+      await peer.setRemoteDescription(
+        new RTCSessionDescription(answer)
+      );
+    });
+
+    socket.on("webrtc:ice", async ({ from, candidate }) => {
+      const peer = peers.current[from];
+      if (!peer || !candidate) return;
+
+      try {
+        await peer.addIceCandidate(
+          new RTCIceCandidate(candidate)
+        );
+      } catch (error) {
+        console.error("ICE error", error);
+      }
+    });
+
+    socket.on("camera:left", ({ socketId }) => {
+      peers.current[socketId]?.close();
+      delete peers.current[socketId];
+
+      setWirelessCameras(prev =>
+        prev.filter(c => c.socketId !== socketId)
+      );
+
+      setRemoteStreams(prev => {
+        const next = { ...prev };
+        delete next[socketId];
+        return next;
+      });
+    });
+
+    return () => {
+      socket.off("room:cameras");
+      socket.off("camera:joined");
+      socket.off("webrtc:answer");
+      socket.off("webrtc:ice");
+      socket.off("camera:left");
+
+      Object.values(peers.current).forEach(peer => peer.close());
+      peers.current = {};
+
+      socket.disconnect();
+    };
+  }, [showCamera]);
 
   useEffect(() => {
     if (cameraVideo.current && stream) {
@@ -56,7 +161,63 @@ function App() {
         },
         audio: true
       });
+
       setStream(media);
+
+      socket.connect();
+
+      socket.emit("camera:join", {
+        room: roomCode,
+        name: "WIRELESS CAMERA"
+      });
+
+      socket.off("webrtc:offer");
+      socket.off("webrtc:ice");
+
+      socket.on("webrtc:offer", async ({ from, offer }) => {
+        const peer = createPeerConnection({
+          onIceCandidate: candidate => {
+            socket.emit("webrtc:ice", {
+              target: from,
+              candidate
+            });
+          }
+        });
+
+        peers.current[from] = peer;
+
+        media.getTracks().forEach(track => {
+          peer.addTrack(track, media);
+        });
+
+        await peer.setRemoteDescription(
+          new RTCSessionDescription(offer)
+        );
+
+        const answer = await peer.createAnswer();
+
+        await peer.setLocalDescription(answer);
+
+        socket.emit("webrtc:answer", {
+          target: from,
+          answer
+        });
+      });
+
+      socket.on("webrtc:ice", async ({ from, candidate }) => {
+        const peer = peers.current[from];
+
+        if (!peer || !candidate) return;
+
+        try {
+          await peer.addIceCandidate(
+            new RTCIceCandidate(candidate)
+          );
+        } catch (error) {
+          console.error("Camera ICE error", error);
+        }
+      });
+
     } catch (error) {
       alert(`Camera access failed: ${error.message}`);
     }
@@ -64,6 +225,12 @@ function App() {
 
   function stopCamera() {
     stream?.getTracks().forEach(track => track.stop());
+
+    Object.values(peers.current).forEach(peer => peer.close());
+    peers.current = {};
+
+    socket.disconnect();
+
     setStream(null);
   }
 
@@ -226,8 +393,27 @@ function App() {
                   ${cam.status === "OFFLINE" ? "offline" : ""}`}
               >
                 <div className="tile-feed">
-                  <Camera size={27}/>
-                  <span>CAM {String(cam.id).padStart(2,"0")}</span>
+                  {wirelessCameras[cam.id - 1] &&
+                   remoteStreams[wirelessCameras[cam.id - 1].socketId] ? (
+                    <video
+                      autoPlay
+                      playsInline
+                      muted
+                      ref={el => {
+                        if (el) {
+                          el.srcObject =
+                            remoteStreams[
+                              wirelessCameras[cam.id - 1].socketId
+                            ];
+                        }
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <Camera size={27}/>
+                      <span>CAM {String(cam.id).padStart(2,"0")}</span>
+                    </>
+                  )}
                 </div>
 
                 <div className="tile-meta">
