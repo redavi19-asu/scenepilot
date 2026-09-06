@@ -13,7 +13,7 @@ function getSignalUrl() {
   ) {
     const signalHost =
       hostname.replace(
-        /-5173\.app\.github\.dev$/,
+        /-\d+\.app\.github\.dev$/,
         "-3001.app.github.dev"
       );
 
