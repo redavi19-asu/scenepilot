@@ -13,6 +13,30 @@ const io = new Server(httpServer, {
 });
 
 const rooms = new Map();
+const WIRELESS_SLOTS = [7, 8, 9];
+
+function chooseCameraSlot(roomMap, requestedSlot, socketId) {
+  const usedSlots = new Set(
+    [...roomMap.values()]
+      .filter(camera => camera.socketId !== socketId)
+      .map(camera => camera.slotId)
+  );
+
+  const requested = Number(requestedSlot);
+
+  if (
+    WIRELESS_SLOTS.includes(requested) &&
+    !usedSlots.has(requested)
+  ) {
+    return requested;
+  }
+
+  return (
+    WIRELESS_SLOTS.find(slot => !usedSlots.has(slot)) ||
+    requested ||
+    7
+  );
+}
 
 app.get("/", (req, res) => {
   res.send(`
@@ -64,6 +88,14 @@ io.on("connection", socket => {
   console.log("CONNECTED:", socket.id);
 
   socket.on("director:join", ({ room }) => {
+    if (socket.data.role === "camera") {
+      console.log(
+        "IGNORED DIRECTOR JOIN FROM CAMERA:",
+        socket.id
+      );
+      return;
+    }
+
     socket.join(room);
 
     socket.data.room = room;
@@ -91,7 +123,7 @@ io.on("connection", socket => {
 
   socket.on(
     "camera:join",
-    ({ room, name }) => {
+    ({ room, name, slotId }) => {
       socket.join(room);
 
       socket.data.room = room;
@@ -101,15 +133,21 @@ io.on("connection", socket => {
         rooms.set(room, new Map());
       }
 
+      const roomMap = rooms.get(room);
+      const assignedSlot = chooseCameraSlot(
+        roomMap,
+        slotId,
+        socket.id
+      );
+
       const camera = {
         socketId: socket.id,
         name: name || "WIRELESS CAMERA",
-        connected: true
+        connected: true,
+        slotId: assignedSlot
       };
 
-      rooms
-        .get(room)
-        .set(socket.id, camera);
+      roomMap.set(socket.id, camera);
 
       socket
         .to(room)
@@ -121,7 +159,9 @@ io.on("connection", socket => {
       console.log(
         "CAMERA JOINED:",
         room,
-        socket.id
+        socket.id,
+        "CAM",
+        assignedSlot
       );
     }
   );
