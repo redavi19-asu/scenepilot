@@ -55,12 +55,37 @@ function App() {
   const [facingMode, setFacingMode] = useState("environment");
   const [zoomRange, setZoomRange] = useState(null);
   const [zoomValue, setZoomValue] = useState(1);
+  const [videoInputs, setVideoInputs] = useState([]);
+  const [selectedVideoDevice, setSelectedVideoDevice] = useState("");
 
   const roomCode =
     new URLSearchParams(window.location.search).get("room") || "SP-4827";
 
   const joinUrl =
     `${window.location.origin}${window.location.pathname}?camera=1&room=${encodeURIComponent(roomCode)}`;
+
+  async function refreshVideoInputs() {
+    try {
+      const devices = await navigator.mediaDevices?.enumerateDevices?.();
+      const cameras = (devices || []).filter(device => device.kind === "videoinput");
+      setVideoInputs(cameras);
+    } catch (error) {
+      console.warn("ScenePilot camera source discovery unavailable", error);
+    }
+  }
+
+  useEffect(() => {
+    if (!showCamera || !navigator.mediaDevices) return;
+
+    refreshVideoInputs();
+
+    const handleDeviceChange = () => refreshVideoInputs();
+    navigator.mediaDevices.addEventListener?.("devicechange", handleDeviceChange);
+
+    return () => {
+      navigator.mediaDevices.removeEventListener?.("devicechange", handleDeviceChange);
+    };
+  }, [showCamera]);
 
    useEffect(() => {
     if (showCamera) return;
@@ -328,6 +353,8 @@ function App() {
     try {
       setSignalStatus("SWITCHING CAMERA");
 
+      setSelectedVideoDevice("");
+
       const replacement = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: nextFacing },
@@ -386,18 +413,28 @@ function App() {
 
       const profile = qualityProfiles[qualityProfile];
 
+      const videoConstraints = selectedVideoDevice
+        ? {
+            deviceId: { exact: selectedVideoDevice },
+            width: { ideal: profile.width },
+            height: { ideal: profile.height },
+            frameRate: { ideal: profile.fps, max: profile.fps }
+          }
+        : {
+            facingMode: { ideal: facingMode },
+            width: { ideal: profile.width },
+            height: { ideal: profile.height },
+            frameRate: { ideal: profile.fps, max: profile.fps }
+          };
+
       const media = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: facingMode },
-          width: { ideal: profile.width },
-          height: { ideal: profile.height },
-          frameRate: { ideal: profile.fps, max: profile.fps }
-        },
+        video: videoConstraints,
         audio: true
       });
 
       setStream(media);
       readZoomCapability(media);
+      await refreshVideoInputs();
 
       const queueIce = (peerId, candidate) => {
         if (!candidate) return;
@@ -641,8 +678,32 @@ function App() {
               onChange={event => setCameraName(event.target.value)}
             />
             {!stream && (
-              <div className="quality-row">
-                <label>VIDEO QUALITY</label>
+              <>
+                <div className="source-row">
+                  <label>CAMERA SOURCE</label>
+                  <div className="source-select-line">
+                    <select
+                      value={selectedVideoDevice}
+                      onChange={event => setSelectedVideoDevice(event.target.value)}
+                    >
+                      <option value="">AUTO / PHONE CAMERA</option>
+                      {videoInputs.map((device, index) => (
+                        <option key={device.deviceId || index} value={device.deviceId}>
+                          {device.label || `CAMERA SOURCE ${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={refreshVideoInputs}>
+                      REFRESH
+                    </button>
+                  </div>
+                  <small>
+                    HDMI capture cards and USB cameras appear here when the browser can see them.
+                  </small>
+                </div>
+
+                <div className="quality-row">
+                  <label>VIDEO QUALITY</label>
                 <select
                   value={qualityProfile}
                   onChange={event => setQualityProfile(event.target.value)}
@@ -651,7 +712,8 @@ function App() {
                   <option value="720p">720P / 30 FPS</option>
                   <option value="auto">AUTO / BANDWIDTH FRIENDLY</option>
                 </select>
-              </div>
+                </div>
+              </>
             )}
 
             <div className="operator-status">
@@ -693,13 +755,14 @@ function App() {
               <h2>Camera operator tips</h2>
               <div className="tips-list">
                 <p><strong>1.</strong> Enter a camera name before connecting.</p>
-                <p><strong>2.</strong> Start with 1080P. Use 720P or Auto if bandwidth gets tight.</p>
-                <p><strong>3.</strong> Tap Enable Camera + Microphone and allow browser permissions.</p>
-                <p><strong>4.</strong> ScenePilot assigns the next available camera slot automatically.</p>
-                <p><strong>5.</strong> LIVE TO DIRECTOR means the WebRTC media connection is active.</p>
-                <p><strong>6.</strong> Use FLIP to switch between the rear and front camera without leaving the production.</p>
-                <p><strong>7.</strong> Zoom controls use the phone camera's hardware zoom when the browser supports it.</p>
-                <p><strong>8.</strong> If the connection drops, leave the page open while ScenePilot reconnects.</p>
+                <p><strong>2.</strong> Camera Source can use the phone camera, a USB webcam, or an HDMI capture device recognized by the browser.</p>
+                <p><strong>3.</strong> Start with 1080P. Use 720P or Auto if bandwidth gets tight.</p>
+                <p><strong>4.</strong> Tap Enable Camera + Microphone and allow browser permissions.</p>
+                <p><strong>5.</strong> ScenePilot assigns the next available camera slot automatically.</p>
+                <p><strong>6.</strong> LIVE TO DIRECTOR means the WebRTC media connection is active.</p>
+                <p><strong>7.</strong> Use FLIP to switch between the rear and front camera without leaving the production.</p>
+                <p><strong>8.</strong> Zoom controls use the phone camera's hardware zoom when the browser supports it.</p>
+                <p><strong>9.</strong> If the connection drops, leave the page open while ScenePilot reconnects.</p>
               </div>
             </div>
           </div>
