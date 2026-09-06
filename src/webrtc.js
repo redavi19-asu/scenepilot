@@ -6,7 +6,10 @@ export function createPeerConnection({
   const peer = new RTCPeerConnection({
     iceServers: [
       {
-        urls: "stun:stun.l.google.com:19302"
+        urls: [
+          "stun:stun.l.google.com:19302",
+          "stun:stun1.l.google.com:19302"
+        ]
       }
     ]
   });
@@ -17,10 +20,17 @@ export function createPeerConnection({
     }
   };
 
-  peer.ontrack = event => {
-    const incomingStream = event.streams?.[0];
+  const fallbackStream = new MediaStream();
 
-    if (incomingStream && onTrack) {
+  peer.ontrack = event => {
+    let incomingStream = event.streams?.[0];
+
+    if (!incomingStream) {
+      fallbackStream.addTrack(event.track);
+      incomingStream = fallbackStream;
+    }
+
+    if (onTrack) {
       onTrack(incomingStream);
     }
   };
