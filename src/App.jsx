@@ -42,6 +42,8 @@ function App() {
   const [remoteStreams, setRemoteStreams] = useState({});
   const [wirelessCameras, setWirelessCameras] = useState([]);
   const [signalStatus, setSignalStatus] = useState("OFFLINE");
+  const [assignedSlot, setAssignedSlot] = useState(7);
+  const [cameraName, setCameraName] = useState("ROAMING 1");
 
   const roomCode =
     new URLSearchParams(window.location.search).get("room") || "SP-4827";
@@ -361,6 +363,8 @@ function App() {
       };
 
       const handleRegistered = ({ slotId, directorAvailable }) => {
+        setAssignedSlot(slotId);
+
         setSignalStatus(
           directorAvailable
             ? `CAM ${String(slotId).padStart(2, "0")} REGISTERED`
@@ -373,8 +377,8 @@ function App() {
 
         socket.emit("camera:join", {
           room: roomCode,
-          name: "ROAMING 1",
-          slotId: 7
+          name: cameraName.trim() || "WIRELESS CAMERA",
+          slotId: assignedSlot
         });
       };
 
@@ -459,7 +463,7 @@ function App() {
               <>
                 <span className="operator-live"><i /> CONNECTED</span>
                 <div className="operator-overlay">
-                  <span>CAMERA 07</span>
+                  <span>CAMERA {String(assignedSlot).padStart(2, "0")}</span>
                   <span>1080P</span>
                   <span>30 FPS</span>
                 </div>
@@ -469,7 +473,10 @@ function App() {
 
           <section className="operator-card">
             <label>CAMERA NAME</label>
-            <input defaultValue="ROAMING 1" />
+            <input
+              value={cameraName}
+              onChange={event => setCameraName(event.target.value)}
+            />
             <div className="operator-status">
               <span><Wifi size={17}/> {signalStatus}</span>
               <span><BatteryFull size={17}/> Battery</span>
@@ -582,11 +589,36 @@ function App() {
               <strong>PGM</strong>
             </div>
             <div className="screen">
-              <div className="fake-feed program-feed">
-                <Camera size={54}/>
-                <strong>CAM {String(program).padStart(2,"0")}</strong>
-                <span>{programCam?.name}</span>
-              </div>
+              {streamForSlot(program) ? (
+                <video
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover"
+                  }}
+                  ref={el => {
+                    const liveStream = streamForSlot(program);
+
+                    if (
+                      el &&
+                      liveStream &&
+                      el.srcObject !== liveStream
+                    ) {
+                      el.srcObject = liveStream;
+                      el.play?.().catch(() => {});
+                    }
+                  }}
+                />
+              ) : (
+                <div className="fake-feed program-feed">
+                  <Camera size={54}/>
+                  <strong>CAM {String(program).padStart(2,"0")}</strong>
+                  <span>{programCam?.name}</span>
+                </div>
+              )}
               <span className="live-badge"><i/> LIVE</span>
               <span className="source-tag">CAM {program}</span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
@@ -597,19 +629,27 @@ function App() {
         <section className="camera-bank">
           <div className="section-title">
             <div><span>SOURCES</span><strong>CAMERA MULTIVIEW</strong></div>
-            <span>{cameras.filter(c => c.status !== "OFFLINE").length} / 9 CONNECTED</span>
+            <span>{
+              cameras.filter(c =>
+                c.status !== "OFFLINE" ||
+                Boolean(cameraForSlot(c.id))
+              ).length
+            } / 9 CONNECTED</span>
           </div>
 
           <div className="camera-grid">
             {cameras.map(cam => (
               <button
                 key={cam.id}
-                disabled={cam.status === "OFFLINE"}
+                disabled={
+                  cam.status === "OFFLINE" &&
+                  !cameraForSlot(cam.id)
+                }
                 onClick={() => setPreview(cam.id)}
                 className={`camera-tile
                   ${cam.id === program ? "is-program" : ""}
                   ${cam.id === preview ? "is-preview" : ""}
-                  ${cam.status === "OFFLINE" ? "offline" : ""}`}
+                  ${cam.status === "OFFLINE" && !cameraForSlot(cam.id) ? "offline" : ""}`}
               >
                 <div className="tile-feed">
                   {streamForSlot(cam.id) ? (
@@ -639,7 +679,7 @@ function App() {
                 </div>
 
                 <div className="tile-meta">
-                  <strong>{cam.name}</strong>
+                  <strong>{cameraForSlot(cam.id)?.name || cam.name}</strong>
                   <div>
                     <span><Wifi size={12}/>{cam.signal || "—"}</span>
                     <span><BatteryFull size={13}/>{cam.battery || "—"}%</span>
