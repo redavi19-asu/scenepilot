@@ -94,6 +94,11 @@ function App() {
             ...prev,
             [camera.socketId]: incomingStream
           }));
+
+          if (camera.slotId) {
+            setPreview(camera.slotId);
+          }
+
           setSignalStatus("VIDEO CONNECTED");
         },
 
@@ -101,7 +106,7 @@ function App() {
           if (state === "connecting") {
             setSignalStatus("WEBRTC CONNECTING");
           } else if (state === "connected") {
-            setSignalStatus("VIDEO CONNECTED");
+            setSignalStatus("PEER CONNECTED");
           } else if (state === "failed") {
             setSignalStatus("WEBRTC FAILED");
           } else if (state === "disconnected") {
@@ -112,11 +117,16 @@ function App() {
 
       peers.current[camera.socketId] = peer;
 
+      peer.addTransceiver("video", {
+        direction: "recvonly"
+      });
+
+      peer.addTransceiver("audio", {
+        direction: "recvonly"
+      });
+
       try {
-        const offer = await peer.createOffer({
-          offerToReceiveVideo: true,
-          offerToReceiveAudio: true
-        });
+        const offer = await peer.createOffer();
 
         await peer.setLocalDescription(offer);
 
@@ -202,6 +212,9 @@ function App() {
 
     const handleConnect = () => {
       setSignalStatus("SIGNAL CONNECTED");
+      socket.emit("director:join", {
+        room: roomCode
+      });
     };
 
     const handleDisconnect = () => {
@@ -216,7 +229,7 @@ function App() {
     socket.on("webrtc:ice", handleIce);
     socket.on("camera:left", handleCameraLeft);
 
-    socket.emit("director:join", { room: roomCode });
+    socket.setRoom(roomCode);
     socket.connect();
 
     return () => {
@@ -357,6 +370,12 @@ function App() {
 
       const handleConnect = () => {
         setSignalStatus("SIGNAL CONNECTED");
+
+        socket.emit("camera:join", {
+          room: roomCode,
+          name: "ROAMING 1",
+          slotId: 7
+        });
       };
 
       const handleDisconnect = () => {
@@ -375,11 +394,7 @@ function App() {
       socket.on("webrtc:ice", handleIce);
       socket.on("camera:registered", handleRegistered);
 
-      socket.emit("camera:join", {
-        room: roomCode,
-        name: "ROAMING 1",
-        slotId: 7
-      });
+      socket.setRoom(roomCode);
       socket.connect();
     } catch (error) {
       setSignalStatus("CAMERA ACCESS FAILED");
@@ -526,11 +541,36 @@ function App() {
               <strong>PVW</strong>
             </div>
             <div className="screen">
-              <div className="fake-feed preview-feed">
-                <Camera size={54}/>
-                <strong>CAM {String(preview).padStart(2,"0")}</strong>
-                <span>{previewCam?.name}</span>
-              </div>
+              {streamForSlot(preview) ? (
+                <video
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover"
+                  }}
+                  ref={el => {
+                    const liveStream = streamForSlot(preview);
+
+                    if (
+                      el &&
+                      liveStream &&
+                      el.srcObject !== liveStream
+                    ) {
+                      el.srcObject = liveStream;
+                      el.play?.().catch(() => {});
+                    }
+                  }}
+                />
+              ) : (
+                <div className="fake-feed preview-feed">
+                  <Camera size={54}/>
+                  <strong>CAM {String(preview).padStart(2,"0")}</strong>
+                  <span>{previewCam?.name}</span>
+                </div>
+              )}
               <span className="source-tag">CAM {preview}</span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
             </div>
@@ -586,6 +626,7 @@ function App() {
                           el.srcObject !== liveStream
                         ) {
                           el.srcObject = liveStream;
+                          el.play?.().catch(() => {});
                         }
                       }}
                     />
