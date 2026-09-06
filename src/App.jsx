@@ -51,6 +51,7 @@ function App() {
   const [signalStatus, setSignalStatus] = useState("OFFLINE");
   const [isOnAir, setIsOnAir] = useState(false);
   const [assignedSlot, setAssignedSlot] = useState(7);
+  const assignedSlotRef = useRef(7);
   const [cameraName, setCameraName] = useState("ROAMING 1");
   const [qualityProfile, setQualityProfile] = useState("1080p");
   const [showTips, setShowTips] = useState(false);
@@ -580,7 +581,8 @@ function App() {
 
       const handleRegistered = ({ slotId, directorAvailable }) => {
         if (slotId) {
-          setAssignedSlot(slotId);
+          assignedSlotRef.current = Number(slotId);
+          setAssignedSlot(Number(slotId));
         }
 
         setSignalStatus(
@@ -591,7 +593,9 @@ function App() {
       };
 
       const handleProgramStatus = ({ liveSlots = [] }) => {
-        setIsOnAir(liveSlots.map(Number).includes(Number(assignedSlot)));
+        setIsOnAir(
+          liveSlots.map(Number).includes(Number(assignedSlotRef.current))
+        );
       };
 
       const handleConnect = () => {
