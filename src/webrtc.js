@@ -1,4 +1,8 @@
-export function createPeerConnection({ onTrack }) {
+export function createPeerConnection({
+  onIceCandidate,
+  onTrack,
+  onConnectionState
+} = {}) {
   const peer = new RTCPeerConnection({
     iceServers: [
       {
@@ -7,37 +11,30 @@ export function createPeerConnection({ onTrack }) {
     ]
   });
 
+  peer.onicecandidate = event => {
+    if (event.candidate && onIceCandidate) {
+      onIceCandidate(event.candidate);
+    }
+  };
+
   peer.ontrack = event => {
-    if (onTrack && event.streams?.[0]) {
-      onTrack(event.streams[0]);
+    const incomingStream = event.streams?.[0];
+
+    if (incomingStream && onTrack) {
+      onTrack(incomingStream);
+    }
+  };
+
+  peer.onconnectionstatechange = () => {
+    console.log(
+      "ScenePilot WebRTC:",
+      peer.connectionState
+    );
+
+    if (onConnectionState) {
+      onConnectionState(peer.connectionState);
     }
   };
 
   return peer;
-}
-
-export function waitForIceGathering(peer) {
-  if (peer.iceGatheringState === "complete") {
-    return Promise.resolve();
-  }
-
-  return new Promise(resolve => {
-    const check = () => {
-      if (peer.iceGatheringState === "complete") {
-        peer.removeEventListener(
-          "icegatheringstatechange",
-          check
-        );
-
-        resolve();
-      }
-    };
-
-    peer.addEventListener(
-      "icegatheringstatechange",
-      check
-    );
-
-    setTimeout(resolve, 3000);
-  });
 }

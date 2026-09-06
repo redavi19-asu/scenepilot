@@ -13,7 +13,6 @@ const io = new Server(httpServer, {
 });
 
 const rooms = new Map();
-const directors = new Map();
 
 app.get("/", (req, res) => {
   res.send(`
@@ -22,34 +21,39 @@ app.get("/", (req, res) => {
       <head>
         <title>ScenePilot Signal Server</title>
         <style>
-          body{
-            font-family:Arial,sans-serif;
-            background:#111;
-            color:#eee;
-            display:grid;
-            place-items:center;
-            height:100vh;
-            margin:0;
+          body {
+            margin: 0;
+            height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #111;
+            color: #eee;
+            font-family: Arial, sans-serif;
           }
 
-          .box{
-            border:1px solid #555;
-            padding:32px 40px;
-            border-radius:12px;
-            background:#1b1b1b;
-            text-align:center;
+          .box {
+            padding: 32px 42px;
+            border: 1px solid #555;
+            background: #1b1b1b;
+            border-radius: 12px;
+            text-align: center;
           }
 
-          .ok{color:#8fd18f}
-          small{color:#999}
+          .online {
+            color: #8fd18f;
+          }
+
+          small {
+            color: #999;
+          }
         </style>
       </head>
 
       <body>
         <div class="box">
           <h1>SCENEPILOT</h1>
-          <h2 class="ok">SIGNAL SERVER ONLINE</h2>
-          <small>WebRTC coordination service</small>
+          <h2 class="online">SIGNAL SERVER ONLINE</h2>
+          <small>WebRTC coordination service • 3001</small>
         </div>
       </body>
     </html>
@@ -57,92 +61,89 @@ app.get("/", (req, res) => {
 });
 
 io.on("connection", socket => {
-
-  console.log("Connected:", socket.id);
+  console.log("CONNECTED:", socket.id);
 
   socket.on("director:join", ({ room }) => {
-
     socket.join(room);
 
-    socket.data.role = "director";
     socket.data.room = room;
-
-    directors.set(room, socket.id);
+    socket.data.role = "director";
 
     if (!rooms.has(room)) {
       rooms.set(room, new Map());
     }
+
+    const cameras = [
+      ...rooms.get(room).values()
+    ];
 
     socket.emit(
       "room:cameras",
-      [...rooms.get(room).values()]
+      cameras
     );
-
-    socket.to(room).emit("director:available", {
-      socketId: socket.id
-    });
 
     console.log(
-      `Director ${socket.id} joined ${room}`
-    );
-  });
-
-  socket.on("camera:join", ({ room, name }) => {
-
-    socket.join(room);
-
-    socket.data.role = "camera";
-    socket.data.room = room;
-    socket.data.cameraName =
-      name || "WIRELESS CAMERA";
-
-    if (!rooms.has(room)) {
-      rooms.set(room, new Map());
-    }
-
-    const camera = {
-      socketId: socket.id,
-      name: socket.data.cameraName,
-      connected: true
-    };
-
-    rooms.get(room).set(
-      socket.id,
-      camera
-    );
-
-    socket.to(room).emit(
-      "camera:joined",
-      camera
-    );
-
-    const directorId =
-      directors.get(room);
-
-    if (directorId) {
-      socket.emit(
-        "director:available",
-        {
-          socketId: directorId
-        }
-      );
-    }
-
-    console.log(
-      `${camera.name} joined ${room}`
+      "DIRECTOR JOINED:",
+      room,
+      socket.id
     );
   });
 
   socket.on(
+    "camera:join",
+    ({ room, name }) => {
+      socket.join(room);
+
+      socket.data.room = room;
+      socket.data.role = "camera";
+
+      if (!rooms.has(room)) {
+        rooms.set(room, new Map());
+      }
+
+      const camera = {
+        socketId: socket.id,
+        name: name || "WIRELESS CAMERA",
+        connected: true
+      };
+
+      rooms
+        .get(room)
+        .set(socket.id, camera);
+
+      socket
+        .to(room)
+        .emit(
+          "camera:joined",
+          camera
+        );
+
+      console.log(
+        "CAMERA JOINED:",
+        room,
+        socket.id
+      );
+    }
+  );
+
+  socket.on(
     "webrtc:offer",
     ({ target, offer }) => {
+      io
+        .to(target)
+        .emit(
+          "webrtc:offer",
+          {
+            from: socket.id,
+            offer
+          }
+        );
 
-      io.to(target).emit(
-        "webrtc:offer",
-        {
-          from: socket.id,
-          offer
-        }
+      console.log(
+        "OFFER:",
+        socket.id,
+        "->",
+        target
       );
     }
   );
@@ -150,32 +151,43 @@ io.on("connection", socket => {
   socket.on(
     "webrtc:answer",
     ({ target, answer }) => {
+      io
+        .to(target)
+        .emit(
+          "webrtc:answer",
+          {
+            from: socket.id,
+            answer
+          }
+        );
 
-      io.to(target).emit(
-        "webrtc:answer",
-        {
-          from: socket.id,
-          answer
-        }
+      console.log(
+        "ANSWER:",
+        socket.id,
+        "->",
+        target
       );
     }
   );
 
-  socket.on("disconnect", () => {
+  socket.on(
+    "webrtc:ice",
+    ({ target, candidate }) => {
+      io
+        .to(target)
+        .emit(
+          "webrtc:ice",
+          {
+            from: socket.id,
+            candidate
+          }
+        );
+    }
+  );
 
+  socket.on("disconnect", () => {
     const room =
       socket.data.room;
-
-    if (
-      socket.data.role === "director" &&
-      room
-    ) {
-      if (
-        directors.get(room) === socket.id
-      ) {
-        directors.delete(room);
-      }
-    }
 
     if (
       socket.data.role === "camera" &&
@@ -188,13 +200,16 @@ io.on("connection", socket => {
 
       socket
         .to(room)
-        .emit("camera:left", {
-          socketId: socket.id
-        });
+        .emit(
+          "camera:left",
+          {
+            socketId: socket.id
+          }
+        );
     }
 
     console.log(
-      "Disconnected:",
+      "DISCONNECTED:",
       socket.id
     );
   });

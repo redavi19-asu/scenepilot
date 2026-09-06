@@ -8,7 +8,7 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
 import { socket } from "./socket";
-import { createPeerConnection, waitForIceGathering } from "./webrtc";
+import { createPeerConnection } from "./webrtc";
 
 const initialCameras = [
   { id: 1, name: "STAGE LEFT", status: "LIVE", battery: 92, signal: 4 },
@@ -30,7 +30,9 @@ function App() {
   const [duration, setDuration] = useState(500);
   const [recording, setRecording] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
+  const [showCamera, setShowCamera] = useState(() => {
+    return window.location.pathname.endsWith("/camera");
+  });
   const [stream, setStream] = useState(null);
   const cameraVideo = useRef(null);
   const remoteVideos = useRef({});
@@ -39,14 +41,9 @@ function App() {
   const [wirelessCameras, setWirelessCameras] = useState([]);
 
   const roomCode = "SP-4827";
-  const joinUrl = `${window.location.origin}${window.location.pathname}?camera=1&room=${roomCode}`;
+  const joinUrl = `${window.location.origin}/camera`;
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("camera") === "1") setShowCamera(true);
-  }, []);
-
-  useEffect(() => {
+   useEffect(() => {
     if (showCamera) return;
 
     socket.connect();
@@ -57,51 +54,40 @@ function App() {
       setWirelessCameras(list);
     });
 
-    socket.on("camera:joined", camera => {
+    socket.on("camera:joined", async camera => {
       setWirelessCameras(prev => {
-        if (
-          prev.some(
-            c => c.socketId === camera.socketId
-          )
-        ) return prev;
-
+        if (prev.some(c => c.socketId === camera.socketId)) return prev;
         return [...prev, camera];
       });
-    });
 
-    socket.on("webrtc:offer", async ({ from, offer }) => {
+      const peer = createPeerConnection({
+        onIceCandidate: candidate => {
+          socket.emit("webrtc:ice", {
+            target: camera.socketId,
+            candidate
+          });
+        },
 
-      let peer = peers.current[from];
+        onTrack: incomingStream => {
+          setRemoteStreams(prev => ({
+            ...prev,
+            [camera.socketId]: incomingStream
+          }));
+        }
+      });
 
-      if (!peer) {
-        peer = createPeerConnection({
-          onTrack: incomingStream => {
-            setRemoteStreams(prev => ({
-              ...prev,
-              [from]: incomingStream
-            }));
-          }
-        });
+      peers.current[camera.socketId] = peer;
 
-        peers.current[from] = peer;
-      }
+      const offer = await peer.createOffer({
+        offerToReceiveVideo: true,
+        offerToReceiveAudio: true
+      });
 
-      await peer.setRemoteDescription(
-        new RTCSessionDescription(offer)
-      );
+      await peer.setLocalDescription(offer);
 
-      const answer =
-        await peer.createAnswer();
-
-      await peer.setLocalDescription(
-        answer
-      );
-
-      await waitForIceGathering(peer);
-
-      socket.emit("webrtc:answer", {
-        target: from,
-        answer: peer.localDescription
+      socket.emit("webrtc:offer", {
+        target: camera.socketId,
+        offer
       });
     });
 
@@ -114,6 +100,27 @@ function App() {
       );
     });
 
+    socket.on("webrtc:ice", async ({ from, candidate }) => {
+      const peer = peers.current[from];
+      if (!peer || !candidate) return;
+
+      try {
+        let attempts = 0;
+
+        while (!peer.remoteDescription && attempts < 40) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          attempts++;
+        }
+
+        if (!peer.remoteDescription) return;
+
+        await peer.addIceCandidate(
+          new RTCIceCandidate(candidate)
+        );
+      } catch (error) {
+        console.error("ICE error", error);
+      }
+    });
 
     socket.on("camera:left", ({ socketId }) => {
       peers.current[socketId]?.close();
@@ -133,83 +140,89 @@ function App() {
     return () => {
       socket.off("room:cameras");
       socket.off("camera:joined");
-      socket.off("director:available");
       socket.off("webrtc:answer");
+      socket.off("webrtc:ice");
+      socket.off("camera:left");
 
-      let directorId = null;
+      Object.values(peers.current).forEach(peer => peer.close());
+      peers.current = {};
 
-      const startCameraConnection =
-        async target => {
+      socket.disconnect();
+    };
+  }, [showCamera]);
 
-          if (
-            !target ||
-            peers.current[target]
-          ) {
-            return;
-          }
+  useEffect(() => {
+    if (cameraVideo.current && stream) {
+      cameraVideo.current.srcObject = stream;
+    }
+  }, [stream, showCamera]);
 
-          directorId = target;
+  async function enableCamera() {
+    try {
+      const media = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: true
+      });
 
-          const peer =
-            createPeerConnection({});
+      setStream(media);
 
-          peers.current[target] = peer;
+      socket.connect();
 
-          media
-            .getVideoTracks()
-            .forEach(track => {
-              peer.addTrack(
-                track,
-                media
-              );
+      socket.emit("camera:join", {
+        room: roomCode,
+        name: "WIRELESS CAMERA"
+      });
+
+      socket.off("webrtc:offer");
+      socket.off("webrtc:ice");
+
+      socket.on("webrtc:offer", async ({ from, offer }) => {
+        const peer = createPeerConnection({
+          onIceCandidate: candidate => {
+            socket.emit("webrtc:ice", {
+              target: from,
+              candidate
             });
+          }
+        });
 
-          const offer =
-            await peer.createOffer();
+        peers.current[from] = peer;
 
-          await peer.setLocalDescription(
-            offer
+        media.getTracks().forEach(track => {
+          peer.addTrack(track, media);
+        });
+
+        await peer.setRemoteDescription(
+          new RTCSessionDescription(offer)
+        );
+
+        const answer = await peer.createAnswer();
+
+        await peer.setLocalDescription(answer);
+
+        socket.emit("webrtc:answer", {
+          target: from,
+          answer
+        });
+      });
+
+      socket.on("webrtc:ice", async ({ from, candidate }) => {
+        const peer = peers.current[from];
+
+        if (!peer || !candidate) return;
+
+        try {
+          await peer.addIceCandidate(
+            new RTCIceCandidate(candidate)
           );
-
-          await waitForIceGathering(
-            peer
-          );
-
-          socket.emit(
-            "webrtc:offer",
-            {
-              target,
-              offer:
-                peer.localDescription
-            }
-          );
-        };
-
-      socket.on(
-        "director:available",
-        ({ socketId }) => {
-          startCameraConnection(
-            socketId
-          );
+        } catch (error) {
+          console.error("Camera ICE error", error);
         }
-      );
-
-      socket.on(
-        "webrtc:answer",
-        async ({ from, answer }) => {
-
-          const peer =
-            peers.current[from];
-
-          if (!peer) return;
-
-          await peer.setRemoteDescription(
-            new RTCSessionDescription(
-              answer
-            )
-          );
-        }
-      );
+      });
 
     } catch (error) {
       alert(`Camera access failed: ${error.message}`);
@@ -340,11 +353,33 @@ function App() {
               <strong>PVW</strong>
             </div>
             <div className="screen">
-              <div className="fake-feed preview-feed">
-                <Camera size={54}/>
-                <strong>CAM {String(preview).padStart(2,"0")}</strong>
-                <span>{previewCam?.name}</span>
-              </div>
+              {wirelessCameras[preview - 1] &&
+               remoteStreams[wirelessCameras[preview - 1].socketId] ? (
+                <video
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover"
+                  }}
+                  ref={el => {
+                    if (el) {
+                      el.srcObject =
+                        remoteStreams[
+                          wirelessCameras[preview - 1].socketId
+                        ];
+                    }
+                  }}
+                />
+              ) : (
+                <div className="fake-feed preview-feed">
+                  <Camera size={54}/>
+                  <strong>CAM {String(preview).padStart(2,"0")}</strong>
+                  <span>{previewCam?.name}</span>
+                </div>
+              )}
               <span className="source-tag">CAM {preview}</span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
             </div>
@@ -356,11 +391,33 @@ function App() {
               <strong>PGM</strong>
             </div>
             <div className="screen">
-              <div className="fake-feed program-feed">
-                <Camera size={54}/>
-                <strong>CAM {String(program).padStart(2,"0")}</strong>
-                <span>{programCam?.name}</span>
-              </div>
+              {wirelessCameras[program - 1] &&
+               remoteStreams[wirelessCameras[program - 1].socketId] ? (
+                <video
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover"
+                  }}
+                  ref={el => {
+                    if (el) {
+                      el.srcObject =
+                        remoteStreams[
+                          wirelessCameras[program - 1].socketId
+                        ];
+                    }
+                  }}
+                />
+              ) : (
+                <div className="fake-feed program-feed">
+                  <Camera size={54}/>
+                  <strong>CAM {String(program).padStart(2,"0")}</strong>
+                  <span>{programCam?.name}</span>
+                </div>
+              )}
               <span className="live-badge"><i/> LIVE</span>
               <span className="source-tag">CAM {program}</span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
