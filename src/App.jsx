@@ -8,7 +8,7 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
 import { socket } from "./socket";
-import { createPeerConnection } from "./webrtc";
+import { createPeerConnection, waitForIceGathering } from "./webrtc";
 
 const initialCameras = [
   { id: 1, name: "STAGE LEFT", status: "LIVE", battery: 92, signal: 4 },
@@ -57,40 +57,51 @@ function App() {
       setWirelessCameras(list);
     });
 
-    socket.on("camera:joined", async camera => {
+    socket.on("camera:joined", camera => {
       setWirelessCameras(prev => {
-        if (prev.some(c => c.socketId === camera.socketId)) return prev;
+        if (
+          prev.some(
+            c => c.socketId === camera.socketId
+          )
+        ) return prev;
+
         return [...prev, camera];
       });
+    });
 
-      const peer = createPeerConnection({
-        onIceCandidate: candidate => {
-          socket.emit("webrtc:ice", {
-            target: camera.socketId,
-            candidate
-          });
-        },
+    socket.on("webrtc:offer", async ({ from, offer }) => {
 
-        onTrack: incomingStream => {
-          setRemoteStreams(prev => ({
-            ...prev,
-            [camera.socketId]: incomingStream
-          }));
-        }
-      });
+      let peer = peers.current[from];
 
-      peers.current[camera.socketId] = peer;
+      if (!peer) {
+        peer = createPeerConnection({
+          onTrack: incomingStream => {
+            setRemoteStreams(prev => ({
+              ...prev,
+              [from]: incomingStream
+            }));
+          }
+        });
 
-      const offer = await peer.createOffer({
-        offerToReceiveVideo: true,
-        offerToReceiveAudio: true
-      });
+        peers.current[from] = peer;
+      }
 
-      await peer.setLocalDescription(offer);
+      await peer.setRemoteDescription(
+        new RTCSessionDescription(offer)
+      );
 
-      socket.emit("webrtc:offer", {
-        target: camera.socketId,
-        offer
+      const answer =
+        await peer.createAnswer();
+
+      await peer.setLocalDescription(
+        answer
+      );
+
+      await waitForIceGathering(peer);
+
+      socket.emit("webrtc:answer", {
+        target: from,
+        answer: peer.localDescription
       });
     });
 
@@ -103,18 +114,6 @@ function App() {
       );
     });
 
-    socket.on("webrtc:ice", async ({ from, candidate }) => {
-      const peer = peers.current[from];
-      if (!peer || !candidate) return;
-
-      try {
-        await peer.addIceCandidate(
-          new RTCIceCandidate(candidate)
-        );
-      } catch (error) {
-        console.error("ICE error", error);
-      }
-    });
 
     socket.on("camera:left", ({ socketId }) => {
       peers.current[socketId]?.close();
@@ -134,89 +133,83 @@ function App() {
     return () => {
       socket.off("room:cameras");
       socket.off("camera:joined");
+      socket.off("director:available");
       socket.off("webrtc:answer");
-      socket.off("webrtc:ice");
-      socket.off("camera:left");
 
-      Object.values(peers.current).forEach(peer => peer.close());
-      peers.current = {};
+      let directorId = null;
 
-      socket.disconnect();
-    };
-  }, [showCamera]);
+      const startCameraConnection =
+        async target => {
 
-  useEffect(() => {
-    if (cameraVideo.current && stream) {
-      cameraVideo.current.srcObject = stream;
-    }
-  }, [stream, showCamera]);
-
-  async function enableCamera() {
-    try {
-      const media = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        },
-        audio: true
-      });
-
-      setStream(media);
-
-      socket.connect();
-
-      socket.emit("camera:join", {
-        room: roomCode,
-        name: "WIRELESS CAMERA"
-      });
-
-      socket.off("webrtc:offer");
-      socket.off("webrtc:ice");
-
-      socket.on("webrtc:offer", async ({ from, offer }) => {
-        const peer = createPeerConnection({
-          onIceCandidate: candidate => {
-            socket.emit("webrtc:ice", {
-              target: from,
-              candidate
-            });
+          if (
+            !target ||
+            peers.current[target]
+          ) {
+            return;
           }
-        });
 
-        peers.current[from] = peer;
+          directorId = target;
 
-        media.getTracks().forEach(track => {
-          peer.addTrack(track, media);
-        });
+          const peer =
+            createPeerConnection({});
 
-        await peer.setRemoteDescription(
-          new RTCSessionDescription(offer)
-        );
+          peers.current[target] = peer;
 
-        const answer = await peer.createAnswer();
+          media
+            .getVideoTracks()
+            .forEach(track => {
+              peer.addTrack(
+                track,
+                media
+              );
+            });
 
-        await peer.setLocalDescription(answer);
+          const offer =
+            await peer.createOffer();
 
-        socket.emit("webrtc:answer", {
-          target: from,
-          answer
-        });
-      });
-
-      socket.on("webrtc:ice", async ({ from, candidate }) => {
-        const peer = peers.current[from];
-
-        if (!peer || !candidate) return;
-
-        try {
-          await peer.addIceCandidate(
-            new RTCIceCandidate(candidate)
+          await peer.setLocalDescription(
+            offer
           );
-        } catch (error) {
-          console.error("Camera ICE error", error);
+
+          await waitForIceGathering(
+            peer
+          );
+
+          socket.emit(
+            "webrtc:offer",
+            {
+              target,
+              offer:
+                peer.localDescription
+            }
+          );
+        };
+
+      socket.on(
+        "director:available",
+        ({ socketId }) => {
+          startCameraConnection(
+            socketId
+          );
         }
-      });
+      );
+
+      socket.on(
+        "webrtc:answer",
+        async ({ from, answer }) => {
+
+          const peer =
+            peers.current[from];
+
+          if (!peer) return;
+
+          await peer.setRemoteDescription(
+            new RTCSessionDescription(
+              answer
+            )
+          );
+        }
+      );
 
     } catch (error) {
       alert(`Camera access failed: ${error.message}`);

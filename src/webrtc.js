@@ -1,7 +1,4 @@
-export function createPeerConnection({
-  onIceCandidate,
-  onTrack
-}) {
+export function createPeerConnection({ onTrack }) {
   const peer = new RTCPeerConnection({
     iceServers: [
       {
@@ -10,12 +7,6 @@ export function createPeerConnection({
     ]
   });
 
-  peer.onicecandidate = event => {
-    if (event.candidate && onIceCandidate) {
-      onIceCandidate(event.candidate);
-    }
-  };
-
   peer.ontrack = event => {
     if (onTrack && event.streams?.[0]) {
       onTrack(event.streams[0]);
@@ -23,4 +14,30 @@ export function createPeerConnection({
   };
 
   return peer;
+}
+
+export function waitForIceGathering(peer) {
+  if (peer.iceGatheringState === "complete") {
+    return Promise.resolve();
+  }
+
+  return new Promise(resolve => {
+    const check = () => {
+      if (peer.iceGatheringState === "complete") {
+        peer.removeEventListener(
+          "icegatheringstatechange",
+          check
+        );
+
+        resolve();
+      }
+    };
+
+    peer.addEventListener(
+      "icegatheringstatechange",
+      check
+    );
+
+    setTimeout(resolve, 3000);
+  });
 }
