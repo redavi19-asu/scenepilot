@@ -1366,16 +1366,18 @@ function App() {
             <span className="eyebrow">SCENEPILOT QUICK TIPS</span>
             <h2>Run the production</h2>
             <div className="tips-list">
-              <p><strong>Add cameras:</strong> Tap Add Camera and let each phone scan the QR code.</p>
-              <p><strong>Automatic slots:</strong> Phones fill CAM 07, 08, 09, then the remaining open slots.</p>
-              <p><strong>Preview:</strong> Tap a camera tile to place it in Preview.</p>
-              <p><strong>Program:</strong> Tap Take or Cut to move Preview to Program.</p>
-              <p><strong>Split Screen:</strong> Choose SPLIT, select a second camera, then TAKE to put both sources live together.</p>
-              <p><strong>Picture-in-Picture:</strong> Choose PiP, select the smaller second camera, preview the layout, then TAKE.</p>
-              <p><strong>VIDEO CONNECTED:</strong> The director is receiving a real WebRTC media stream.</p>
-              <p><strong>ANSWER RECEIVED:</strong> Signaling worked; the peer connection is still finishing.</p>
-              <p><strong>Bandwidth:</strong> 1080P looks best. Move some phones to 720P/Auto if several feeds become unstable.</p>
-              <p><strong>Reconnect:</strong> Keep the camera page open. ScenePilot will attempt to reconnect signaling automatically.</p>
+              <p><strong>1. Add cameras:</strong> Tap Add Camera and let each phone scan the QR code. Each connected phone gets its own camera slot.</p>
+              <p><strong>2. Left screen = Preview:</strong> Tap any camera tile to load that camera onto the LEFT monitor first. Preview lets you check the shot before viewers see it.</p>
+              <p><strong>3. Right screen = Program / Live:</strong> The RIGHT monitor is the camera or layout currently going out live.</p>
+              <p><strong>4. TAKE:</strong> After choosing a camera in Preview, tap TAKE to move it to Program. The new camera becomes live on the right monitor.</p>
+              <p><strong>5. CUT:</strong> CUT does the same switch immediately with no dissolve or fade.</p>
+              <p><strong>6. Switch cameras:</strong> Tap another camera tile to preview it on the left, then tap TAKE or CUT when you are ready to put that camera live.</p>
+              <p><strong>7. Camera phone status:</strong> CONNECTED / READY means the phone is available but not live. YOU ARE ON AIR means that phone is currently on Program.</p>
+              <p><strong>8. Split Screen:</strong> Choose SPLIT, select the second camera, preview both on the left, then tap TAKE to put both cameras live together.</p>
+              <p><strong>9. Picture-in-Picture:</strong> Choose PiP, select the smaller second camera, preview the layout, then tap TAKE.</p>
+              <p><strong>10. Zoom / Switch camera:</strong> On each phone, use Zoom In, Zoom Out, and Switch Camera for front/rear camera control while connected.</p>
+              <p><strong>11. Live Shield:</strong> Use Live Shield on the phone and enable the phone's Focus / Do Not Disturb mode before a production to reduce interruptions.</p>
+              <p><strong>12. Bandwidth:</strong> Start with 1080P. If several phones become unstable, move some cameras to 720P or Auto.</p>
             </div>
           </div>
         </div>
