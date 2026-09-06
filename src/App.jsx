@@ -221,8 +221,17 @@ function App() {
 
     const joinDirector = () => {
       socket.emit("director:join", {
-        room: roomCode
+        room: roomCode,
+        visible: !document.hidden
       });
+    };
+
+    const claimDirector = () => {
+      if (!document.hidden && socket.connected) {
+        socket.emit("director:focus", {
+          room: roomCode
+        });
+      }
     };
 
     socket.on("room:cameras", handleRoomCameras);
@@ -232,8 +241,12 @@ function App() {
     socket.on("camera:left", handleCameraLeft);
     socket.on("connect", joinDirector);
 
+    window.addEventListener("focus", claimDirector);
+    document.addEventListener("visibilitychange", claimDirector);
+
     if (socket.connected) {
       joinDirector();
+      claimDirector();
     } else {
       socket.connect();
     }
@@ -245,6 +258,9 @@ function App() {
       socket.off("webrtc:ice", handleIce);
       socket.off("camera:left", handleCameraLeft);
       socket.off("connect", joinDirector);
+
+      window.removeEventListener("focus", claimDirector);
+      document.removeEventListener("visibilitychange", claimDirector);
 
       Object.values(peers.current).forEach(peer => peer.close());
       peers.current = {};
