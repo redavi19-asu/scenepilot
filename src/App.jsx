@@ -59,6 +59,13 @@ function App() {
   const [videoInputs, setVideoInputs] = useState([]);
   const [selectedVideoDevice, setSelectedVideoDevice] = useState("");
   const [showReplayEditor, setShowReplayEditor] = useState(true);
+  const [compositionMode, setCompositionMode] = useState("single");
+  const [secondaryPreview, setSecondaryPreview] = useState(8);
+  const [programComposition, setProgramComposition] = useState({
+    mode: "single",
+    primary: 1,
+    secondary: null
+  });
 
   const roomCode =
     new URLSearchParams(window.location.search).get("room") || "SP-4827";
@@ -593,10 +600,28 @@ function App() {
   }
 
   function take() {
-    if (!preview || preview === program) return;
-    const oldProgram = program;
+    if (!preview) return;
+
+    if (compositionMode === "single") {
+      if (preview === program && programComposition.mode === "single") return;
+
+      const oldProgram = program;
+      setProgram(preview);
+      setPreview(oldProgram);
+      setProgramComposition({
+        mode: "single",
+        primary: preview,
+        secondary: null
+      });
+      return;
+    }
+
     setProgram(preview);
-    setPreview(oldProgram);
+    setProgramComposition({
+      mode: compositionMode,
+      primary: preview,
+      secondary: secondaryPreview
+    });
   }
 
   function cut() {
@@ -784,6 +809,41 @@ function App() {
     return camera ? remoteStreams[camera.socketId] : null;
   };
 
+  const renderSource = (slotId, variant = "preview") => {
+    const liveStream = streamForSlot(slotId);
+    const fallbackCamera = cameras.find(camera => camera.id === slotId);
+    const liveCamera = cameraForSlot(slotId);
+
+    if (liveStream) {
+      return (
+        <video
+          autoPlay
+          playsInline
+          muted
+          className="composition-video"
+          ref={el => {
+            if (
+              el &&
+              liveStream &&
+              el.srcObject !== liveStream
+            ) {
+              el.srcObject = liveStream;
+              el.play?.().catch(() => {});
+            }
+          }}
+        />
+      );
+    }
+
+    return (
+      <div className={`fake-feed ${variant === "program" ? "program-feed" : "preview-feed"}`}>
+        <Camera size={44}/>
+        <strong>CAM {String(slotId).padStart(2,"0")}</strong>
+        <span>{liveCamera?.name || fallbackCamera?.name || "SOURCE"}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="console">
       <header className="topbar">
@@ -816,37 +876,35 @@ function App() {
               <strong>PVW</strong>
             </div>
             <div className="screen">
-              {streamForSlot(preview) ? (
-                <video
-                  autoPlay
-                  playsInline
-                  muted
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover"
-                  }}
-                  ref={el => {
-                    const liveStream = streamForSlot(preview);
-
-                    if (
-                      el &&
-                      liveStream &&
-                      el.srcObject !== liveStream
-                    ) {
-                      el.srcObject = liveStream;
-                      el.play?.().catch(() => {});
-                    }
-                  }}
-                />
-              ) : (
-                <div className="fake-feed preview-feed">
-                  <Camera size={54}/>
-                  <strong>CAM {String(preview).padStart(2,"0")}</strong>
-                  <span>{previewCam?.name}</span>
+              {compositionMode === "split" ? (
+                <div className="composition split-composition">
+                  <div className="composition-pane">
+                    {renderSource(preview, "preview")}
+                    <span className="composition-label">CAM {preview}</span>
+                  </div>
+                  <div className="composition-pane">
+                    {renderSource(secondaryPreview, "preview")}
+                    <span className="composition-label">CAM {secondaryPreview}</span>
+                  </div>
                 </div>
+              ) : compositionMode === "pip" ? (
+                <div className="composition pip-composition">
+                  <div className="pip-main">
+                    {renderSource(preview, "preview")}
+                  </div>
+                  <div className="pip-window">
+                    {renderSource(secondaryPreview, "preview")}
+                    <span className="composition-label">CAM {secondaryPreview}</span>
+                  </div>
+                </div>
+              ) : (
+                renderSource(preview, "preview")
               )}
-              <span className="source-tag">CAM {preview}</span>
+              <span className="source-tag">
+                {compositionMode === "single"
+                  ? `CAM ${preview}`
+                  : `${compositionMode.toUpperCase()} • CAM ${preview} + CAM ${secondaryPreview}`}
+              </span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
             </div>
           </div>
@@ -857,38 +915,36 @@ function App() {
               <strong>PGM</strong>
             </div>
             <div className="screen">
-              {streamForSlot(program) ? (
-                <video
-                  autoPlay
-                  playsInline
-                  muted
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover"
-                  }}
-                  ref={el => {
-                    const liveStream = streamForSlot(program);
-
-                    if (
-                      el &&
-                      liveStream &&
-                      el.srcObject !== liveStream
-                    ) {
-                      el.srcObject = liveStream;
-                      el.play?.().catch(() => {});
-                    }
-                  }}
-                />
-              ) : (
-                <div className="fake-feed program-feed">
-                  <Camera size={54}/>
-                  <strong>CAM {String(program).padStart(2,"0")}</strong>
-                  <span>{programCam?.name}</span>
+              {programComposition.mode === "split" ? (
+                <div className="composition split-composition">
+                  <div className="composition-pane">
+                    {renderSource(programComposition.primary, "program")}
+                    <span className="composition-label">CAM {programComposition.primary}</span>
+                  </div>
+                  <div className="composition-pane">
+                    {renderSource(programComposition.secondary, "program")}
+                    <span className="composition-label">CAM {programComposition.secondary}</span>
+                  </div>
                 </div>
+              ) : programComposition.mode === "pip" ? (
+                <div className="composition pip-composition">
+                  <div className="pip-main">
+                    {renderSource(programComposition.primary, "program")}
+                  </div>
+                  <div className="pip-window">
+                    {renderSource(programComposition.secondary, "program")}
+                    <span className="composition-label">CAM {programComposition.secondary}</span>
+                  </div>
+                </div>
+              ) : (
+                renderSource(programComposition.primary, "program")
               )}
               <span className="live-badge"><i/> LIVE</span>
-              <span className="source-tag">CAM {program}</span>
+              <span className="source-tag">
+                {programComposition.mode === "single"
+                  ? `CAM ${programComposition.primary}`
+                  : `${programComposition.mode.toUpperCase()} • CAM ${programComposition.primary} + CAM ${programComposition.secondary}`}
+              </span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
             </div>
           </div>
@@ -1013,13 +1069,46 @@ function App() {
           </div>
 
           <div className="production-tools">
-            <div className="panel-label">PRODUCTION</div>
-            <div className="tool-grid">
-              <button><Type size={19}/><span>LOWER THIRD</span></button>
-              <button><Layers size={19}/><span>GRAPHICS</span></button>
-              <button><PictureInPicture2 size={19}/><span>PiP</span></button>
-              <button><MonitorUp size={19}/><span>MEDIA</span></button>
+            <div className="panel-label">LIVE LAYOUT</div>
+
+            <div className="layout-mode-grid">
+              <button
+                className={compositionMode === "single" ? "active" : ""}
+                onClick={() => setCompositionMode("single")}
+              >
+                <MonitorUp size={18}/><span>SINGLE</span>
+              </button>
+
+              <button
+                className={compositionMode === "split" ? "active" : ""}
+                onClick={() => setCompositionMode("split")}
+              >
+                <Layers size={18}/><span>SPLIT</span>
+              </button>
+
+              <button
+                className={compositionMode === "pip" ? "active" : ""}
+                onClick={() => setCompositionMode("pip")}
+              >
+                <PictureInPicture2 size={18}/><span>PiP</span>
+              </button>
             </div>
+
+            {compositionMode !== "single" && (
+              <div className="secondary-source-picker">
+                <label>SECOND CAMERA</label>
+                <select
+                  value={secondaryPreview}
+                  onChange={event => setSecondaryPreview(Number(event.target.value))}
+                >
+                  {cameras.map(camera => (
+                    <option key={camera.id} value={camera.id}>
+                      CAM {String(camera.id).padStart(2,"0")} • {cameraForSlot(camera.id)?.name || camera.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="record-panel">
@@ -1159,6 +1248,8 @@ function App() {
               <p><strong>Automatic slots:</strong> Phones fill CAM 07, 08, 09, then the remaining open slots.</p>
               <p><strong>Preview:</strong> Tap a camera tile to place it in Preview.</p>
               <p><strong>Program:</strong> Tap Take or Cut to move Preview to Program.</p>
+              <p><strong>Split Screen:</strong> Choose SPLIT, select a second camera, then TAKE to put both sources live together.</p>
+              <p><strong>Picture-in-Picture:</strong> Choose PiP, select the smaller second camera, preview the layout, then TAKE.</p>
               <p><strong>VIDEO CONNECTED:</strong> The director is receiving a real WebRTC media stream.</p>
               <p><strong>ANSWER RECEIVED:</strong> Signaling worked; the peer connection is still finishing.</p>
               <p><strong>Bandwidth:</strong> 1080P looks best. Move some phones to 720P/Auto if several feeds become unstable.</p>
