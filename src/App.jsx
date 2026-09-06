@@ -3,7 +3,7 @@ import {
   Radio, Circle, Mic2, Volume2, Wifi, BatteryFull,
   Settings, Maximize2, MonitorUp, Users, QrCode,
   Type, Layers, PictureInPicture2, Video, Camera,
-  Smartphone, X, CircleHelp
+  Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
@@ -52,6 +52,9 @@ function App() {
   const [cameraName, setCameraName] = useState("ROAMING 1");
   const [qualityProfile, setQualityProfile] = useState("1080p");
   const [showTips, setShowTips] = useState(false);
+  const [facingMode, setFacingMode] = useState("environment");
+  const [zoomRange, setZoomRange] = useState(null);
+  const [zoomValue, setZoomValue] = useState(1);
 
   const roomCode =
     new URLSearchParams(window.location.search).get("room") || "SP-4827";
@@ -265,6 +268,118 @@ function App() {
     }
   }, [stream, showCamera]);
 
+  function readZoomCapability(mediaStream) {
+    const videoTrack = mediaStream?.getVideoTracks?.()[0];
+    const capabilities = videoTrack?.getCapabilities?.();
+    const zoom = capabilities?.zoom;
+
+    if (
+      zoom &&
+      Number.isFinite(zoom.min) &&
+      Number.isFinite(zoom.max)
+    ) {
+      const settings = videoTrack.getSettings?.() || {};
+      const value = Number.isFinite(settings.zoom)
+        ? settings.zoom
+        : zoom.min;
+
+      setZoomRange({
+        min: zoom.min,
+        max: zoom.max,
+        step: zoom.step || 0.1
+      });
+      setZoomValue(value);
+    } else {
+      setZoomRange(null);
+      setZoomValue(1);
+    }
+  }
+
+  async function changeZoom(direction) {
+    const videoTrack = stream?.getVideoTracks?.()[0];
+    if (!videoTrack || !zoomRange) return;
+
+    const step = Math.max(zoomRange.step || 0.1, 0.1);
+    const next = Math.min(
+      zoomRange.max,
+      Math.max(
+        zoomRange.min,
+        zoomValue + (direction * step)
+      )
+    );
+
+    try {
+      await videoTrack.applyConstraints({
+        advanced: [{ zoom: next }]
+      });
+      setZoomValue(next);
+    } catch (error) {
+      console.warn("ScenePilot zoom unavailable", error);
+    }
+  }
+
+  async function flipCamera() {
+    if (!stream) return;
+
+    const nextFacing =
+      facingMode === "environment" ? "user" : "environment";
+    const profile = qualityProfiles[qualityProfile];
+
+    try {
+      setSignalStatus("SWITCHING CAMERA");
+
+      const replacement = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: nextFacing },
+          width: { ideal: profile.width },
+          height: { ideal: profile.height },
+          frameRate: { ideal: profile.fps, max: profile.fps }
+        },
+        audio: false
+      });
+
+      const newVideoTrack = replacement.getVideoTracks()[0];
+      if (!newVideoTrack) {
+        throw new Error("No replacement camera track available");
+      }
+
+      const replaceJobs = [];
+
+      Object.values(peers.current).forEach(peer => {
+        const sender = peer
+          .getSenders()
+          .find(candidate => candidate.track?.kind === "video");
+
+        if (sender) {
+          replaceJobs.push(sender.replaceTrack(newVideoTrack));
+        }
+      });
+
+      await Promise.all(replaceJobs);
+
+      const oldVideoTracks = stream.getVideoTracks();
+      const audioTracks = stream.getAudioTracks();
+      const nextStream = new MediaStream([
+        newVideoTrack,
+        ...audioTracks
+      ]);
+
+      oldVideoTracks.forEach(track => track.stop());
+
+      setFacingMode(nextFacing);
+      setStream(nextStream);
+      readZoomCapability(nextStream);
+      setSignalStatus(
+        Object.keys(peers.current).length
+          ? "LIVE TO DIRECTOR"
+          : "CAMERA READY"
+      );
+    } catch (error) {
+      console.error("ScenePilot camera flip failed", error);
+      setSignalStatus("CAMERA SWITCH FAILED");
+    }
+  }
+
   async function enableCamera() {
     try {
       setSignalStatus("REQUESTING CAMERA");
@@ -273,7 +388,7 @@ function App() {
 
       const media = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: { ideal: "environment" },
+          facingMode: { ideal: facingMode },
           width: { ideal: profile.width },
           height: { ideal: profile.height },
           frameRate: { ideal: profile.fps, max: profile.fps }
@@ -282,6 +397,7 @@ function App() {
       });
 
       setStream(media);
+      readZoomCapability(media);
 
       const queueIce = (peerId, candidate) => {
         if (!candidate) return;
@@ -432,6 +548,8 @@ function App() {
     socket.disconnect();
 
     setStream(null);
+    setZoomRange(null);
+    setZoomValue(1);
     setSignalStatus("OFFLINE");
   }
 
@@ -473,6 +591,40 @@ function App() {
             {stream && (
               <>
                 <span className="operator-live"><i /> CONNECTED</span>
+
+                <div className="camera-live-controls">
+                  <button
+                    type="button"
+                    onClick={flipCamera}
+                    title="Switch front / rear camera"
+                  >
+                    <RefreshCw size={19}/>
+                    <span>FLIP</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => changeZoom(-1)}
+                    disabled={!zoomRange || zoomValue <= zoomRange.min}
+                    title={zoomRange ? "Zoom out" : "Zoom unavailable on this device"}
+                  >
+                    <ZoomOut size={19}/>
+                  </button>
+
+                  <span className="zoom-readout">
+                    {zoomRange ? `${zoomValue.toFixed(1)}×` : "ZOOM N/A"}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => changeZoom(1)}
+                    disabled={!zoomRange || zoomValue >= zoomRange.max}
+                    title={zoomRange ? "Zoom in" : "Zoom unavailable on this device"}
+                  >
+                    <ZoomIn size={19}/>
+                  </button>
+                </div>
+
                 <div className="operator-overlay">
                   <span>CAMERA {String(assignedSlot).padStart(2, "0")}</span>
                   <span>{qualityProfiles[qualityProfile].label}</span>
@@ -545,7 +697,9 @@ function App() {
                 <p><strong>3.</strong> Tap Enable Camera + Microphone and allow browser permissions.</p>
                 <p><strong>4.</strong> ScenePilot assigns the next available camera slot automatically.</p>
                 <p><strong>5.</strong> LIVE TO DIRECTOR means the WebRTC media connection is active.</p>
-                <p><strong>6.</strong> If the connection drops, leave the page open while ScenePilot reconnects.</p>
+                <p><strong>6.</strong> Use FLIP to switch between the rear and front camera without leaving the production.</p>
+                <p><strong>7.</strong> Zoom controls use the phone camera's hardware zoom when the browser supports it.</p>
+                <p><strong>8.</strong> If the connection drops, leave the page open while ScenePilot reconnects.</p>
               </div>
             </div>
           </div>
