@@ -101,10 +101,24 @@ io.on("connection", socket => {
         rooms.set(room, new Map());
       }
 
+      const roomCameras = rooms.get(room);
+      const usedSlots = new Set(
+        [...roomCameras.values()]
+          .map(camera => Number(camera.slotId))
+          .filter(Number.isFinite)
+      );
+      const preferredSlot = Number(slotId);
+      const slotOrder = [7, 8, 9, 1, 2, 3, 4, 5, 6];
+      const assignedSlot =
+        (Number.isFinite(preferredSlot) && !usedSlots.has(preferredSlot) && preferredSlot) ||
+        slotOrder.find(candidate => !usedSlots.has(candidate)) ||
+        preferredSlot ||
+        null;
+
       const camera = {
         socketId: socket.id,
         name: name || "WIRELESS CAMERA",
-        slotId: Number(slotId) || null,
+        slotId: assignedSlot,
         connected: true
       };
 
