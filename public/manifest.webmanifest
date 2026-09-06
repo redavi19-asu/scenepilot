@@ -1,0 +1,9 @@
+{
+  "name": "ScenePilot",
+  "short_name": "ScenePilot",
+  "description": "Multi-camera live production switcher",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#111311",
+  "theme_color": "#e7e4db"
+}
