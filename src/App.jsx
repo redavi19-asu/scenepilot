@@ -3,7 +3,8 @@ import {
   Radio, Circle, Mic2, Volume2, Wifi, BatteryFull,
   Settings, Maximize2, MonitorUp, Users, QrCode,
   Type, Layers, PictureInPicture2, Video, Camera,
-  Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut
+  Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut,
+  Scissors, Play, Save, Download, SkipBack, Film
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
@@ -57,6 +58,7 @@ function App() {
   const [zoomValue, setZoomValue] = useState(1);
   const [videoInputs, setVideoInputs] = useState([]);
   const [selectedVideoDevice, setSelectedVideoDevice] = useState("");
+  const [showReplayEditor, setShowReplayEditor] = useState(true);
 
   const roomCode =
     new URLSearchParams(window.location.search).get("room") || "SP-4827";
@@ -1033,6 +1035,108 @@ function App() {
               <span>1080p30</span><span>REC • LOCAL</span>
             </div>
           </div>
+        </section>
+
+        <section className="replay-studio">
+          <div className="replay-head">
+            <div>
+              <span className="eyebrow">POST / REPLAY</span>
+              <strong>RECORDINGS + REPLAY STUDIO</strong>
+            </div>
+            <div className="replay-head-actions">
+              <span className="server-ready-badge">SERVER BACKEND PENDING</span>
+              <button onClick={() => setShowReplayEditor(value => !value)}>
+                {showReplayEditor ? "HIDE EDITOR" : "OPEN EDITOR"}
+              </button>
+            </div>
+          </div>
+
+          {showReplayEditor && (
+            <div className="replay-layout">
+              <aside className="recording-library">
+                <div className="panel-label">RECORDING LIBRARY</div>
+
+                <div className="recording-empty">
+                  <Film size={34}/>
+                  <strong>No server recordings yet</strong>
+                  <span>
+                    Once ScenePilot is on your server, completed Program recordings
+                    will appear here automatically.
+                  </span>
+                </div>
+
+                <div className="library-footer">
+                  <span>ROOM {roomCode}</span>
+                  <span>AUTO-SAVE READY</span>
+                </div>
+              </aside>
+
+              <div className="editor-stage">
+                <div className="editor-preview">
+                  <div className="editor-preview-placeholder">
+                    <Play size={42}/>
+                    <strong>REPLAY PREVIEW</strong>
+                    <span>Select a saved recording to edit or replay.</span>
+                  </div>
+
+                  <span className="editor-timecode">00:00:00:00</span>
+                </div>
+
+                <div className="editor-toolbar">
+                  <button disabled title="Available after server recording is connected">
+                    <SkipBack size={17}/> LAST 10 SEC
+                  </button>
+                  <button disabled title="Available after server recording is connected">
+                    <Scissors size={17}/> TRIM
+                  </button>
+                  <button disabled title="Available after server recording is connected">
+                    <Save size={17}/> SAVE CLIP
+                  </button>
+                  <button disabled title="Available after server recording is connected">
+                    <MonitorUp size={17}/> SEND TO PREVIEW
+                  </button>
+                  <button disabled title="Available after server recording is connected">
+                    <Play size={17}/> PLAY TO PROGRAM
+                  </button>
+                  <button disabled title="Available after server recording is connected">
+                    <Download size={17}/> EXPORT
+                  </button>
+                </div>
+
+                <div className="timeline-shell">
+                  <div className="timeline-ruler">
+                    <span>00:00</span>
+                    <span>00:15</span>
+                    <span>00:30</span>
+                    <span>00:45</span>
+                    <span>01:00</span>
+                  </div>
+
+                  <div className="timeline-track video-track">
+                    <span>VIDEO</span>
+                    <div className="timeline-placeholder">
+                      Recorded Program video timeline
+                    </div>
+                  </div>
+
+                  <div className="timeline-track audio-track">
+                    <span>AUDIO</span>
+                    <div className="timeline-placeholder audio-wave">
+                      Audio waveform
+                    </div>
+                  </div>
+
+                  <div className="playhead-demo"/>
+                </div>
+
+                <div className="editor-note">
+                  <strong>SERVER PHASE:</strong>
+                  Program recording, saved files, instant replay, trimming and MP4
+                  export will plug into this panel when ScenePilot moves to your server.
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       </main>
 
