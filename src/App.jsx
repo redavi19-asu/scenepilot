@@ -3,12 +3,18 @@ import {
   Radio, Circle, Mic2, Volume2, Wifi, BatteryFull,
   Settings, Maximize2, MonitorUp, Users, QrCode,
   Type, Layers, PictureInPicture2, Video, Camera,
-  Smartphone, X
+  Smartphone, X, CircleHelp
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
 import { socket } from "./socket";
 import { createPeerConnection } from "./webrtc";
+
+const qualityProfiles = {
+  "1080p": { width: 1920, height: 1080, fps: 30, label: "1080P" },
+  "720p": { width: 1280, height: 720, fps: 30, label: "720P" },
+  "auto": { width: 1280, height: 720, fps: 30, label: "AUTO" }
+};
 
 const initialCameras = [
   { id: 1, name: "STAGE LEFT", status: "LIVE", battery: 92, signal: 4 },
@@ -44,6 +50,8 @@ function App() {
   const [signalStatus, setSignalStatus] = useState("OFFLINE");
   const [assignedSlot, setAssignedSlot] = useState(7);
   const [cameraName, setCameraName] = useState("ROAMING 1");
+  const [qualityProfile, setQualityProfile] = useState("1080p");
+  const [showTips, setShowTips] = useState(false);
 
   const roomCode =
     new URLSearchParams(window.location.search).get("room") || "SP-4827";
@@ -261,11 +269,14 @@ function App() {
     try {
       setSignalStatus("REQUESTING CAMERA");
 
+      const profile = qualityProfiles[qualityProfile];
+
       const media = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { ideal: profile.width },
+          height: { ideal: profile.height },
+          frameRate: { ideal: profile.fps, max: profile.fps }
         },
         audio: true
       });
@@ -464,8 +475,8 @@ function App() {
                 <span className="operator-live"><i /> CONNECTED</span>
                 <div className="operator-overlay">
                   <span>CAMERA {String(assignedSlot).padStart(2, "0")}</span>
-                  <span>1080P</span>
-                  <span>30 FPS</span>
+                  <span>{qualityProfiles[qualityProfile].label}</span>
+                  <span>{qualityProfiles[qualityProfile].fps} FPS</span>
                 </div>
               </>
             )}
@@ -477,6 +488,20 @@ function App() {
               value={cameraName}
               onChange={event => setCameraName(event.target.value)}
             />
+            {!stream && (
+              <div className="quality-row">
+                <label>VIDEO QUALITY</label>
+                <select
+                  value={qualityProfile}
+                  onChange={event => setQualityProfile(event.target.value)}
+                >
+                  <option value="1080p">1080P / 30 FPS</option>
+                  <option value="720p">720P / 30 FPS</option>
+                  <option value="auto">AUTO / BANDWIDTH FRIENDLY</option>
+                </select>
+              </div>
+            )}
+
             <div className="operator-status">
               <span><Wifi size={17}/> {signalStatus}</span>
               <span><BatteryFull size={17}/> Battery</span>
@@ -494,6 +519,10 @@ function App() {
             )}
           </section>
 
+          <button className="return-director tips-trigger" onClick={() => setShowTips(true)}>
+            <CircleHelp size={17}/> TIPS / HELP
+          </button>
+
           <button className="return-director" onClick={() => {
             stopCamera();
             setShowCamera(false);
@@ -502,6 +531,25 @@ function App() {
             Return to Director
           </button>
         </main>
+
+        {showTips && (
+          <div className="modal-backdrop" onClick={() => setShowTips(false)}>
+            <div className="join-modal tips-modal" onClick={e => e.stopPropagation()}>
+              <button className="modal-close" onClick={() => setShowTips(false)}><X/></button>
+              <div className="join-icon"><CircleHelp size={29}/></div>
+              <span className="eyebrow">SCENEPILOT CAMERA HELP</span>
+              <h2>Camera operator tips</h2>
+              <div className="tips-list">
+                <p><strong>1.</strong> Enter a camera name before connecting.</p>
+                <p><strong>2.</strong> Start with 1080P. Use 720P or Auto if bandwidth gets tight.</p>
+                <p><strong>3.</strong> Tap Enable Camera + Microphone and allow browser permissions.</p>
+                <p><strong>4.</strong> ScenePilot assigns the next available camera slot automatically.</p>
+                <p><strong>5.</strong> LIVE TO DIRECTOR means the WebRTC media connection is active.</p>
+                <p><strong>6.</strong> If the connection drops, leave the page open while ScenePilot reconnects.</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -536,6 +584,7 @@ function App() {
         <div className="top-actions">
           <span className="network"><i/> {signalStatus}</span>
           <button onClick={() => setShowJoin(true)}><Users size={18}/> ADD CAMERA</button>
+          <button onClick={() => setShowTips(true)}><CircleHelp size={18}/> TIPS</button>
           <button className="icon-button"><Settings size={19}/></button>
         </div>
       </header>
@@ -776,6 +825,27 @@ function App() {
         <span>ROOM {roomCode}</span>
         <span>00:00:00</span>
       </footer>
+
+      {showTips && (
+        <div className="modal-backdrop" onClick={() => setShowTips(false)}>
+          <div className="join-modal tips-modal" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowTips(false)}><X/></button>
+            <div className="join-icon"><CircleHelp size={29}/></div>
+            <span className="eyebrow">SCENEPILOT QUICK TIPS</span>
+            <h2>Run the production</h2>
+            <div className="tips-list">
+              <p><strong>Add cameras:</strong> Tap Add Camera and let each phone scan the QR code.</p>
+              <p><strong>Automatic slots:</strong> Phones fill CAM 07, 08, 09, then the remaining open slots.</p>
+              <p><strong>Preview:</strong> Tap a camera tile to place it in Preview.</p>
+              <p><strong>Program:</strong> Tap Take or Cut to move Preview to Program.</p>
+              <p><strong>VIDEO CONNECTED:</strong> The director is receiving a real WebRTC media stream.</p>
+              <p><strong>ANSWER RECEIVED:</strong> Signaling worked; the peer connection is still finishing.</p>
+              <p><strong>Bandwidth:</strong> 1080P looks best. Move some phones to 720P/Auto if several feeds become unstable.</p>
+              <p><strong>Reconnect:</strong> Keep the camera page open. ScenePilot will attempt to reconnect signaling automatically.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showJoin && (
         <div className="modal-backdrop" onClick={() => setShowJoin(false)}>
