@@ -37,15 +37,15 @@ function ScenePilotSplash({ cameraMode }) {
 }
 
 const initialCameras = [
-  { id: 1, name: "STAGE LEFT", status: "LIVE", battery: 92, signal: 4 },
-  { id: 2, name: "STAGE RIGHT", status: "READY", battery: 84, signal: 4 },
-  { id: 3, name: "DRUMMER", status: "READY", battery: 71, signal: 3 },
-  { id: 4, name: "PERCUSSION", status: "READY", battery: 66, signal: 4 },
-  { id: 5, name: "CROWD A", status: "READY", battery: 95, signal: 3 },
-  { id: 6, name: "CROWD B", status: "OFFLINE", battery: 0, signal: 0 },
-  { id: 7, name: "ROAMING 1", status: "READY", battery: 78, signal: 4 },
-  { id: 8, name: "ROAMING 2", status: "OFFLINE", battery: 0, signal: 0 },
-  { id: 9, name: "WIDE / HOUSE", status: "READY", battery: 88, signal: 4 },
+  { id: 1, name: "MAIN CAM", status: "READY", battery: 0, signal: 0 },
+  { id: 2, name: "CAM 1", status: "OFFLINE", battery: 0, signal: 0 },
+  { id: 3, name: "CAM 2", status: "OFFLINE", battery: 0, signal: 0 },
+  { id: 4, name: "CAM 3", status: "OFFLINE", battery: 0, signal: 0 },
+  { id: 5, name: "CAM 4", status: "OFFLINE", battery: 0, signal: 0 },
+  { id: 6, name: "CAM 5", status: "OFFLINE", battery: 0, signal: 0 },
+  { id: 7, name: "CAM 6", status: "OFFLINE", battery: 0, signal: 0 },
+  { id: 8, name: "CAM 7", status: "OFFLINE", battery: 0, signal: 0 },
+  { id: 9, name: "CAM 8", status: "OFFLINE", battery: 0, signal: 0 },
 ];
 
 function App() {
@@ -1829,7 +1829,7 @@ function App() {
           </div>
         </section>
 
-        <BroadcastPanel />
+        <BroadcastPanel roomCode={roomCode} />
         <ReplayStudio roomCode={roomCode} />
       </main>
 
