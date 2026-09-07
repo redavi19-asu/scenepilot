@@ -1879,3 +1879,62 @@ footer span:last-child{margin-left:auto}
     height:101px;
   }
 }
+
+
+/* Compact Main Cam / Home Shot card */
+.main-camera-home{
+  grid-template-columns:minmax(0,1fr) 230px;
+  align-items:center;
+  min-height:0;
+  padding:9px 10px;
+}
+.main-camera-home-feed{
+  width:230px;
+  height:128px;
+  min-height:0;
+  aspect-ratio:auto;
+  justify-self:end;
+  border-radius:7px;
+}
+.main-camera-home-copy > small{
+  max-width:560px;
+}
+.main-camera-name{
+  bottom:6px;
+  left:6px;
+  padding:4px 6px;
+  font-size:7px;
+}
+.home-live-badge{
+  top:6px;
+  left:6px;
+  padding:4px 6px;
+  font-size:6px;
+}
+
+@media(max-width:700px){
+  .main-camera-home{
+    grid-template-columns:minmax(0,1fr) 150px;
+    gap:8px;
+  }
+  .main-camera-home-feed{
+    width:150px;
+    height:86px;
+    min-height:0;
+    aspect-ratio:auto;
+  }
+  .main-camera-home-copy > small{
+    font-size:8px;
+  }
+}
+
+@media(max-width:460px){
+  .main-camera-home{
+    grid-template-columns:1fr;
+  }
+  .main-camera-home-feed{
+    justify-self:start;
+    width:180px;
+    height:101px;
+  }
+}
