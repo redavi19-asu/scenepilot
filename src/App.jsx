@@ -108,11 +108,58 @@ function App() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const roomCode =
-    new URLSearchParams(window.location.search).get("room") || "SP-4827";
+  const queryParams = new URLSearchParams(window.location.search);
+  const roomCode = queryParams.get("room") || "SP-4827";
+  const cameraNetworkId = queryParams.get("network") || "";
+  const cameraJoinToken = queryParams.get("join") || "";
+  const [network, setNetwork] = useState(() => (
+    cameraNetworkId
+      ? {
+          id: cameraNetworkId,
+          name: "ScenePilot Network",
+          joinToken: cameraJoinToken
+        }
+      : null
+  ));
 
+  useEffect(() => {
+    if (showCamera) return;
+
+    let cancelled = false;
+
+    fetch("/api/network", {
+      credentials: "include",
+      headers: { Accept: "application/json" }
+    })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || "Unable to load ScenePilot network.");
+        }
+        return data;
+      })
+      .then(data => {
+        if (!cancelled) {
+          setNetwork(data.network || null);
+        }
+      })
+      .catch(error => {
+        console.error("ScenePilot network load failed", error);
+        if (!cancelled) {
+          setSignalStatus("NETWORK ACCESS ERROR");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showCamera]);
+
+  const networkId = network?.id || cameraNetworkId;
   const joinUrl =
-    `${window.location.origin}${window.location.pathname}?camera=1&room=${encodeURIComponent(roomCode)}`;
+    network?.id && network?.joinToken
+      ? `${window.location.origin}${window.location.pathname}?camera=1&network=${encodeURIComponent(network.id)}&room=${encodeURIComponent(roomCode)}&join=${encodeURIComponent(network.joinToken)}`
+      : "";
 
   async function refreshVideoInputs() {
     try {
@@ -340,6 +387,7 @@ function App() {
     socket.on("director:denied", handleDirectorDenied);
     socket.on("director:available", handleDirectorAvailable);
 
+    socket.setNetwork(networkId);
     socket.setRoom(roomCode);
     socket.connect();
 
@@ -361,7 +409,7 @@ function App() {
 
       socket.disconnect();
     };
-  }, [showCamera, roomCode]);
+  }, [showCamera, roomCode, networkId]);
 
   useEffect(() => {
     if (cameraVideo.current && stream) {
@@ -670,6 +718,9 @@ function App() {
 
   async function enableCamera() {
     try {
+      if (!networkId || !cameraJoinToken) {
+        throw new Error("This camera link is missing its ScenePilot network access token. Scan the company's current QR code again.");
+      }
       setSignalStatus("REQUESTING CAMERA");
 
       const profile = qualityProfiles[qualityProfile];
@@ -834,6 +885,7 @@ function App() {
       socket.on("camera:registered", handleRegistered);
       socket.on("program:status", handleProgramStatus);
 
+      socket.setNetwork(networkId, cameraJoinToken);
       socket.setRoom(roomCode);
       socket.connect();
     } catch (error) {
@@ -942,7 +994,7 @@ function App() {
             <span className="eyebrow">SCENEPILOT CAMERA</span>
             <h1>Camera Operator</h1>
           </div>
-          <span className="room-pill">ROOM {roomCode}</span>
+          <span className="room-pill">{network?.name || "SCENEPILOT NETWORK"} • ROOM {roomCode}</span>
         </header>
 
         <main className="operator-main">
@@ -1632,13 +1684,25 @@ function App() {
             <div className="join-icon"><Smartphone size={29}/></div>
             <span className="eyebrow">ADD WIRELESS CAMERA</span>
             <h2>Join this production</h2>
-            <p>Connect the phone to the production Wi-Fi, then scan this code.</p>
-            <div className="qr-wrap"><QRCodeSVG value={joinUrl} size={190}/></div>
-            <div className="room-code"><span>ROOM CODE</span><strong>{roomCode}</strong></div>
-            <button className="camera-demo" onClick={() => {
-              setShowJoin(false);
-              setShowCamera(true);
-            }}>
+            <p>
+              This QR code is locked to <strong>{network?.name || "this company network"}</strong>
+              {" "}and room {roomCode}. Cameras using another company's QR code cannot enter this production.
+            </p>
+            <div className="qr-wrap">
+              {joinUrl ? (
+                <QRCodeSVG value={joinUrl} size={190}/>
+              ) : (
+                <span>NETWORK QR LOADING…</span>
+              )}
+            </div>
+            <div className="room-code"><span>NETWORK / ROOM</span><strong>{network?.name || "LOADING"} • {roomCode}</strong></div>
+            <button
+              className="camera-demo"
+              disabled={!joinUrl}
+              onClick={() => {
+                if (joinUrl) window.location.assign(joinUrl);
+              }}
+            >
               OPEN CAMERA MODE ON THIS DEVICE
             </button>
           </div>
