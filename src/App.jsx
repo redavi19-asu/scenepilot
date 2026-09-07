@@ -11,6 +11,7 @@ import "./App.css";
 import { socket } from "./socket";
 import { createPeerConnection } from "./webrtc";
 import ReplayStudio from "./ReplayStudio";
+import BroadcastPanel from "./BroadcastPanel";
 
 const qualityProfiles = {
   "1080p": { width: 1920, height: 1080, fps: 30, label: "1080P" },
@@ -1551,6 +1552,7 @@ function App() {
           </div>
         </section>
 
+        <BroadcastPanel />
         <ReplayStudio roomCode={roomCode} />
       </main>
 
@@ -1585,7 +1587,9 @@ function App() {
               <p><strong>14. Timeline:</strong> Clips can live on multiple video, audio, and text tracks. Select a clip to change start, duration, speed, opacity, or volume.</p>
               <p><strong>15. Edit tools:</strong> Use Split at the playhead, Duplicate, Delete, Undo/Redo, timeline zoom, and Add Title while building the edit.</p>
               <p><strong>16. Instant Replay:</strong> While a live Program camera is running, ScenePilot keeps a rolling buffer. Tap Replay 10s, 20s, or 30s to load that moment into Preview, then Play Replay to put it on Program. It returns to live automatically when the clip ends.</p>
-              <p><strong>17. Server phase:</strong> Final rendered export, saved projects, and permanent server recordings will connect when ScenePilot moves onto the server.</p>
+              <p><strong>17. Broadcast / Multistream:</strong> Select Facebook, Instagram, YouTube, Twitch, TikTok, Custom RTMP, ScenePilot Self-Hosted, or several at once. The panel is staged now; tomorrow the Debian encoder backend will make GO LIVE actually publish the Program feed.</p>
+              <p><strong>18. Self-Hosted:</strong> ScenePilot Self-Hosted is your own destination. Your Debian server will receive the Program feed and can also serve a Watch Live page from your own system.</p>
+              <p><strong>19. Server phase:</strong> Final rendered export, saved projects, permanent recordings, and the live FFmpeg broadcast engine will connect when ScenePilot moves onto the server.</p>
             </div>
           </div>
         </div>
