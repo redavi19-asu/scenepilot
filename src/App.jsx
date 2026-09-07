@@ -18,6 +18,23 @@ const qualityProfiles = {
   "auto": { width: 1280, height: 720, fps: 30, label: "AUTO" }
 };
 
+function ScenePilotSplash({ cameraMode }) {
+  return (
+    <div className="scenepilot-splash" role="status" aria-label="ScenePilot loading">
+      <div className="splash-orbit splash-orbit-one"/>
+      <div className="splash-orbit splash-orbit-two"/>
+      <div className="splash-orbit splash-orbit-three"/>
+      <div className="splash-core">
+        <div className="splash-mark"><Radio size={34}/></div>
+        <strong>SCENEPILOT</strong>
+        <span>{cameraMode ? "CAMERA LINK" : "LIVE PRODUCTION CONSOLE"}</span>
+        <div className="splash-line"><i/></div>
+        <small>{cameraMode ? "CONNECTING CAMERA" : "LOADING CONTROL ROOM"}</small>
+      </div>
+    </div>
+  );
+}
+
 const initialCameras = [
   { id: 1, name: "STAGE LEFT", status: "LIVE", battery: 92, signal: 4 },
   { id: 2, name: "STAGE RIGHT", status: "READY", battery: 84, signal: 4 },
@@ -31,6 +48,7 @@ const initialCameras = [
 ];
 
 function App() {
+  const [showSplash, setShowSplash] = useState(true);
   const [cameras, setCameras] = useState(initialCameras);
   const [program, setProgram] = useState(1);
   const [preview, setPreview] = useState(2);
@@ -82,6 +100,11 @@ function App() {
   const replayRecorderRef = useRef(null);
   const replayChunksRef = useRef([]);
   const instantReplayVideoRef = useRef(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowSplash(false), 1650);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const roomCode =
     new URLSearchParams(window.location.search).get("room") || "SP-4827";
@@ -877,6 +900,10 @@ function App() {
     }
 
     setSecondaryPreview(slotId);
+  }
+
+  if (showSplash) {
+    return <ScenePilotSplash cameraMode={showCamera} />;
   }
 
   if (showCamera) {
