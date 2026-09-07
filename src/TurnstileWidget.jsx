@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-const DEFAULT_SITE_KEY = "0x4AAAAAAEpl_r2LJcL18Dn5";
+const DEFAULT_SITE_KEY = "0x4AAAAAAErrAXJrlyLdjt5s";
 const SCRIPT_ID = "scenepilot-turnstile-script";
 
 export default function TurnstileWidget({
