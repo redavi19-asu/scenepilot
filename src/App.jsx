@@ -75,6 +75,13 @@ function App() {
   const [draggingCamera, setDraggingCamera] = useState(null);
   const [localClip, setLocalClip] = useState(null);
   const localClipUrl = useRef(null);
+  const [instantReplayMode, setInstantReplayMode] = useState("live");
+  const [instantReplayUrl, setInstantReplayUrl] = useState(null);
+  const [instantReplaySeconds, setInstantReplaySeconds] = useState(10);
+  const [instantReplayStatus, setInstantReplayStatus] = useState("BUFFER WAITING");
+  const replayRecorderRef = useRef(null);
+  const replayChunksRef = useRef([]);
+  const instantReplayVideoRef = useRef(null);
 
   const roomCode =
     new URLSearchParams(window.location.search).get("room") || "SP-4827";
@@ -316,8 +323,14 @@ function App() {
       if (localClipUrl.current) {
         URL.revokeObjectURL(localClipUrl.current);
       }
+      if (instantReplayUrl) {
+        URL.revokeObjectURL(instantReplayUrl);
+      }
+      try {
+        replayRecorderRef.current?.stop?.();
+      } catch (_) {}
     };
-  }, []);
+  }, [instantReplayUrl]);
 
   useEffect(() => {
     if (showCamera || !socket.connected) return;
@@ -331,6 +344,138 @@ function App() {
       liveSlots
     });
   }, [showCamera, roomCode, programComposition]);
+
+  useEffect(() => {
+    if (showCamera) return;
+
+    const primarySlot = programComposition.primary;
+    const primaryCamera = wirelessCameras.find(camera => camera.slotId === primarySlot);
+    const programStream = primaryCamera
+      ? remoteStreams[primaryCamera.socketId]
+      : null;
+
+    if (!programStream || typeof MediaRecorder === "undefined") {
+      setInstantReplayStatus("BUFFER WAITING");
+      return;
+    }
+
+    try {
+      if (replayRecorderRef.current?.state !== "inactive") {
+        replayRecorderRef.current?.stop?.();
+      }
+    } catch (_) {}
+
+    replayChunksRef.current = [];
+
+    let mimeType = "";
+    const candidates = [
+      "video/webm;codecs=vp8,opus",
+      "video/webm",
+      "video/mp4"
+    ];
+
+    for (const candidate of candidates) {
+      if (MediaRecorder.isTypeSupported?.(candidate)) {
+        mimeType = candidate;
+        break;
+      }
+    }
+
+    let recorder;
+    try {
+      recorder = mimeType
+        ? new MediaRecorder(programStream, { mimeType })
+        : new MediaRecorder(programStream);
+    } catch (error) {
+      console.error("ScenePilot replay recorder unavailable", error);
+      setInstantReplayStatus("REPLAY UNSUPPORTED");
+      return;
+    }
+
+    recorder.ondataavailable = event => {
+      if (!event.data || !event.data.size) return;
+
+      const now = Date.now();
+      replayChunksRef.current.push({
+        blob: event.data,
+        time: now
+      });
+
+      const cutoff = now - 35000;
+      replayChunksRef.current = replayChunksRef.current.filter(
+        chunk => chunk.time >= cutoff
+      );
+
+      setInstantReplayStatus("BUFFERING 30S");
+    };
+
+    recorder.onerror = error => {
+      console.error("ScenePilot instant replay recorder error", error);
+      setInstantReplayStatus("REPLAY ERROR");
+    };
+
+    try {
+      recorder.start(1000);
+      replayRecorderRef.current = recorder;
+      setInstantReplayStatus("BUFFERING 30S");
+    } catch (error) {
+      console.error("ScenePilot instant replay start failed", error);
+      setInstantReplayStatus("REPLAY ERROR");
+    }
+
+    return () => {
+      try {
+        if (recorder.state !== "inactive") recorder.stop();
+      } catch (_) {}
+
+      if (replayRecorderRef.current === recorder) {
+        replayRecorderRef.current = null;
+      }
+    };
+  }, [showCamera, programComposition.primary, wirelessCameras, remoteStreams]);
+
+  function buildInstantReplay(seconds) {
+    const cutoff = Date.now() - seconds * 1000;
+    const parts = replayChunksRef.current
+      .filter(chunk => chunk.time >= cutoff)
+      .map(chunk => chunk.blob);
+
+    if (!parts.length) {
+      setInstantReplayStatus("BUFFER NOT READY");
+      return;
+    }
+
+    if (instantReplayUrl) {
+      URL.revokeObjectURL(instantReplayUrl);
+    }
+
+    const type = parts[0]?.type || "video/webm";
+    const blob = new Blob(parts, { type });
+    const url = URL.createObjectURL(blob);
+
+    setInstantReplaySeconds(seconds);
+    setInstantReplayUrl(url);
+    setInstantReplayMode("preview");
+    setInstantReplayStatus(`REPLAY ${seconds}S READY`);
+  }
+
+  function playInstantReplay() {
+    if (!instantReplayUrl) return;
+
+    setInstantReplayMode("program");
+    requestAnimationFrame(() => {
+      const video = instantReplayVideoRef.current;
+      if (video) {
+        video.currentTime = 0;
+        video.play?.().catch(() => {});
+      }
+    });
+  }
+
+  function returnToLive() {
+    setInstantReplayMode("live");
+    setInstantReplayStatus("BUFFERING 30S");
+  }
 
   function readZoomCapability(mediaStream) {
     const videoTrack = mediaStream?.getVideoTracks?.()[0];
@@ -1057,7 +1202,15 @@ function App() {
                 setDraggingCamera(null);
               }}
             >
-              {compositionMode === "split" ? (
+              {instantReplayMode === "preview" && instantReplayUrl ? (
+                <video
+                  src={instantReplayUrl}
+                  className="composition-video instant-replay-video"
+                  controls
+                  playsInline
+                  preload="auto"
+                />
+              ) : compositionMode === "split" ? (
                 <div className="composition split-composition">
                   <div className="composition-pane">
                     {renderSource(preview, "preview")}
@@ -1082,9 +1235,11 @@ function App() {
                 renderSource(preview, "preview")
               )}
               <span className="source-tag">
-                {compositionMode === "single"
-                  ? `CAM ${preview}`
-                  : `${compositionMode.toUpperCase()} • CAM ${preview} + CAM ${secondaryPreview}`}
+                {instantReplayMode === "preview"
+                  ? `REPLAY ${instantReplaySeconds}S`
+                  : compositionMode === "single"
+                    ? `CAM ${preview}`
+                    : `${compositionMode.toUpperCase()} • CAM ${preview} + CAM ${secondaryPreview}`}
               </span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
             </div>
@@ -1096,7 +1251,16 @@ function App() {
               <strong>PGM</strong>
             </div>
             <div className="screen">
-              {programComposition.mode === "split" ? (
+              {instantReplayMode === "program" && instantReplayUrl ? (
+                <video
+                  ref={instantReplayVideoRef}
+                  src={instantReplayUrl}
+                  className="composition-video instant-replay-video"
+                  autoPlay
+                  playsInline
+                  onEnded={returnToLive}
+                />
+              ) : programComposition.mode === "split" ? (
                 <div className="composition split-composition">
                   <div className="composition-pane">
                     {renderSource(programComposition.primary, "program")}
@@ -1122,9 +1286,11 @@ function App() {
               )}
               <span className="live-badge"><i/> LIVE</span>
               <span className="source-tag">
-                {programComposition.mode === "single"
-                  ? `CAM ${programComposition.primary}`
-                  : `${programComposition.mode.toUpperCase()} • CAM ${programComposition.primary} + CAM ${programComposition.secondary}`}
+                {instantReplayMode === "program"
+                  ? `INSTANT REPLAY ${instantReplaySeconds}S`
+                  : programComposition.mode === "single"
+                    ? `CAM ${programComposition.primary}`
+                    : `${programComposition.mode.toUpperCase()} • CAM ${programComposition.primary} + CAM ${programComposition.secondary}`}
               </span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
             </div>
@@ -1319,6 +1485,43 @@ function App() {
               <span>1080p30</span><span>REC • LOCAL</span>
             </div>
           </div>
+
+          <div className="instant-replay-panel">
+            <div className="panel-label">INSTANT REPLAY</div>
+
+            <div className="instant-replay-status">
+              <i/>
+              <span>{instantReplayStatus}</span>
+            </div>
+
+            <div className="instant-replay-presets">
+              {[10,20,30].map(seconds => (
+                <button
+                  key={seconds}
+                  onClick={() => buildInstantReplay(seconds)}
+                >
+                  REPLAY {seconds}s
+                </button>
+              ))}
+            </div>
+
+            <div className="instant-replay-actions">
+              <button
+                className="replay-live-button"
+                onClick={playInstantReplay}
+                disabled={!instantReplayUrl}
+              >
+                <Play size={16}/> PLAY REPLAY
+              </button>
+
+              <button
+                onClick={returnToLive}
+                disabled={instantReplayMode === "live"}
+              >
+                RETURN LIVE
+              </button>
+            </div>
+          </div>
         </section>
 
         <ReplayStudio roomCode={roomCode} />
@@ -1354,7 +1557,8 @@ function App() {
               <p><strong>13. Editor media:</strong> In Pro Editor + Replay Studio, use Import Media to load multiple local video, audio, or image files.</p>
               <p><strong>14. Timeline:</strong> Clips can live on multiple video, audio, and text tracks. Select a clip to change start, duration, speed, opacity, or volume.</p>
               <p><strong>15. Edit tools:</strong> Use Split at the playhead, Duplicate, Delete, Undo/Redo, timeline zoom, and Add Title while building the edit.</p>
-              <p><strong>16. Server phase:</strong> Final rendered export, saved projects, server recordings, and instant replay will connect to this same editor when ScenePilot moves onto the server.</p>
+              <p><strong>16. Instant Replay:</strong> While a live Program camera is running, ScenePilot keeps a rolling buffer. Tap Replay 10s, 20s, or 30s to load that moment into Preview, then Play Replay to put it on Program. It returns to live automatically when the clip ends.</p>
+              <p><strong>17. Server phase:</strong> Final rendered export, saved projects, and permanent server recordings will connect when ScenePilot moves onto the server.</p>
             </div>
           </div>
         </div>
