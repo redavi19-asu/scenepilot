@@ -1729,7 +1729,7 @@ function App() {
 
         <div className="production-title">
           <span>PRODUCTION</span>
-          <strong>GO-GO LIVE • MAIN STAGE</strong>
+          <strong>LIVE COMMAND • DIRECTOR CONTROL</strong>
         </div>
 
         <div className="top-actions">
