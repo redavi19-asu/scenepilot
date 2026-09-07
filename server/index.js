@@ -119,7 +119,12 @@ io.on("connection", socket => {
         socketId: socket.id,
         name: name || "WIRELESS CAMERA",
         slotId: assignedSlot,
-        connected: true
+        connected: true,
+        battery: null,
+        charging: null,
+        network: null,
+        telemetryConsent: false,
+        telemetrySupport: null
       };
 
       rooms
@@ -146,6 +151,64 @@ io.on("connection", socket => {
       );
     }
   );
+
+  socket.on("camera:telemetry", payload => {
+    if (socket.data.role !== "camera") return;
+
+    const room = payload?.room || socket.data.room;
+    if (!room || !rooms.has(room)) return;
+
+    const camera = rooms.get(room).get(socket.id);
+    if (!camera) return;
+
+    camera.telemetryConsent = payload?.telemetryConsent === true;
+    camera.telemetrySupport =
+      payload?.support && typeof payload.support === "object"
+        ? {
+            battery: Boolean(payload.support.battery),
+            network: Boolean(payload.support.network)
+          }
+        : null;
+
+    camera.battery =
+      camera.telemetryConsent && Number.isFinite(payload?.battery)
+        ? Math.max(0, Math.min(100, Number(payload.battery)))
+        : null;
+
+    camera.charging =
+      camera.telemetryConsent && typeof payload?.charging === "boolean"
+        ? payload.charging
+        : null;
+
+    camera.network =
+      camera.telemetryConsent &&
+      payload?.network &&
+      typeof payload.network === "object"
+        ? {
+            bars: Number.isFinite(payload.network.bars)
+              ? Math.max(1, Math.min(4, Number(payload.network.bars)))
+              : null,
+            downlink: Number.isFinite(payload.network.downlink)
+              ? Number(payload.network.downlink)
+              : null,
+            rtt: Number.isFinite(payload.network.rtt)
+              ? Number(payload.network.rtt)
+              : null,
+            effectiveType: payload.network.effectiveType
+              ? String(payload.network.effectiveType).slice(0, 20)
+              : null
+          }
+        : null;
+
+    socket.to(room).emit("camera:telemetry", {
+      socketId: socket.id,
+      battery: camera.battery,
+      charging: camera.charging,
+      network: camera.network,
+      telemetryConsent: camera.telemetryConsent,
+      support: camera.telemetrySupport
+    });
+  });
 
   socket.on("program:update", ({ room, liveSlots }) => {
     if (socket.data.role !== "director") return;
