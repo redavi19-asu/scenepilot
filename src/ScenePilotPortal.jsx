@@ -539,6 +539,7 @@ function AdminPage({ user, onLogout }) {
         </div>
         <div className="sp-admin-actions">
           <button onClick={() => go("/app")}>OPEN SCENEPILOT</button>
+          <button onClick={() => window.location.assign("https://icomputeranything.com/master")}>ICA MASTER</button>
           <button onClick={onLogout}><LogOut size={15}/> LOGOUT</button>
         </div>
       </header>
