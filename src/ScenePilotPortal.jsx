@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Radio, LogIn, UserPlus, Download, LockKeyhole, MessageSquare,
   Send, ShieldCheck, Users, ArrowRight, LogOut, Crown, Mail,
   X, Camera, RadioTower
 } from "lucide-react";
 import App from "./App.jsx";
+import TurnstileWidget from "./TurnstileWidget.jsx";
 import { socket } from "./socket";
 import "./ScenePilotPortal.css";
 
@@ -145,16 +146,39 @@ function AuthPanel({ onAuthenticated }) {
   const [marketing, setMarketing] = useState(true);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+
+  const handleTurnstileToken = useCallback(token => {
+    setTurnstileToken(token || "");
+    if (token) setStatus("");
+  }, []);
 
   async function submit(event) {
     event.preventDefault();
-    setBusy(true);
     setStatus("");
+
+    if (!turnstileToken) {
+      setStatus("Complete the Cloudflare security check before continuing.");
+      return;
+    }
+
+    setBusy(true);
 
     try {
       const payload = mode === "register"
-        ? { displayName, email, password, marketingOptIn: marketing }
-        : { email, password };
+        ? {
+            displayName,
+            email,
+            password,
+            marketingOptIn: marketing,
+            turnstileToken
+          }
+        : {
+            email,
+            password,
+            turnstileToken
+          };
 
       const data = await api(
         mode === "register" ? "/api/auth/register" : "/api/auth/login",
@@ -166,11 +190,9 @@ function AuthPanel({ onAuthenticated }) {
 
       onAuthenticated(data.user);
     } catch (error) {
-      if (error.status === 503) {
-        setStatus("The ICA D1 account database still needs to be bound to ScenePilot.");
-      } else {
-        setStatus(error.message);
-      }
+      setStatus(error.message);
+      setTurnstileToken("");
+      setTurnstileResetKey(value => value + 1);
     } finally {
       setBusy(false);
     }
@@ -190,10 +212,26 @@ function AuthPanel({ onAuthenticated }) {
         </p>
 
         <div className="sp-auth-tabs">
-          <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>
+          <button
+            className={mode === "login" ? "active" : ""}
+            onClick={() => {
+              setMode("login");
+              setTurnstileToken("");
+              setTurnstileResetKey(value => value + 1);
+              setStatus("");
+            }}
+          >
             LOGIN
           </button>
-          <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>
+          <button
+            className={mode === "register" ? "active" : ""}
+            onClick={() => {
+              setMode("register");
+              setTurnstileToken("");
+              setTurnstileResetKey(value => value + 1);
+              setStatus("");
+            }}
+          >
             CREATE ACCOUNT
           </button>
         </div>
@@ -245,9 +283,15 @@ function AuthPanel({ onAuthenticated }) {
             </label>
           )}
 
+          <TurnstileWidget
+            action={mode === "register" ? "register" : "login"}
+            onToken={handleTurnstileToken}
+            resetKey={turnstileResetKey}
+          />
+
           {status && <div className="sp-auth-error">{status}</div>}
 
-          <button className="sp-auth-submit" disabled={busy}>
+          <button className="sp-auth-submit" disabled={busy || !turnstileToken}>
             {mode === "login" ? <LogIn size={17}/> : <UserPlus size={17}/>}
             {busy ? "PLEASE WAIT..." : mode === "login" ? "LOGIN" : "CREATE FREE BETA ACCOUNT"}
           </button>
