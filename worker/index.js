@@ -1095,6 +1095,385 @@ async function validCameraJoinToken(env, networkId, joinToken) {
   return Boolean(row);
 }
 
+
+const BROADCAST_DESTINATION_IDS = new Set([
+  "facebook",
+  "instagram",
+  "youtube",
+  "twitch",
+  "tiktok",
+  "self",
+  "custom"
+]);
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function broadcastCryptoKey(secret) {
+  const raw = new TextEncoder().encode(String(secret || ""));
+  const digest = await crypto.subtle.digest("SHA-256", raw);
+  return crypto.subtle.importKey(
+    "raw",
+    digest,
+    { name: "AES-GCM" },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function encryptBroadcastSecret(value, secret) {
+  const key = await broadcastCryptoKey(secret);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const plaintext = new TextEncoder().encode(String(value || ""));
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    plaintext
+  );
+
+  return `${bytesToBase64(iv)}.${bytesToBase64(new Uint8Array(encrypted))}`;
+}
+
+async function decryptBroadcastSecret(value, secret) {
+  const [ivPart, cipherPart] = String(value || "").split(".");
+  if (!ivPart || !cipherPart) return "";
+
+  const key = await broadcastCryptoKey(secret);
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: base64ToBytes(ivPart) },
+    key,
+    base64ToBytes(cipherPart)
+  );
+
+  return new TextDecoder().decode(decrypted);
+}
+
+async function requireScenePilotNetworkMember(request, env) {
+  const user = await getCurrentUser(request, env);
+
+  if (!user || user.status !== "active" || user.accessStatus !== "active") {
+    return {
+      user: null,
+      network: null,
+      response: json({ error: "ScenePilot account access required." }, 401)
+    };
+  }
+
+  const network = await getUserScenePilotNetwork(env, user.id);
+
+  if (!network) {
+    return {
+      user,
+      network: null,
+      response: json({ error: "ScenePilot network not found." }, 404)
+    };
+  }
+
+  return { user, network, response: null };
+}
+
+async function handleBroadcastDestinations(request, env) {
+  const auth = await requireScenePilotNetworkMember(request, env);
+  if (auth.response) return auth.response;
+
+  if (request.method === "GET") {
+    const result = await env.DB.prepare(
+      `SELECT
+        destination_id,
+        label,
+        rtmp_url,
+        stream_key_ciphertext,
+        status,
+        updated_at
+       FROM scenepilot_broadcast_destinations
+       WHERE network_id = ?
+       ORDER BY destination_id ASC`
+    ).bind(auth.network.id).all();
+
+    return json({
+      network: {
+        id: auth.network.id,
+        name: auth.network.name
+      },
+      encoderConnected: Boolean(String(env.ENCODER_API_URL || "").trim()),
+      destinations: (result.results || []).map(row => ({
+        id: row.destination_id,
+        label: row.label || "",
+        url: row.rtmp_url || "",
+        configured: Boolean(row.rtmp_url && row.stream_key_ciphertext),
+        status: row.status || "configured",
+        updatedAt: row.updated_at || null
+      }))
+    });
+  }
+
+  const body = await readJson(request);
+  const destinationId = String(body.destinationId || "").trim().toLowerCase();
+  const label = String(body.label || "").trim().slice(0, 120);
+  const url = String(body.url || "").trim().slice(0, 1000);
+  const streamKey = String(body.streamKey || "").trim();
+
+  if (!BROADCAST_DESTINATION_IDS.has(destinationId)) {
+    return json({ error: "Unsupported broadcast destination." }, 400);
+  }
+
+  if (!url) {
+    return json({ error: "Enter the RTMP / RTMPS URL." }, 400);
+  }
+
+  if (!/^rtmps?:\/\//i.test(url)) {
+    return json({ error: "Broadcast URL must begin with rtmp:// or rtmps://." }, 400);
+  }
+
+  const existing = await env.DB.prepare(
+    `SELECT stream_key_ciphertext
+     FROM scenepilot_broadcast_destinations
+     WHERE network_id = ? AND destination_id = ?
+     LIMIT 1`
+  ).bind(auth.network.id, destinationId).first();
+
+  let ciphertext = existing?.stream_key_ciphertext || null;
+
+  if (streamKey) {
+    const encryptionSecret = String(env.BROADCAST_CONFIG_KEY || "").trim();
+    if (!encryptionSecret) {
+      return json({
+        error: "Broadcast credential encryption is not configured yet."
+      }, 503);
+    }
+    ciphertext = await encryptBroadcastSecret(streamKey, encryptionSecret);
+  }
+
+  if (!ciphertext) {
+    return json({ error: "Enter a stream key for this destination." }, 400);
+  }
+
+  const now = Date.now();
+
+  await env.DB.prepare(
+    `INSERT INTO scenepilot_broadcast_destinations (
+      network_id,
+      destination_id,
+      label,
+      rtmp_url,
+      stream_key_ciphertext,
+      status,
+      created_at,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, 'configured', ?, ?)
+    ON CONFLICT(network_id, destination_id) DO UPDATE SET
+      label = excluded.label,
+      rtmp_url = excluded.rtmp_url,
+      stream_key_ciphertext = excluded.stream_key_ciphertext,
+      status = 'configured',
+      updated_at = excluded.updated_at`
+  ).bind(
+    auth.network.id,
+    destinationId,
+    label,
+    url,
+    ciphertext,
+    now,
+    now
+  ).run();
+
+  return json({
+    ok: true,
+    destination: {
+      id: destinationId,
+      label,
+      url,
+      configured: true,
+      status: "configured",
+      updatedAt: now
+    }
+  });
+}
+
+async function loadBroadcastTargets(env, networkId, destinationIds) {
+  if (!destinationIds.length) return [];
+
+  const encryptionSecret = String(env.BROADCAST_CONFIG_KEY || "").trim();
+  if (!encryptionSecret) {
+    throw new Error("Broadcast credential encryption is not configured.");
+  }
+
+  const placeholders = destinationIds.map(() => "?").join(",");
+  const result = await env.DB.prepare(
+    `SELECT destination_id, label, rtmp_url, stream_key_ciphertext
+     FROM scenepilot_broadcast_destinations
+     WHERE network_id = ?
+       AND destination_id IN (${placeholders})`
+  ).bind(networkId, ...destinationIds).all();
+
+  const rows = result.results || [];
+  const byId = new Map(rows.map(row => [row.destination_id, row]));
+  const targets = [];
+
+  for (const id of destinationIds) {
+    const row = byId.get(id);
+    if (!row?.rtmp_url || !row?.stream_key_ciphertext) {
+      throw new Error(`${id} is not configured for this ScenePilot network.`);
+    }
+
+    targets.push({
+      id,
+      label: row.label || "",
+      url: row.rtmp_url,
+      streamKey: await decryptBroadcastSecret(
+        row.stream_key_ciphertext,
+        encryptionSecret
+      )
+    });
+  }
+
+  return targets;
+}
+
+async function callEncoder(env, path, payload) {
+  const baseUrl = String(env.ENCODER_API_URL || "").trim().replace(/\/+$/, "");
+  const token = String(env.ENCODER_API_TOKEN || "").trim();
+
+  if (!baseUrl) {
+    return {
+      ok: false,
+      pending: true,
+      status: 503,
+      data: {
+        error: "ScenePilot encoder backend is not connected yet."
+      }
+    };
+  }
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  return {
+    ok: response.ok,
+    pending: false,
+    status: response.status,
+    data
+  };
+}
+
+async function handleBroadcastControl(request, env, action) {
+  const auth = await requireScenePilotNetworkMember(request, env);
+  if (auth.response) return auth.response;
+
+  const body = await readJson(request);
+  const destinationIds = Array.isArray(body.destinations)
+    ? [...new Set(
+        body.destinations
+          .map(value => String(value || "").trim().toLowerCase())
+          .filter(value => BROADCAST_DESTINATION_IDS.has(value))
+      )]
+    : [];
+
+  if (action === "start" && !destinationIds.length) {
+    return json({ error: "Select at least one broadcast destination." }, 400);
+  }
+
+  let targets = [];
+
+  try {
+    if (action === "start") {
+      targets = await loadBroadcastTargets(
+        env,
+        auth.network.id,
+        destinationIds
+      );
+    }
+  } catch (error) {
+    return json({
+      error: error instanceof Error ? error.message : String(error)
+    }, 400);
+  }
+
+  const eventId = crypto.randomUUID();
+  const now = Date.now();
+
+  const encoderPayload = {
+    eventId,
+    networkId: auth.network.id,
+    networkName: auth.network.name,
+    room: String(body.room || "SP-4827").slice(0, 80),
+    destinations: targets
+  };
+
+  const encoder = await callEncoder(
+    env,
+    action === "start" ? "/broadcast/start" : "/broadcast/stop",
+    encoderPayload
+  );
+
+  await env.DB.prepare(
+    `INSERT INTO scenepilot_broadcast_events (
+      id,
+      network_id,
+      action,
+      destinations_json,
+      status,
+      detail,
+      created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    eventId,
+    auth.network.id,
+    action,
+    JSON.stringify(destinationIds),
+    encoder.ok ? "accepted" : encoder.pending ? "backend_pending" : "failed",
+    JSON.stringify(encoder.data || {}),
+    now
+  ).run();
+
+  if (encoder.pending) {
+    return json({
+      ok: false,
+      pending: true,
+      eventId,
+      error: encoder.data.error
+    }, 503);
+  }
+
+  if (!encoder.ok) {
+    return json({
+      ok: false,
+      eventId,
+      error: encoder.data.error || "Encoder rejected the broadcast request."
+    }, encoder.status || 502);
+  }
+
+  return json({
+    ok: true,
+    eventId,
+    status: encoder.data.status || (action === "start" ? "starting" : "stopping"),
+    encoder: encoder.data
+  });
+}
+
 async function handleApi(request, env, url) {
   if (url.pathname === "/api/health") {
     let databaseReady = false;
@@ -1127,6 +1506,21 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/network" && request.method === "GET") {
     return handleNetwork(request, env);
+  }
+
+  if (
+    url.pathname === "/api/broadcast/destinations" &&
+    (request.method === "GET" || request.method === "POST")
+  ) {
+    return handleBroadcastDestinations(request, env);
+  }
+
+  if (url.pathname === "/api/broadcast/start" && request.method === "POST") {
+    return handleBroadcastControl(request, env, "start");
+  }
+
+  if (url.pathname === "/api/broadcast/stop" && request.method === "POST") {
+    return handleBroadcastControl(request, env, "stop");
   }
 
   if (url.pathname === "/api/auth/register" && request.method === "POST") {
