@@ -69,6 +69,7 @@ function App() {
   const [remoteStreams, setRemoteStreams] = useState({});
   const [wirelessCameras, setWirelessCameras] = useState([]);
   const [signalStatus, setSignalStatus] = useState("OFFLINE");
+  const [directorLockMessage, setDirectorLockMessage] = useState("");
   const [isOnAir, setIsOnAir] = useState(false);
   const [assignedSlot, setAssignedSlot] = useState(7);
   const assignedSlotRef = useRef(7);
@@ -308,6 +309,26 @@ function App() {
       setSignalStatus("SIGNAL DISCONNECTED");
     };
 
+    const handleDirectorGranted = () => {
+      setDirectorLockMessage("");
+      setSignalStatus("DIRECTOR ACTIVE");
+    };
+
+    const handleDirectorDenied = payload => {
+      setDirectorLockMessage(
+        payload?.message ||
+        "This production already has an active Director."
+      );
+      setSignalStatus("DIRECTOR LOCKED");
+    };
+
+    const handleDirectorAvailable = () => {
+      setDirectorLockMessage("");
+      socket.emit("director:join", {
+        room: roomCode
+      });
+    };
+
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("room:cameras", handleRoomCameras);
@@ -315,6 +336,9 @@ function App() {
     socket.on("webrtc:answer", handleAnswer);
     socket.on("webrtc:ice", handleIce);
     socket.on("camera:left", handleCameraLeft);
+    socket.on("director:granted", handleDirectorGranted);
+    socket.on("director:denied", handleDirectorDenied);
+    socket.on("director:available", handleDirectorAvailable);
 
     socket.setRoom(roomCode);
     socket.connect();
@@ -327,6 +351,9 @@ function App() {
       socket.off("webrtc:answer", handleAnswer);
       socket.off("webrtc:ice", handleIce);
       socket.off("camera:left", handleCameraLeft);
+      socket.off("director:granted", handleDirectorGranted);
+      socket.off("director:denied", handleDirectorDenied);
+      socket.off("director:available", handleDirectorAvailable);
 
       Object.values(peers.current).forEach(peer => peer.close());
       peers.current = {};
@@ -1079,13 +1106,6 @@ function App() {
             <CircleHelp size={17}/> TIPS / HELP
           </button>
 
-          <button className="return-director" onClick={() => {
-            stopCamera();
-            setShowCamera(false);
-            history.replaceState({}, "", window.location.pathname);
-          }}>
-            Return to Director
-          </button>
         </main>
 
         {showCallShield && (
@@ -1209,6 +1229,16 @@ function App() {
           <button className="icon-button"><Settings size={19}/></button>
         </div>
       </header>
+
+      {directorLockMessage && (
+        <div className="director-lock-banner">
+          <ShieldCheck size={16}/>
+          <div>
+            <strong>DIRECTOR SESSION LOCKED</strong>
+            <span>{directorLockMessage}</span>
+          </div>
+        </div>
+      )}
 
       <main className="workspace">
         <section className="monitor-section">
