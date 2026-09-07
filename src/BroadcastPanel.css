@@ -272,3 +272,13 @@
   .broadcast-control-bar{grid-template-columns:1fr}
   .broadcast-go-live{min-height:48px}
 }
+
+.broadcast-backend-badge.ready{color:#cfe7c8;border-color:#607b5b;background:#1b281c}
+.broadcast-setting-title{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.broadcast-setting-title>span{display:flex;align-items:center;gap:4px;color:#9cc394;font-size:6px;font-weight:900;letter-spacing:.6px}
+.broadcast-save-one,.broadcast-save-selected{border:1px solid #51604d;background:#243021;color:#e7efe3;min-height:32px;padding:0 10px;font:inherit;font-size:7px;font-weight:900;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+.broadcast-save-one{width:100%;margin-top:8px}
+.broadcast-save-selected{margin-top:9px}
+.broadcast-save-one:disabled,.broadcast-save-selected:disabled{opacity:.4;cursor:not-allowed}
+.broadcast-engine-status i.ready{background:#789d70;box-shadow:0 0 10px rgba(120,157,112,.35)}
+.broadcast-status-message{margin-top:8px;border:1px solid #4a4e47;background:#171a17;color:#b9beb5;padding:8px 10px;font-size:7px;line-height:1.45}
