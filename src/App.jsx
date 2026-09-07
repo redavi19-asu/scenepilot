@@ -79,6 +79,10 @@ function App() {
   const [showCallShield, setShowCallShield] = useState(false);
   const [liveShieldEnabled, setLiveShieldEnabled] = useState(false);
   const wakeLock = useRef(null);
+  const reconnectTimers = useRef({});
+  const audioElements = useRef({});
+  const [masterAudioSource, setMasterAudioSource] = useState("mix");
+  const [cameraAudio, setCameraAudio] = useState({});
   const [facingMode, setFacingMode] = useState("environment");
   const [zoomRange, setZoomRange] = useState(null);
   const [zoomValue, setZoomValue] = useState(1);
@@ -107,6 +111,34 @@ function App() {
     const timer = window.setTimeout(() => setShowSplash(false), 1650);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!showCamera) return;
+
+    const keepAwake = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        if ("wakeLock" in navigator && !wakeLock.current) {
+          wakeLock.current = await navigator.wakeLock.request("screen");
+        }
+      } catch (error) {
+        console.warn("ScenePilot camera wake lock unavailable", error);
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && stream) {
+        keepAwake();
+      }
+    };
+
+    if (stream) keepAwake();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [showCamera, stream]);
 
   const queryParams = new URLSearchParams(window.location.search);
   const roomCode = queryParams.get("room") || "SP-4827";
@@ -211,7 +243,16 @@ function App() {
       }
     };
 
-    const startPeer = async camera => {
+    const schedulePeerRestart = (camera, delay = 3500) => {
+      if (!camera?.socketId) return;
+      clearTimeout(reconnectTimers.current[camera.socketId]);
+      reconnectTimers.current[camera.socketId] = window.setTimeout(() => {
+        const stillConnected = wirelessCameras.some(item => item.socketId === camera.socketId);
+        if (stillConnected) startPeer(camera, true);
+      }, delay);
+    };
+
+    const startPeer = async (camera, iceRestart = false) => {
       if (!camera?.socketId) return;
 
       peers.current[camera.socketId]?.close();
@@ -243,9 +284,11 @@ function App() {
           } else if (state === "connected") {
             setSignalStatus("PEER CONNECTED");
           } else if (state === "failed") {
-            setSignalStatus("WEBRTC FAILED");
+            setSignalStatus("WEBRTC FAILED / RETRYING");
+            schedulePeerRestart(camera, 2000);
           } else if (state === "disconnected") {
-            setSignalStatus("WEBRTC DISCONNECTED");
+            setSignalStatus("WEBRTC DISCONNECTED / RETRYING");
+            schedulePeerRestart(camera, 4000);
           }
         }
       });
@@ -261,7 +304,9 @@ function App() {
       });
 
       try {
-        const offer = await peer.createOffer();
+        const offer = await peer.createOffer(
+          iceRestart ? { iceRestart: true } : undefined
+        );
 
         await peer.setLocalDescription(offer);
 
@@ -331,6 +376,8 @@ function App() {
       peers.current[socketId]?.close();
       delete peers.current[socketId];
       delete pendingIce.current[socketId];
+      clearTimeout(reconnectTimers.current[socketId]);
+      delete reconnectTimers.current[socketId];
 
       setWirelessCameras(prev =>
         prev.filter(c => c.socketId !== socketId)
@@ -406,6 +453,8 @@ function App() {
       Object.values(peers.current).forEach(peer => peer.close());
       peers.current = {};
       pendingIce.current = {};
+      Object.values(reconnectTimers.current).forEach(window.clearTimeout);
+      reconnectTimers.current = {};
 
       socket.disconnect();
     };
@@ -746,6 +795,14 @@ function App() {
 
       setStream(media);
       readZoomCapability(media);
+
+      try {
+        if ("wakeLock" in navigator && !wakeLock.current) {
+          wakeLock.current = await navigator.wakeLock.request("screen");
+        }
+      } catch (error) {
+        console.warn("ScenePilot automatic camera wake lock unavailable", error);
+      }
       await refreshVideoInputs();
 
       const queueIce = (peerId, candidate) => {
@@ -896,6 +953,8 @@ function App() {
 
   function stopCamera() {
     stream?.getTracks().forEach(track => track.stop());
+    wakeLock.current?.release?.().catch?.(() => {});
+    wakeLock.current = null;
 
     Object.values(peers.current).forEach(peer => peer.close());
     peers.current = {};
@@ -1218,6 +1277,60 @@ function App() {
   const cameraForSlot = slotId =>
     wirelessCameras.find(camera => camera.slotId === slotId);
 
+
+  useEffect(() => {
+    setCameraAudio(current => {
+      const next = { ...current };
+      wirelessCameras.forEach(camera => {
+        if (!next[camera.socketId]) {
+          next[camera.socketId] = { volume: 1, muted: false, solo: false };
+        }
+      });
+      Object.keys(next).forEach(id => {
+        if (!wirelessCameras.some(camera => camera.socketId === id)) {
+          delete next[id];
+        }
+      });
+      return next;
+    });
+  }, [wirelessCameras]);
+
+  const anySolo = Object.values(cameraAudio).some(channel => channel.solo);
+
+  const effectiveCameraVolume = camera => {
+    const channel = cameraAudio[camera.socketId] || { volume: 1, muted: false, solo: false };
+    const selectedByMaster =
+      masterAudioSource === "mix" || masterAudioSource === camera.socketId;
+    const audibleBySolo = !anySolo || channel.solo;
+
+    if (!selectedByMaster || !audibleBySolo || channel.muted) return 0;
+    return Math.max(0, Math.min(1, Number(channel.volume ?? 1)));
+  };
+
+  const updateCameraAudio = (socketId, patch) => {
+    setCameraAudio(current => ({
+      ...current,
+      [socketId]: {
+        volume: 1,
+        muted: false,
+        solo: false,
+        ...(current[socketId] || {}),
+        ...patch
+      }
+    }));
+  };
+
+  useEffect(() => {
+    wirelessCameras.forEach(camera => {
+      const el = audioElements.current[camera.socketId];
+      if (!el) return;
+      const volume = effectiveCameraVolume(camera);
+      el.volume = volume;
+      el.muted = volume === 0;
+      el.play?.().catch(() => {});
+    });
+  }, [cameraAudio, masterAudioSource, wirelessCameras, remoteStreams]);
+
   const streamForSlot = slotId => {
     const camera = cameraForSlot(slotId);
     return camera ? remoteStreams[camera.socketId] : null;
@@ -1524,18 +1637,100 @@ function App() {
 
           <div className="audio-panel">
             <div className="panel-label">MASTER AUDIO</div>
-            <div className="audio-source">
-              <Mic2 size={19}/>
-              <div><span>SOURCE</span><strong>M-AUDIO AIR</strong></div>
-              <span className="locked">MASTER</span>
+
+            <label className="audio-master-select">
+              <span>SOURCE</span>
+              <select
+                value={masterAudioSource}
+                onChange={event => setMasterAudioSource(event.target.value)}
+              >
+                <option value="mix">MIX ALL ACTIVE PHONE MICS</option>
+                {wirelessCameras.map(camera => (
+                  <option key={camera.socketId} value={camera.socketId}>
+                    CAM {String(camera.slotId || "?").padStart(2, "0")} — {camera.name || "PHONE"}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="phone-mixer">
+              {wirelessCameras.length ? wirelessCameras.map(camera => {
+                const channel = cameraAudio[camera.socketId] || {
+                  volume: 1,
+                  muted: false,
+                  solo: false
+                };
+                const stream = remoteStreams[camera.socketId];
+                const volume = effectiveCameraVolume(camera);
+
+                return (
+                  <div className="phone-mixer-channel" key={camera.socketId}>
+                    <audio
+                      autoPlay
+                      playsInline
+                      ref={el => {
+                        if (!el) {
+                          delete audioElements.current[camera.socketId];
+                          return;
+                        }
+                        audioElements.current[camera.socketId] = el;
+                        if (stream && el.srcObject !== stream) {
+                          el.srcObject = stream;
+                          el.play?.().catch(() => {});
+                        }
+                        el.volume = volume;
+                        el.muted = volume === 0;
+                      }}
+                    />
+
+                    <div className="phone-mixer-head">
+                      <strong>CAM {String(camera.slotId || "?").padStart(2, "0")}</strong>
+                      <span>{camera.name || "PHONE"}</span>
+                    </div>
+
+                    <input
+                      className="phone-fader"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={channel.volume}
+                      onChange={event => {
+                        const nextVolume = Number(event.target.value);
+                        updateCameraAudio(camera.socketId, { volume: nextVolume });
+                        const el = audioElements.current[camera.socketId];
+                        if (el) {
+                          el.volume = nextVolume;
+                          el.muted = false;
+                        }
+                      }}
+                    />
+
+                    <div className="phone-mixer-actions">
+                      <button
+                        className={channel.muted ? "active" : ""}
+                        onClick={() => updateCameraAudio(camera.socketId, { muted: !channel.muted })}
+                      >
+                        MUTE
+                      </button>
+                      <button
+                        className={channel.solo ? "active" : ""}
+                        onClick={() => updateCameraAudio(camera.socketId, { solo: !channel.solo })}
+                      >
+                        SOLO
+                      </button>
+                      <span>{Math.round(Number(channel.volume || 0) * 100)}%</span>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="phone-mixer-empty">Connect a phone to expose its microphone channel.</div>
+              )}
             </div>
-            <div className="meters">
-              <div className="meter-label">L</div><div className="meter"><i style={{width:"78%"}}/></div>
-              <div className="meter-label">R</div><div className="meter"><i style={{width:"71%"}}/></div>
-            </div>
+
             <div className="audio-footer">
-              <span><Volume2 size={15}/> -6.2 dB</span>
-              <span>48 kHz</span>
+              <span><Volume2 size={15}/> PHONE AUDIO MIXER</span>
+              <span>{wirelessCameras.length} CH</span>
             </div>
           </div>
 
