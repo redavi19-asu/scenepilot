@@ -1724,3 +1724,70 @@ footer span:last-child{margin-left:auto}
     flex:1 1 120px;
   }
 }
+
+
+/* Camera operator telemetry consent */
+.telemetry-consent{
+  margin:14px 0 10px;
+  padding:11px;
+  border:1px solid #4b5048;
+  background:#121511;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px
+}
+.telemetry-consent > div{
+  min-width:0;
+  display:grid;
+  gap:4px
+}
+.telemetry-consent strong{
+  font-size:9px;
+  letter-spacing:.08em;
+  color:#e7eadf
+}
+.telemetry-consent span{
+  font-size:9px;
+  line-height:1.4;
+  color:#92998e
+}
+.telemetry-consent button{
+  flex:0 0 auto;
+  min-height:36px;
+  border:1px solid #6c7964;
+  background:#253021;
+  color:#dce9d6;
+  padding:0 10px;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.05em
+}
+.telemetry-consent .telemetry-stop{
+  border-color:#74504c;
+  background:#2b1d1b;
+  color:#e4bbb6
+}
+.operator-status.telemetry-status{
+  align-items:flex-start;
+  gap:8px;
+  flex-wrap:wrap
+}
+.operator-status.telemetry-status span{
+  flex:1 1 150px;
+  min-width:0
+}
+
+@media(max-width:700px){
+  .telemetry-consent{
+    align-items:stretch;
+    flex-direction:column
+  }
+  .telemetry-consent button{
+    width:100%
+  }
+  .operator-status.telemetry-status{
+    display:grid;
+    grid-template-columns:1fr;
+  }
+}
