@@ -1,15 +1,15 @@
 import { useMemo, useState } from "react";
 import {
-  RadioTower, Facebook, Youtube, Twitch, Instagram,
+  RadioTower, Users, Camera, Video,
   Server, Settings2, Eye, EyeOff, Play, Square, Globe2
 } from "lucide-react";
 import "./BroadcastPanel.css";
 
 const DESTINATIONS = [
-  { id: "facebook", name: "Facebook", icon: Facebook, kind: "external" },
-  { id: "instagram", name: "Instagram", icon: Instagram, kind: "external" },
-  { id: "youtube", name: "YouTube", icon: Youtube, kind: "external" },
-  { id: "twitch", name: "Twitch", icon: Twitch, kind: "external" },
+  { id: "facebook", name: "Facebook", icon: Users, kind: "external" },
+  { id: "instagram", name: "Instagram", icon: Camera, kind: "external" },
+  { id: "youtube", name: "YouTube", icon: Video, kind: "external" },
+  { id: "twitch", name: "Twitch", icon: RadioTower, kind: "external" },
   { id: "tiktok", name: "TikTok", icon: RadioTower, kind: "external" },
   { id: "self", name: "ScenePilot Self-Hosted", icon: Server, kind: "self" },
   { id: "custom", name: "Custom RTMP", icon: Globe2, kind: "custom" }
