@@ -286,6 +286,7 @@ function CommsPanel({ mode }) {
   const [targetId, setTargetId] = useState("");
   const [draft, setDraft] = useState("");
   const [unread, setUnread] = useState(0);
+  const [incomingAlert, setIncomingAlert] = useState(null);
   const [cameraNames, setCameraNames] = useState(() => {
     try {
       return JSON.parse(
@@ -295,6 +296,16 @@ function CommsPanel({ mode }) {
       return {};
     }
   });
+
+  useEffect(() => {
+    if (!incomingAlert) return;
+
+    const timer = window.setTimeout(() => {
+      setIncomingAlert(null);
+    }, 6500);
+
+    return () => window.clearTimeout(timer);
+  }, [incomingAlert]);
 
   useEffect(() => {
     const handleCameraNames = event => {
@@ -317,7 +328,14 @@ function CommsPanel({ mode }) {
   useEffect(() => {
     const handleMessage = message => {
       setMessages(current => [...current.slice(-49), message]);
-      if (!open) setUnread(value => value + 1);
+
+      if (!open) {
+        setUnread(value => value + 1);
+      }
+
+      if (mode === "camera" && message.fromRole === "director") {
+        setIncomingAlert(message);
+      }
     };
 
     const handleCameras = cameras => {
@@ -386,6 +404,21 @@ function CommsPanel({ mode }) {
 
   return (
     <>
+      {mode === "camera" && incomingAlert && (
+        <button
+          className="sp-comms-alert"
+          type="button"
+          onClick={() => {
+            setIncomingAlert(null);
+            openPanel();
+          }}
+        >
+          <span className="sp-comms-alert-label">DIRECTOR MESSAGE</span>
+          <strong>{incomingAlert.text}</strong>
+          <small>TAP TO OPEN COMMS</small>
+        </button>
+      )}
+
       <button className={`sp-comms-fab ${mode}`} onClick={openPanel}>
         <MessageSquare size={18}/>
         {mode === "camera" ? "MESSAGE DIRECTOR" : "CAMERA COMMS"}
@@ -394,7 +427,7 @@ function CommsPanel({ mode }) {
 
       {open && (
         <div className="sp-comms-backdrop" onClick={() => setOpen(false)}>
-          <section className="sp-comms-panel" onClick={event => event.stopPropagation()}>
+          <section className={`sp-comms-panel ${mode}`} onClick={event => event.stopPropagation()}>
             <header>
               <div>
                 <span className="sp-kicker">{mode === "camera" ? "DIRECTOR LINK" : "PRODUCTION COMMS"}</span>
