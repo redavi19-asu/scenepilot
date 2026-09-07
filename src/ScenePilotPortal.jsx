@@ -20,14 +20,27 @@ async function api(path, options = {}) {
   });
 
   let data = null;
+  let rawText = "";
+
   try {
-    data = await response.json();
+    rawText = await response.text();
+    data = rawText ? JSON.parse(rawText) : {};
   } catch (_) {
-    data = { error: "Unexpected server response." };
+    data = {
+      error:
+        response.ok
+          ? "ScenePilot returned an unreadable response."
+          : `ScenePilot account service failed (HTTP ${response.status}).`
+    };
   }
 
   if (!response.ok) {
-    const error = new Error(data?.error || "Request failed.");
+    const message = [
+      data?.error || "Request failed.",
+      data?.detail ? `Details: ${data.detail}` : ""
+    ].filter(Boolean).join(" ");
+
+    const error = new Error(message);
     error.status = response.status;
     throw error;
   }
