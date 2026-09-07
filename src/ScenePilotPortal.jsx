@@ -286,6 +286,33 @@ function CommsPanel({ mode }) {
   const [targetId, setTargetId] = useState("");
   const [draft, setDraft] = useState("");
   const [unread, setUnread] = useState(0);
+  const [cameraNames, setCameraNames] = useState(() => {
+    try {
+      return JSON.parse(
+        window.localStorage.getItem(`scenepilot:cameraNames:${roomCode}`) || "{}"
+      );
+    } catch (_) {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    const handleCameraNames = event => {
+      if (event.detail?.roomCode !== roomCode) return;
+      setCameraNames(event.detail?.names || {});
+    };
+
+    window.addEventListener("scenepilot:camera-names", handleCameraNames);
+    return () => {
+      window.removeEventListener("scenepilot:camera-names", handleCameraNames);
+    };
+  }, [roomCode]);
+
+  const displayCameraName = camera =>
+    cameraNames[String(camera?.slotId)] ||
+    cameraNames[camera?.slotId] ||
+    camera?.name ||
+    "CAMERA";
 
   useEffect(() => {
     const handleMessage = message => {
@@ -383,7 +410,7 @@ function CommsPanel({ mode }) {
                   <option value="">ALL CAMERAS</option>
                   {targets.map(camera => (
                     <option key={camera.socketId} value={camera.socketId}>
-                      CAM {String(camera.slotId || "?").padStart(2,"0")} — {camera.name || "CAMERA"}
+                      CAM {String(camera.slotId || "?").padStart(2,"0")} — {displayCameraName(camera)}
                     </option>
                   ))}
                 </select>
@@ -406,7 +433,7 @@ function CommsPanel({ mode }) {
                   <small>
                     {message.fromRole === "director"
                       ? "DIRECTOR"
-                      : message.fromName || `CAM ${String(message.slotId || "?").padStart(2,"0")}`}
+                      : cameraNames[String(message.slotId)] || message.fromName || `CAM ${String(message.slotId || "?").padStart(2,"0")}`}
                   </small>
                   <p>{message.text}</p>
                   <time>{new Date(message.ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
