@@ -778,3 +778,70 @@ footer span:last-child{margin-left:auto}
   .on-air-banner strong{font-size:10px}
   .on-air-banner span{font-size:7px}
 }
+
+
+.preview-drop-zone.drag-active{
+  outline:3px dashed #8ab67d;
+  outline-offset:-6px
+}
+.camera-tile[draggable="true"]{
+  cursor:grab
+}
+.camera-tile[draggable="true"]:active{
+  cursor:grabbing
+}
+.drag-hint{
+  display:block;
+  margin-top:3px;
+  color:#7fa974;
+  font-size:6px;
+  font-weight:900;
+  letter-spacing:.6px
+}
+.import-local-clip{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  min-height:42px;
+  margin-bottom:9px;
+  border:1px solid #5a5e57;
+  background:#e3e0d7;
+  color:#171916;
+  font-size:8px;
+  font-weight:900;
+  cursor:pointer
+}
+.import-local-clip input{
+  display:none
+}
+.local-clip-card{
+  border:1px solid #444841;
+  background:#20231f;
+  padding:10px;
+  display:flex;
+  align-items:center;
+  gap:9px
+}
+.local-clip-card div{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:3px
+}
+.local-clip-card strong{
+  font-size:9px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis
+}
+.local-clip-card span{
+  color:#858a81;
+  font-size:7px
+}
+.local-editor-video{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  background:#050605
+}
