@@ -10,6 +10,7 @@ import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
 import { socket } from "./socket";
 import { createPeerConnection } from "./webrtc";
+import ReplayStudio from "./ReplayStudio";
 
 const qualityProfiles = {
   "1080p": { width: 1920, height: 1080, fps: 30, label: "1080P" },
@@ -1320,148 +1321,7 @@ function App() {
           </div>
         </section>
 
-        <section className="replay-studio">
-          <div className="replay-head">
-            <div>
-              <span className="eyebrow">POST / REPLAY</span>
-              <strong>RECORDINGS + REPLAY STUDIO</strong>
-            </div>
-            <div className="replay-head-actions">
-              <span className="server-ready-badge">SERVER BACKEND PENDING</span>
-              <button onClick={() => setShowReplayEditor(value => !value)}>
-                {showReplayEditor ? "HIDE EDITOR" : "OPEN EDITOR"}
-              </button>
-            </div>
-          </div>
-
-          {showReplayEditor && (
-            <div className="replay-layout">
-              <aside className="recording-library">
-                <div className="panel-label">RECORDING LIBRARY</div>
-
-                <label className="import-local-clip">
-                  <Upload size={18}/>
-                  <span>IMPORT LOCAL VIDEO</span>
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={event => {
-                      const file = event.target.files?.[0];
-                      loadLocalClip(file);
-                      event.target.value = "";
-                    }}
-                  />
-                </label>
-
-                {localClip ? (
-                  <div className="local-clip-card">
-                    <Film size={28}/>
-                    <div>
-                      <strong>{localClip.name}</strong>
-                      <span>LOCAL FILE • {(localClip.size / 1024 / 1024).toFixed(1)} MB</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="recording-empty">
-                    <Film size={34}/>
-                    <strong>No recordings loaded</strong>
-                    <span>
-                      Import a local video now, or use server recordings later.
-                    </span>
-                  </div>
-                )}
-
-                <div className="library-footer">
-                  <span>ROOM {roomCode}</span>
-                  <span>AUTO-SAVE READY</span>
-                </div>
-              </aside>
-
-              <div className="editor-stage">
-                <div className="editor-preview">
-                  {localClip ? (
-                    <video
-                      src={localClip.url}
-                      controls
-                      playsInline
-                      className="local-editor-video"
-                    />
-                  ) : (
-                    <div className="editor-preview-placeholder">
-                      <Play size={42}/>
-                      <strong>REPLAY PREVIEW</strong>
-                      <span>Select or import a recording to edit or replay.</span>
-                    </div>
-                  )}
-
-                  <span className="editor-timecode">00:00:00:00</span>
-                </div>
-
-                <div className="editor-toolbar">
-                  <button disabled title="Available after server recording is connected">
-                    <SkipBack size={17}/> LAST 10 SEC
-                  </button>
-                  <button
-                    disabled={!localClip}
-                    title={localClip ? "Timeline trimming is ready for the next editor pass" : "Import a local video first"}
-                  >
-                    <Scissors size={17}/> TRIM
-                  </button>
-                  <button
-                    disabled={!localClip}
-                    title={localClip ? "Local clip workflow ready for the next editor pass" : "Import a local video first"}
-                  >
-                    <Save size={17}/> SAVE CLIP
-                  </button>
-                  <button disabled title="Available after server recording is connected">
-                    <MonitorUp size={17}/> SEND TO PREVIEW
-                  </button>
-                  <button disabled title="Available after server recording is connected">
-                    <Play size={17}/> PLAY TO PROGRAM
-                  </button>
-                  <button
-                    disabled={!localClip}
-                    title={localClip ? "Export wiring comes with the next editor pass" : "Import a local video first"}
-                  >
-                    <Download size={17}/> EXPORT
-                  </button>
-                </div>
-
-                <div className="timeline-shell">
-                  <div className="timeline-ruler">
-                    <span>00:00</span>
-                    <span>00:15</span>
-                    <span>00:30</span>
-                    <span>00:45</span>
-                    <span>01:00</span>
-                  </div>
-
-                  <div className="timeline-track video-track">
-                    <span>VIDEO</span>
-                    <div className="timeline-placeholder">
-                      {localClip ? localClip.name : "Recorded Program video timeline"}
-                    </div>
-                  </div>
-
-                  <div className="timeline-track audio-track">
-                    <span>AUDIO</span>
-                    <div className="timeline-placeholder audio-wave">
-                      Audio waveform
-                    </div>
-                  </div>
-
-                  <div className="playhead-demo"/>
-                </div>
-
-                <div className="editor-note">
-                  <strong>EDITOR:</strong>
-                  Local video import works now. Server recording, instant replay and
-                  permanent storage will plug into this same editor when ScenePilot moves to your server.
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
+        <ReplayStudio roomCode={roomCode} />
       </main>
 
       <footer>
