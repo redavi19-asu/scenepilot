@@ -222,11 +222,16 @@ function App() {
         setCameraNames(savedNames);
       }
 
-      const savedMain = Number(
-        window.localStorage.getItem(`scenepilot:mainCamera:${roomCode}`)
-      );
-      if (savedMain >= 1 && savedMain <= 9) {
-        setMainCamera(savedMain);
+      const savedMainRaw =
+        window.localStorage.getItem(`scenepilot:mainCamera:${roomCode}`);
+
+      if (savedMainRaw === DIRECTOR_SOURCE) {
+        setMainCamera(DIRECTOR_SOURCE);
+      } else {
+        const savedMain = Number(savedMainRaw);
+        if (savedMain >= 1 && savedMain <= 9) {
+          setMainCamera(savedMain);
+        }
       }
     } catch (error) {
       console.warn("ScenePilot saved camera setup unavailable", error);
@@ -1270,8 +1275,27 @@ async function enableCamera() {
     }
 
     if (secondaryPreview === DIRECTOR_SOURCE) {
-      setSecondaryPreview(mainCamera === preview ? 2 : mainCamera);
+      const fallbackSecondary =
+        mainCamera === DIRECTOR_SOURCE
+          ? wirelessCameras[0]?.slotId || 1
+          : mainCamera === preview
+            ? wirelessCameras.find(camera => camera.slotId !== preview)?.slotId || 1
+            : mainCamera;
+      setSecondaryPreview(fallbackSecondary);
       setPreviewDirty(true);
+    }
+
+    if (mainCamera === DIRECTOR_SOURCE) {
+      const fallbackMain = wirelessCameras[0]?.slotId || 1;
+      setMainCamera(fallbackMain);
+      try {
+        window.localStorage.setItem(
+          `scenepilot:mainCamera:${roomCode}`,
+          String(fallbackMain)
+        );
+      } catch (error) {
+        console.warn("ScenePilot Main Cam fallback could not be saved", error);
+      }
     }
   }
 
@@ -1414,12 +1438,12 @@ async function enableCamera() {
 
       wirelessCameras.forEach(camera => {
         if (!next[camera.socketId]) {
-          next[camera.socketId] = { volume: 1, muted: false, solo: false };
+          next[camera.socketId] = { volume: 1, muted: true, solo: false };
         }
       });
 
       if (directorStream && !next[DIRECTOR_SOURCE]) {
-        next[DIRECTOR_SOURCE] = { volume: 1, muted: false, solo: false };
+        next[DIRECTOR_SOURCE] = { volume: 1, muted: true, solo: false };
       }
 
       Object.keys(next).forEach(id => {
@@ -1440,7 +1464,7 @@ async function enableCamera() {
   const anySolo = Object.values(cameraAudio).some(channel => channel.solo);
 
   const effectiveCameraVolume = camera => {
-    const channel = cameraAudio[camera.socketId] || { volume: 1, muted: false, solo: false };
+    const channel = cameraAudio[camera.socketId] || { volume: 1, muted: true, solo: false };
     const selectedByMaster =
       masterAudioSource === "mix" || masterAudioSource === camera.socketId;
     const audibleBySolo = !anySolo || channel.solo;
@@ -1452,7 +1476,7 @@ async function enableCamera() {
   const effectiveDirectorVolume = () => {
     const channel = cameraAudio[DIRECTOR_SOURCE] || {
       volume: 1,
-      muted: false,
+      muted: true,
       solo: false
     };
     const selectedByMaster =
@@ -1468,7 +1492,7 @@ async function enableCamera() {
       ...current,
       [socketId]: {
         volume: 1,
-        muted: false,
+        muted: true,
         solo: false,
         ...(current[socketId] || {}),
         ...patch
@@ -1852,10 +1876,17 @@ async function enableCamera() {
   };
 
   const dropCameraOnMain = slotId => {
-    const next = Number(slotId);
-    if (!next || next < 1 || next > 9 || !cameraForSlot(next)) return;
+    const next =
+      slotId === DIRECTOR_SOURCE ? DIRECTOR_SOURCE : Number(slotId);
+
+    if (next === DIRECTOR_SOURCE) {
+      if (!directorStream) return;
+    } else if (!next || next < 1 || next > 9 || !cameraForSlot(next)) {
+      return;
+    }
 
     setMainCamera(next);
+
     try {
       window.localStorage.setItem(
         `scenepilot:mainCamera:${roomCode}`,
@@ -2259,7 +2290,7 @@ async function enableCamera() {
                   <span className="director-camera-label">
                     DIRECTOR CAM • {directorFacingMode === "environment" ? "REAR" : "FRONT"}
                   </span>
-                  <span className="director-camera-drag">DRAG TO PREVIEW</span>
+                  <span className="director-camera-drag">DRAG TO PREVIEW OR MAIN</span>
                 </>
               )}
 
@@ -2270,7 +2301,7 @@ async function enableCamera() {
           </div>
 
           <div
-            className={`main-camera-home ${draggingCamera && draggingCamera !== DIRECTOR_SOURCE ? "drag-active" : ""}`}
+            className={`main-camera-home ${draggingCamera ? "drag-active" : ""}`}
             onDragOver={event => {
               event.preventDefault();
               event.dataTransfer.dropEffect = "move";
@@ -2280,18 +2311,19 @@ async function enableCamera() {
               const rawSource =
                 event.dataTransfer.getData("text/scenepilot-camera") ||
                 draggingCamera;
-              if (rawSource === DIRECTOR_SOURCE) {
-                setDraggingCamera(null);
-                return;
-              }
-              dropCameraOnMain(Number(rawSource));
+              const sourceId =
+                rawSource === DIRECTOR_SOURCE
+                  ? DIRECTOR_SOURCE
+                  : Number(rawSource);
+
+              dropCameraOnMain(sourceId);
               setDraggingCamera(null);
             }}
           >
             <div className="main-camera-home-copy">
               <span>HOME SHOT</span>
               <strong>MAIN CAM</strong>
-              <small>Drag any connected camera here. TAKE returns to this camera when no new Preview shot is selected.</small>
+              <small>Drag any connected camera or Director Cam here. TAKE returns to this source when no new Preview shot is selected.</small>
             </div>
             <div className="main-camera-home-feed">
               {streamForSlot(mainCamera) ? (
@@ -2299,11 +2331,17 @@ async function enableCamera() {
               ) : (
                 <div className="main-camera-placeholder">
                   <Camera size={24}/>
-                  <span>WAITING FOR CAM {String(mainCamera).padStart(2, "0")}</span>
+                  <span>
+                    {mainCamera === DIRECTOR_SOURCE
+                      ? "WAITING FOR DIRECTOR CAM"
+                      : `WAITING FOR CAM ${String(mainCamera).padStart(2, "0")}`}
+                  </span>
                 </div>
               )}
               <span className="main-camera-name">
-                {displayNameForCamera(mainCamera)} • CAM {String(mainCamera).padStart(2, "0")}
+                {mainCamera === DIRECTOR_SOURCE
+                  ? "DIRECTOR CAM • LOCAL SOURCE"
+                  : `${displayNameForCamera(mainCamera)} • CAM ${String(mainCamera).padStart(2, "0")}`}
               </span>
               {isProgramSlot(mainCamera) && (
                 <span className="home-live-badge"><i/> HOME LIVE</span>
@@ -2371,7 +2409,7 @@ async function enableCamera() {
               {directorStream && (() => {
                 const channel = cameraAudio[DIRECTOR_SOURCE] || {
                   volume: 1,
-                  muted: false,
+                  muted: true,
                   solo: false
                 };
                 const volume = effectiveDirectorVolume();
@@ -2430,7 +2468,7 @@ async function enableCamera() {
               {wirelessCameras.length ? wirelessCameras.map(camera => {
                 const channel = cameraAudio[camera.socketId] || {
                   volume: 1,
-                  muted: false,
+                  muted: true,
                   solo: false
                 };
                 const stream = remoteStreams[camera.socketId];
@@ -2474,7 +2512,7 @@ async function enableCamera() {
                         const el = audioElements.current[camera.socketId];
                         if (el) {
                           el.volume = nextVolume;
-                          el.muted = false;
+                          el.muted = Boolean(channel.muted);
                         }
                       }}
                     />
