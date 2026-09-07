@@ -1015,7 +1015,9 @@ async function handleApi(request, env, url) {
   }
 
   if (url.pathname === "/api/auth/register" && request.method === "POST") {
-    return handleRegister(request, env);
+    return json({
+      error: "ScenePilot account registration is currently closed."
+    }, 403);
   }
 
   if (url.pathname === "/api/auth/login" && request.method === "POST") {
