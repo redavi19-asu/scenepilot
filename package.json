@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "dev:web": "vite --host 0.0.0.0",
-    "dev:signal": "node server/index.js"
+    "dev:signal": "node server/index.js",
+    "setup:d1": "node scripts/configure-d1.mjs"
   },
   "dependencies": {
     "concurrently": "^10.0.5",
