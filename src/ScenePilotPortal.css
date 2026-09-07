@@ -903,3 +903,18 @@
     height: calc(100vh - 20px);
   }
 }
+
+.sp-turnstile-wrap {
+  margin: 10px 0 14px;
+  min-height: 78px;
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: 6px;
+}
+
+.sp-turnstile-wrap small {
+  color: #727a6e;
+  font-size: 9px;
+  letter-spacing: .08em;
+}
