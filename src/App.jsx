@@ -1041,6 +1041,59 @@ function App() {
     setSecondaryPreview(slotId);
   }
 
+  useEffect(() => {
+    setCameraAudio(current => {
+      const next = { ...current };
+      wirelessCameras.forEach(camera => {
+        if (!next[camera.socketId]) {
+          next[camera.socketId] = { volume: 1, muted: false, solo: false };
+        }
+      });
+      Object.keys(next).forEach(id => {
+        if (!wirelessCameras.some(camera => camera.socketId === id)) {
+          delete next[id];
+        }
+      });
+      return next;
+    });
+  }, [wirelessCameras]);
+
+  const anySolo = Object.values(cameraAudio).some(channel => channel.solo);
+
+  const effectiveCameraVolume = camera => {
+    const channel = cameraAudio[camera.socketId] || { volume: 1, muted: false, solo: false };
+    const selectedByMaster =
+      masterAudioSource === "mix" || masterAudioSource === camera.socketId;
+    const audibleBySolo = !anySolo || channel.solo;
+
+    if (!selectedByMaster || !audibleBySolo || channel.muted) return 0;
+    return Math.max(0, Math.min(1, Number(channel.volume ?? 1)));
+  };
+
+  const updateCameraAudio = (socketId, patch) => {
+    setCameraAudio(current => ({
+      ...current,
+      [socketId]: {
+        volume: 1,
+        muted: false,
+        solo: false,
+        ...(current[socketId] || {}),
+        ...patch
+      }
+    }));
+  };
+
+  useEffect(() => {
+    wirelessCameras.forEach(camera => {
+      const el = audioElements.current[camera.socketId];
+      if (!el) return;
+      const volume = effectiveCameraVolume(camera);
+      el.volume = volume;
+      el.muted = volume === 0;
+      el.play?.().catch(() => {});
+    });
+  }, [cameraAudio, masterAudioSource, wirelessCameras, remoteStreams]);
+
   if (showSplash) {
     return <ScenePilotSplash cameraMode={showCamera} />;
   }
@@ -1277,59 +1330,6 @@ function App() {
   const cameraForSlot = slotId =>
     wirelessCameras.find(camera => camera.slotId === slotId);
 
-
-  useEffect(() => {
-    setCameraAudio(current => {
-      const next = { ...current };
-      wirelessCameras.forEach(camera => {
-        if (!next[camera.socketId]) {
-          next[camera.socketId] = { volume: 1, muted: false, solo: false };
-        }
-      });
-      Object.keys(next).forEach(id => {
-        if (!wirelessCameras.some(camera => camera.socketId === id)) {
-          delete next[id];
-        }
-      });
-      return next;
-    });
-  }, [wirelessCameras]);
-
-  const anySolo = Object.values(cameraAudio).some(channel => channel.solo);
-
-  const effectiveCameraVolume = camera => {
-    const channel = cameraAudio[camera.socketId] || { volume: 1, muted: false, solo: false };
-    const selectedByMaster =
-      masterAudioSource === "mix" || masterAudioSource === camera.socketId;
-    const audibleBySolo = !anySolo || channel.solo;
-
-    if (!selectedByMaster || !audibleBySolo || channel.muted) return 0;
-    return Math.max(0, Math.min(1, Number(channel.volume ?? 1)));
-  };
-
-  const updateCameraAudio = (socketId, patch) => {
-    setCameraAudio(current => ({
-      ...current,
-      [socketId]: {
-        volume: 1,
-        muted: false,
-        solo: false,
-        ...(current[socketId] || {}),
-        ...patch
-      }
-    }));
-  };
-
-  useEffect(() => {
-    wirelessCameras.forEach(camera => {
-      const el = audioElements.current[camera.socketId];
-      if (!el) return;
-      const volume = effectiveCameraVolume(camera);
-      el.volume = volume;
-      el.muted = volume === 0;
-      el.play?.().catch(() => {});
-    });
-  }, [cameraAudio, masterAudioSource, wirelessCameras, remoteStreams]);
 
   const streamForSlot = slotId => {
     const camera = cameraForSlot(slotId);
