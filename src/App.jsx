@@ -83,6 +83,8 @@ function App() {
   const audioElements = useRef({});
   const [masterAudioSource, setMasterAudioSource] = useState("mix");
   const [cameraAudio, setCameraAudio] = useState({});
+  const [cameraLabels, setCameraLabels] = useState({});
+  const longPressTimer = useRef(null);
   const [facingMode, setFacingMode] = useState("environment");
   const [zoomRange, setZoomRange] = useState(null);
   const [zoomValue, setZoomValue] = useState(1);
@@ -202,6 +204,81 @@ function App() {
       console.warn("ScenePilot camera source discovery unavailable", error);
     }
   }
+
+
+  useEffect(() => {
+    if (!showCamera || !stream || !socket.connected) return;
+
+    let battery = null;
+    let batteryCleanup = null;
+    let interval = null;
+
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+
+    const getNetworkQuality = () => {
+      if (!connection) return null;
+
+      const downlink = Number(connection.downlink);
+      const rtt = Number(connection.rtt);
+      const effectiveType = String(connection.effectiveType || "");
+
+      let bars = null;
+      if (Number.isFinite(downlink) || Number.isFinite(rtt)) {
+        if ((Number.isFinite(downlink) && downlink >= 10) && (!Number.isFinite(rtt) || rtt <= 80)) bars = 4;
+        else if ((Number.isFinite(downlink) && downlink >= 3) && (!Number.isFinite(rtt) || rtt <= 180)) bars = 3;
+        else if ((Number.isFinite(downlink) && downlink >= 1) && (!Number.isFinite(rtt) || rtt <= 350)) bars = 2;
+        else bars = 1;
+      }
+
+      return {
+        bars,
+        downlink: Number.isFinite(downlink) ? downlink : null,
+        rtt: Number.isFinite(rtt) ? rtt : null,
+        effectiveType: effectiveType || null
+      };
+    };
+
+    const sendTelemetry = () => {
+      const batteryPercent =
+        battery && Number.isFinite(battery.level)
+          ? Math.round(battery.level * 100)
+          : null;
+
+      socket.emit("camera:telemetry", {
+        room: roomCode,
+        battery: batteryPercent,
+        charging: battery ? Boolean(battery.charging) : null,
+        network: getNetworkQuality()
+      });
+    };
+
+    if (navigator.getBattery) {
+      navigator.getBattery()
+        .then(value => {
+          battery = value;
+          sendTelemetry();
+
+          const handleBattery = () => sendTelemetry();
+          battery.addEventListener?.("levelchange", handleBattery);
+          battery.addEventListener?.("chargingchange", handleBattery);
+          batteryCleanup = () => {
+            battery.removeEventListener?.("levelchange", handleBattery);
+            battery.removeEventListener?.("chargingchange", handleBattery);
+          };
+        })
+        .catch(() => {});
+    }
+
+    connection?.addEventListener?.("change", sendTelemetry);
+    interval = window.setInterval(sendTelemetry, 15000);
+    sendTelemetry();
+
+    return () => {
+      if (interval) window.clearInterval(interval);
+      connection?.removeEventListener?.("change", sendTelemetry);
+      batteryCleanup?.();
+    };
+  }, [showCamera, stream, roomCode]);
 
   useEffect(() => {
     if (!showCamera || !navigator.mediaDevices) return;
@@ -372,6 +449,22 @@ function App() {
       }
     };
 
+    const handleCameraTelemetry = payload => {
+      if (!payload?.socketId) return;
+      setWirelessCameras(prev =>
+        prev.map(camera =>
+          camera.socketId === payload.socketId
+            ? {
+                ...camera,
+                battery: Number.isFinite(payload.battery) ? payload.battery : null,
+                charging: payload.charging ?? null,
+                network: payload.network || null
+              }
+            : camera
+        )
+      );
+    };
+
     const handleCameraLeft = ({ socketId }) => {
       peers.current[socketId]?.close();
       delete peers.current[socketId];
@@ -430,6 +523,7 @@ function App() {
     socket.on("webrtc:answer", handleAnswer);
     socket.on("webrtc:ice", handleIce);
     socket.on("camera:left", handleCameraLeft);
+    socket.on("camera:telemetry", handleCameraTelemetry);
     socket.on("director:granted", handleDirectorGranted);
     socket.on("director:denied", handleDirectorDenied);
     socket.on("director:available", handleDirectorAvailable);
@@ -446,6 +540,7 @@ function App() {
       socket.off("webrtc:answer", handleAnswer);
       socket.off("webrtc:ice", handleIce);
       socket.off("camera:left", handleCameraLeft);
+      socket.off("camera:telemetry", handleCameraTelemetry);
       socket.off("director:granted", handleDirectorGranted);
       socket.off("director:denied", handleDirectorDenied);
       socket.off("director:available", handleDirectorAvailable);
@@ -1331,6 +1426,46 @@ function App() {
     wirelessCameras.find(camera => camera.slotId === slotId);
 
 
+
+  const displayNameForCamera = (slotId) => {
+    const liveCamera = cameraForSlot(slotId);
+    if (!liveCamera) {
+      return cameras.find(camera => camera.id === slotId)?.name || `CAM ${slotId}`;
+    }
+    return cameraLabels[liveCamera.socketId] || liveCamera.name || `CAM ${slotId}`;
+  };
+
+  const renameCamera = slotId => {
+    const liveCamera = cameraForSlot(slotId);
+    if (!liveCamera) return;
+
+    const currentName = displayNameForCamera(slotId);
+    const nextName = window.prompt(
+      "Rename this camera for the Director view (person, location, position, etc.):",
+      currentName
+    );
+
+    if (nextName === null) return;
+
+    const clean = nextName.trim().slice(0, 80);
+    if (!clean) return;
+
+    setCameraLabels(current => ({
+      ...current,
+      [liveCamera.socketId]: clean
+    }));
+  };
+
+  const startCameraLongPress = slotId => {
+    window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = window.setTimeout(() => renameCamera(slotId), 650);
+  };
+
+  const stopCameraLongPress = () => {
+    window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  };
+
   const streamForSlot = slotId => {
     const camera = cameraForSlot(slotId);
     return camera ? remoteStreams[camera.socketId] : null;
@@ -1551,6 +1686,13 @@ function App() {
                   !cameraForSlot(cam.id)
                 }
                 onClick={() => setPreview(cam.id)}
+                onPointerDown={() => {
+                  if (cameraForSlot(cam.id)) startCameraLongPress(cam.id);
+                }}
+                onPointerUp={stopCameraLongPress}
+                onPointerLeave={stopCameraLongPress}
+                onPointerCancel={stopCameraLongPress}
+                onDoubleClick={() => renameCamera(cam.id)}
                 className={`camera-tile
                   ${cam.id === program ? "is-program" : ""}
                   ${cam.id === preview ? "is-preview" : ""}
@@ -1584,13 +1726,21 @@ function App() {
                 </div>
 
                 <div className="tile-meta">
-                  <strong>{cameraForSlot(cam.id)?.name || cam.name}</strong>
+                  <strong>{displayNameForCamera(cam.id)}</strong>
                   {cameraForSlot(cam.id) && (
-                    <span className="drag-hint">DRAG TO PREVIEW</span>
+                    <span className="drag-hint">DRAG • HOLD TO RENAME</span>
                   )}
                   <div>
-                    <span><Wifi size={12}/>{cam.signal || "—"}</span>
-                    <span><BatteryFull size={13}/>{cam.battery || "—"}%</span>
+                    <span title="Browser-reported network quality, not raw Wi-Fi RSSI">
+                      <Wifi size={12}/>
+                      {cameraForSlot(cam.id)?.network?.bars ?? "—"}
+                    </span>
+                    <span title="Battery is shown only when the camera browser exposes Battery Status">
+                      <BatteryFull size={13}/>
+                      {Number.isFinite(cameraForSlot(cam.id)?.battery)
+                        ? `${cameraForSlot(cam.id).battery}%`
+                        : "—"}
+                    </span>
                   </div>
                 </div>
 
@@ -1769,7 +1919,7 @@ function App() {
                 >
                   {cameras.map(camera => (
                     <option key={camera.id} value={camera.id}>
-                      CAM {String(camera.id).padStart(2,"0")} • {cameraForSlot(camera.id)?.name || camera.name}
+                      CAM {String(camera.id).padStart(2,"0")} • {displayNameForCamera(camera.id)}
                     </option>
                   ))}
                 </select>
