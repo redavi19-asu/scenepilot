@@ -1,11 +1,10 @@
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import App from "./App.jsx";
+import ScenePilotPortal from "./ScenePilotPortal.jsx";
 
 createRoot(document.getElementById("root")).render(
-  <App />
+  <ScenePilotPortal />
 );
-
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
