@@ -984,6 +984,117 @@ export class ScenePilotRoom {
   }
 }
 
+
+function slugifyNetwork(value = "") {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 50) || "network";
+}
+
+async function getUserScenePilotNetwork(env, userId) {
+  return env.DB.prepare(
+    `SELECT
+      n.id,
+      n.name,
+      n.slug,
+      n.join_token,
+      n.status,
+      m.role AS member_role
+    FROM scenepilot_network_members m
+    JOIN scenepilot_networks n ON n.id = m.network_id
+    WHERE m.user_id = ?
+      AND n.status = 'active'
+    ORDER BY m.created_at ASC
+    LIMIT 1`
+  ).bind(userId).first();
+}
+
+async function ensureUserScenePilotNetwork(env, user) {
+  let network = await getUserScenePilotNetwork(env, user.id);
+  if (network) return network;
+
+  const now = Date.now();
+  const id = crypto.randomUUID();
+  const baseName =
+    user.role === "owner"
+      ? "ICA Owner Network"
+      : `${user.displayName || user.email || "ScenePilot"} Network`;
+  const slug = `${slugifyNetwork(baseName)}-${id.slice(0, 6)}`;
+  const joinToken = randomToken(24);
+
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO scenepilot_networks (
+        id, name, slug, join_token, status, created_by, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?)`
+    ).bind(id, baseName, slug, joinToken, user.id, now, now),
+    env.DB.prepare(
+      `INSERT INTO scenepilot_network_members (
+        network_id, user_id, role, created_at
+      ) VALUES (?, ?, 'owner', ?)`
+    ).bind(id, user.id, now)
+  ]);
+
+  return getUserScenePilotNetwork(env, user.id);
+}
+
+async function handleNetwork(request, env) {
+  if (!env.DB) {
+    return json({ error: "ScenePilot database is unavailable." }, 503);
+  }
+
+  const user = await getCurrentUser(request, env);
+  if (!user || user.status !== "active" || user.accessStatus !== "active") {
+    return json({ error: "ScenePilot account access required." }, 401);
+  }
+
+  const network = await ensureUserScenePilotNetwork(env, user);
+
+  return json({
+    network: {
+      id: network.id,
+      name: network.name,
+      slug: network.slug,
+      joinToken: network.join_token,
+      memberRole: network.member_role
+    }
+  });
+}
+
+async function userCanAccessNetwork(env, userId, networkId) {
+  if (!userId || !networkId) return false;
+
+  const row = await env.DB.prepare(
+    `SELECT 1 AS ok
+     FROM scenepilot_network_members m
+     JOIN scenepilot_networks n ON n.id = m.network_id
+     WHERE m.user_id = ?
+       AND m.network_id = ?
+       AND n.status = 'active'
+     LIMIT 1`
+  ).bind(userId, networkId).first();
+
+  return Boolean(row);
+}
+
+async function validCameraJoinToken(env, networkId, joinToken) {
+  if (!networkId || !joinToken) return false;
+
+  const row = await env.DB.prepare(
+    `SELECT 1 AS ok
+     FROM scenepilot_networks
+     WHERE id = ?
+       AND join_token = ?
+       AND status = 'active'
+     LIMIT 1`
+  ).bind(networkId, joinToken).first();
+
+  return Boolean(row);
+}
+
 async function handleApi(request, env, url) {
   if (url.pathname === "/api/health") {
     let databaseReady = false;
@@ -1012,6 +1123,10 @@ async function handleApi(request, env, url) {
       ),
       service: "ScenePilot"
     }, Boolean(env.DB) && databaseReady ? 200 : 503);
+  }
+
+  if (url.pathname === "/api/network" && request.method === "GET") {
+    return handleNetwork(request, env);
   }
 
   if (url.pathname === "/api/auth/register" && request.method === "POST") {
@@ -1084,19 +1199,45 @@ export default {
     if (url.pathname === "/signal") {
       const room =
         url.searchParams.get("room") || "SP-4827";
+      const networkId =
+        String(url.searchParams.get("network") || "").trim();
+      const joinToken =
+        String(url.searchParams.get("join") || "").trim();
+
+      if (!env.DB || !networkId) {
+        return json({
+          error: "ScenePilot network information is required."
+        }, 400);
+      }
 
       let user = null;
 
-      if (env.DB) {
-        try {
-          user = await getCurrentUser(request, env);
-        } catch (error) {
-          console.error("ScenePilot auth lookup failed", error);
-        }
+      try {
+        user = await getCurrentUser(request, env);
+      } catch (error) {
+        console.error("ScenePilot auth lookup failed", error);
+      }
+
+      const memberAccess = Boolean(
+        user?.id &&
+        await userCanAccessNetwork(env, user.id, networkId)
+      );
+
+      const cameraAccess = await validCameraJoinToken(
+        env,
+        networkId,
+        joinToken
+      );
+
+      if (!memberAccess && !cameraAccess) {
+        return json({
+          error: "This ScenePilot network link is invalid or no longer active."
+        }, 403);
       }
 
       const headers = new Headers(request.headers);
       const canDirect = Boolean(
+        memberAccess &&
         user &&
         user.status === "active" &&
         user.accessStatus === "active"
@@ -1106,6 +1247,7 @@ export default {
         "X-ScenePilot-Can-Direct",
         canDirect ? "1" : "0"
       );
+      headers.set("X-ScenePilot-Network-Id", networkId);
 
       if (user?.id) {
         headers.set("X-ScenePilot-User-Id", user.id);
@@ -1118,7 +1260,8 @@ export default {
         );
       }
 
-      const id = env.ROOMS.idFromName(room);
+      const roomIdentity = `${networkId}:${room}`;
+      const id = env.ROOMS.idFromName(roomIdentity);
       const roomObject = env.ROOMS.get(id);
 
       return roomObject.fetch(
