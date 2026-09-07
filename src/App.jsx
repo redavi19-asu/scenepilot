@@ -185,7 +185,7 @@ function App() {
   }, [showCamera]);
 
    useEffect(() => {
-    if (showCamera) return;
+    if (showCamera || !networkId) return;
 
     const queueIce = (peerId, candidate) => {
       if (!candidate) return;
