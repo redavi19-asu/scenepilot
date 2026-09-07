@@ -135,6 +135,7 @@ function App() {
   const [draftCameraNames, setDraftCameraNames] = useState({});
   const [mainCamera, setMainCamera] = useState(1);
   const [directorStream, setDirectorStream] = useState(null);
+  const [directorFacingMode, setDirectorFacingMode] = useState("user");
   const [directorCameraStatus, setDirectorCameraStatus] = useState("OFF");
   const [previewDirty, setPreviewDirty] = useState(false);
   const [programTransition, setProgramTransition] = useState({
@@ -1206,8 +1207,8 @@ async function enableCamera() {
     }
   }
 
-  async function enableDirectorCamera() {
-    if (showCamera || directorStream) return;
+  async function openDirectorCamera(facing = directorFacingMode) {
+    if (showCamera) return;
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setDirectorCameraStatus("UNSUPPORTED");
@@ -1217,9 +1218,11 @@ async function enableCamera() {
     try {
       setDirectorCameraStatus("REQUESTING");
 
+      directorStream?.getTracks?.().forEach(track => track.stop());
+
       const media = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: { ideal: "user" },
+          facingMode: { ideal: facing },
           width: { ideal: 1280 },
           height: { ideal: 720 },
           frameRate: { ideal: 30, max: 30 }
@@ -1231,12 +1234,29 @@ async function enableCamera() {
         }
       });
 
+      setDirectorFacingMode(facing);
       setDirectorStream(media);
-      setDirectorCameraStatus("READY");
+      setDirectorCameraStatus(
+        facing === "environment" ? "REAR CAMERA READY" : "FRONT CAMERA READY"
+      );
     } catch (error) {
       console.error("ScenePilot Director Cam failed", error);
       setDirectorCameraStatus("CAMERA BLOCKED");
     }
+  }
+
+  async function enableDirectorCamera() {
+    if (directorStream) return;
+    await openDirectorCamera("user");
+  }
+
+  async function switchDirectorCamera() {
+    if (!directorStream) return;
+
+    const nextFacing =
+      directorFacingMode === "user" ? "environment" : "user";
+
+    await openDirectorCamera(nextFacing);
   }
 
   function stopDirectorCamera() {
@@ -2141,7 +2161,7 @@ async function enableCamera() {
               <span>LOCAL SOURCE</span>
               <strong>DIRECTOR CAM</strong>
               <small>
-                Use the Director device selfie camera as a production source.
+                Use the Director device front or rear camera as a production source.
                 It stays separate from the nine remote camera slots.
               </small>
 
@@ -2158,6 +2178,9 @@ async function enableCamera() {
                     <button onClick={putDirectorInPip}>
                       <PictureInPicture2 size={15}/> ADD AS PiP
                     </button>
+                    <button onClick={switchDirectorCamera}>
+                      <RefreshCw size={15}/> SWITCH CAMERA
+                    </button>
                     <button className="director-camera-stop" onClick={stopDirectorCamera}>
                       <PhoneOff size={15}/> TURN OFF
                     </button>
@@ -2171,7 +2194,7 @@ async function enableCamera() {
             </div>
 
             <div
-              className={`director-camera-feed ${directorStream ? "draggable" : ""}`}
+              className={`director-camera-feed ${directorStream ? "draggable" : ""} ${directorFacingMode === "environment" ? "rear-camera" : "front-camera"}`}
               draggable={Boolean(directorStream)}
               onDragStart={event => {
                 if (!directorStream) return;
@@ -2197,7 +2220,9 @@ async function enableCamera() {
 
               {directorStream && (
                 <>
-                  <span className="director-camera-label">DIRECTOR CAM</span>
+                  <span className="director-camera-label">
+                    DIRECTOR CAM • {directorFacingMode === "environment" ? "REAR" : "FRONT"}
+                  </span>
                   <span className="director-camera-drag">DRAG TO PREVIEW</span>
                 </>
               )}
@@ -2555,7 +2580,7 @@ async function enableCamera() {
               <p><strong>7. Transitions:</strong> Select CUT, DISSOLVE, or FADE, choose 0.25s, 0.5s, or 1.0s, then press TAKE. The selected transition and duration now control the Program change.</p>
               <p><strong>8. Layouts:</strong> SINGLE, SPLIT, PiP, and 9-CAM are prepared in Preview first. TAKE sends the prepared layout to Program; another TAKE with no new selection returns to Main Cam.</p>
               <p><strong>9. Master Audio:</strong> Camera names from SET NAMES also appear in the Master Audio source list and phone mixer so video and audio labels match.</p>
-              <p><strong>10. Director Cam:</strong> Enable the Director device selfie camera from the dedicated Director Cam panel. Drag it to Preview, tap PREVIEW, or use ADD AS PiP. It never consumes one of the nine remote camera slots.</p>
+              <p><strong>10. Director Cam:</strong> Enable the Director device camera from the dedicated Director Cam panel. Use SWITCH CAMERA for front/rear, then drag it to Preview, tap PREVIEW, or use ADD AS PiP. It never consumes one of the nine remote camera slots.</p>
               <p><strong>11. Camera phones:</strong> Connected phones can keep using flip, zoom, Live Shield, telemetry, and camera communications while their live feed remains available to all Director monitors.</p>
               <p><strong>12. Instant Replay:</strong> ScenePilot keeps the Program source buffered for replay when browser MediaRecorder support is available. Replay returns to the live Program automatically when it ends.</p>
               <p><strong>13. If a feed drops:</strong> Leave the camera page open while ScenePilot reconnects. The Multiview tile resumes from the same source slot when its WebRTC stream returns.</p>
