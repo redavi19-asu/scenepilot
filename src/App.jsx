@@ -36,17 +36,49 @@ function ScenePilotSplash({ cameraMode }) {
   );
 }
 
-const initialCameras = [
-  { id: 1, name: "MAIN CAM", status: "READY", battery: 0, signal: 0 },
-  { id: 2, name: "CAM 1", status: "OFFLINE", battery: 0, signal: 0 },
-  { id: 3, name: "CAM 2", status: "OFFLINE", battery: 0, signal: 0 },
-  { id: 4, name: "CAM 3", status: "OFFLINE", battery: 0, signal: 0 },
-  { id: 5, name: "CAM 4", status: "OFFLINE", battery: 0, signal: 0 },
-  { id: 6, name: "CAM 5", status: "OFFLINE", battery: 0, signal: 0 },
-  { id: 7, name: "CAM 6", status: "OFFLINE", battery: 0, signal: 0 },
-  { id: 8, name: "CAM 7", status: "OFFLINE", battery: 0, signal: 0 },
-  { id: 9, name: "CAM 8", status: "OFFLINE", battery: 0, signal: 0 },
-];
+const initialCameras = Array.from({ length: 9 }, (_, index) => ({
+  id: index + 1,
+  name: `CAM ${String(index + 1).padStart(2, "0")}`,
+  status: "OFFLINE",
+  battery: 0,
+  signal: 0
+}));
+
+function LiveStreamVideo({ stream, className = "", muted = true }) {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element) return;
+
+    if (!stream) {
+      if (element.srcObject) element.srcObject = null;
+      return;
+    }
+
+    if (element.srcObject !== stream) {
+      element.srcObject = stream;
+    }
+
+    element.play?.().catch(() => {});
+
+    return () => {
+      if (element.srcObject === stream) {
+        element.srcObject = null;
+      }
+    };
+  }, [stream]);
+
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted={muted}
+      className={className}
+    />
+  );
+}
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -83,8 +115,16 @@ function App() {
   const audioElements = useRef({});
   const [masterAudioSource, setMasterAudioSource] = useState("mix");
   const [cameraAudio, setCameraAudio] = useState({});
-  const [cameraLabels, setCameraLabels] = useState({});
-  const longPressTimer = useRef(null);
+  const [cameraNames, setCameraNames] = useState({});
+  const [showSetNames, setShowSetNames] = useState(false);
+  const [draftCameraNames, setDraftCameraNames] = useState({});
+  const [mainCamera, setMainCamera] = useState(1);
+  const [previewDirty, setPreviewDirty] = useState(false);
+  const [programTransition, setProgramTransition] = useState({
+    type: "CUT",
+    duration: 0,
+    key: 0
+  });
   const [facingMode, setFacingMode] = useState("environment");
   const [zoomRange, setZoomRange] = useState(null);
   const [zoomValue, setZoomValue] = useState(1);
@@ -146,6 +186,29 @@ function App() {
   const roomCode = queryParams.get("room") || "SP-4827";
   const cameraNetworkId = queryParams.get("network") || "";
   const cameraJoinToken = queryParams.get("join") || "";
+
+  useEffect(() => {
+    if (showCamera) return;
+
+    try {
+      const savedNames = JSON.parse(
+        window.localStorage.getItem(`scenepilot:cameraNames:${roomCode}`) || "{}"
+      );
+      if (savedNames && typeof savedNames === "object") {
+        setCameraNames(savedNames);
+      }
+
+      const savedMain = Number(
+        window.localStorage.getItem(`scenepilot:mainCamera:${roomCode}`)
+      );
+      if (savedMain >= 1 && savedMain <= 9) {
+        setMainCamera(savedMain);
+      }
+    } catch (error) {
+      console.warn("ScenePilot saved camera setup unavailable", error);
+    }
+  }, [showCamera, roomCode]);
+
   const [network, setNetwork] = useState(() => (
     cameraNetworkId
       ? {
@@ -350,6 +413,7 @@ function App() {
 
           if (camera.slotId) {
             setPreview(camera.slotId);
+            setPreviewDirty(true);
           }
 
           setSignalStatus("VIDEO CONNECTED");
@@ -1074,34 +1138,54 @@ function App() {
     disableLiveShield();
   }
 
+  function applyProgramComposition(nextComposition) {
+    setProgram(nextComposition.primary);
+    setProgramComposition(nextComposition);
+    setProgramTransition(current => ({
+      type: transition,
+      duration: transition === "CUT" ? 0 : duration,
+      key: current.key + 1
+    }));
+  }
+
   function take() {
     if (!preview) return;
 
-    if (compositionMode === "single") {
-      if (preview === program && programComposition.mode === "single") return;
+    const nextSecondary =
+      compositionMode === "single" || compositionMode === "nine"
+        ? null
+        : secondaryPreview;
 
-      const oldProgram = program;
-      setProgram(preview);
-      setPreview(oldProgram);
-      setProgramComposition({
-        mode: "single",
+    const compositionChanged =
+      programComposition.mode !== compositionMode ||
+      programComposition.primary !== preview ||
+      programComposition.secondary !== nextSecondary;
+
+    if (previewDirty || compositionChanged) {
+      applyProgramComposition({
+        mode: compositionMode,
         primary: preview,
-        secondary: null
+        secondary: nextSecondary
       });
+      setPreviewDirty(false);
       return;
     }
 
-    setProgram(preview);
-    setProgramComposition({
-      mode: compositionMode,
-      primary: preview,
-      secondary: compositionMode === "nine" ? null : secondaryPreview
-    });
+    if (
+      programComposition.mode !== "single" ||
+      programComposition.primary !== mainCamera
+    ) {
+      applyProgramComposition({
+        mode: "single",
+        primary: mainCamera,
+        secondary: null
+      });
+    }
   }
 
-  function cut() {
-    setTransition("CUT");
-    take();
+  function chooseCompositionMode(mode) {
+    setCompositionMode(mode);
+    setPreviewDirty(true);
   }
 
   function loadLocalClip(file) {
@@ -1129,6 +1213,7 @@ function App() {
 
     if (compositionMode === "single" || compositionMode === "nine") {
       setPreview(slotId);
+      setPreviewDirty(true);
       return;
     }
 
@@ -1137,6 +1222,7 @@ function App() {
     }
 
     setSecondaryPreview(slotId);
+    setPreviewDirty(true);
   }
 
   useEffect(() => {
@@ -1430,48 +1516,82 @@ function App() {
 
 
 
-  const displayNameForCamera = (slotId) => {
+  const displayNameForCamera = slotId => {
+    const savedName = cameraNames[String(slotId)] || cameraNames[slotId];
+    if (savedName) return savedName;
+
     const liveCamera = cameraForSlot(slotId);
-    if (!liveCamera) {
-      return cameras.find(camera => camera.id === slotId)?.name || `CAM ${slotId}`;
-    }
-    return cameraLabels[liveCamera.socketId] || liveCamera.name || `CAM ${slotId}`;
+    if (liveCamera?.name) return liveCamera.name;
+
+    return cameras.find(camera => camera.id === slotId)?.name || `CAM ${String(slotId).padStart(2, "0")}`;
   };
 
-  const renameCamera = slotId => {
-    const liveCamera = cameraForSlot(slotId);
-    if (!liveCamera) return;
+  const openSetNames = () => {
+    const next = {};
+    cameras.forEach(camera => {
+      next[camera.id] = displayNameForCamera(camera.id);
+    });
+    setDraftCameraNames(next);
+    setShowSetNames(true);
+  };
 
-    const currentName = displayNameForCamera(slotId);
-    const nextName = window.prompt(
-      "Rename this camera for the Director view (person, location, position, etc.):",
-      currentName
+  const saveCameraNames = event => {
+    event?.preventDefault?.();
+
+    const next = {};
+    cameras.forEach(camera => {
+      const value = String(draftCameraNames[camera.id] || "").trim().slice(0, 80);
+      next[camera.id] = value || `CAM ${String(camera.id).padStart(2, "0")}`;
+    });
+
+    setCameraNames(next);
+
+    try {
+      window.localStorage.setItem(
+        `scenepilot:cameraNames:${roomCode}`,
+        JSON.stringify(next)
+      );
+    } catch (error) {
+      console.warn("ScenePilot camera names could not be saved locally", error);
+    }
+
+    window.dispatchEvent(
+      new CustomEvent("scenepilot:camera-names", {
+        detail: { roomCode, names: next }
+      })
     );
 
-    if (nextName === null) return;
-
-    const clean = nextName.trim().slice(0, 80);
-    if (!clean) return;
-
-    setCameraLabels(current => ({
-      ...current,
-      [liveCamera.socketId]: clean
-    }));
+    setShowSetNames(false);
   };
 
-  const startCameraLongPress = slotId => {
-    window.clearTimeout(longPressTimer.current);
-    longPressTimer.current = window.setTimeout(() => renameCamera(slotId), 650);
-  };
+  const dropCameraOnMain = slotId => {
+    const next = Number(slotId);
+    if (!next || next < 1 || next > 9 || !cameraForSlot(next)) return;
 
-  const stopCameraLongPress = () => {
-    window.clearTimeout(longPressTimer.current);
-    longPressTimer.current = null;
+    setMainCamera(next);
+    try {
+      window.localStorage.setItem(
+        `scenepilot:mainCamera:${roomCode}`,
+        String(next)
+      );
+    } catch (error) {
+      console.warn("ScenePilot Main Cam assignment could not be saved", error);
+    }
   };
 
   const streamForSlot = slotId => {
     const camera = cameraForSlot(slotId);
     return camera ? remoteStreams[camera.socketId] : null;
+  };
+
+  const isProgramSlot = slotId => {
+    if (instantReplayMode === "program") return false;
+
+    if (programComposition.mode === "nine") return true;
+    if (programComposition.mode === "split" || programComposition.mode === "pip") {
+      return [programComposition.primary, programComposition.secondary].includes(slotId);
+    }
+    return programComposition.primary === slotId;
   };
 
   const renderSource = (slotId, variant = "preview") => {
@@ -1481,21 +1601,9 @@ function App() {
 
     if (liveStream) {
       return (
-        <video
-          autoPlay
-          playsInline
-          muted
+        <LiveStreamVideo
+          stream={liveStream}
           className="composition-video"
-          ref={el => {
-            if (
-              el &&
-              liveStream &&
-              el.srcObject !== liveStream
-            ) {
-              el.srcObject = liveStream;
-              el.play?.().catch(() => {});
-            }
-          }}
         />
       );
     }
@@ -1575,7 +1683,7 @@ function App() {
                 <div className="composition nine-composition">
                   <div className="nine-main-pane">
                     {renderSource(preview, "preview")}
-                    <span className="composition-label">MAIN • CAM {preview}</span>
+                    <span className="composition-label">MAIN • {displayNameForCamera(preview)}</span>
                   </div>
                   <div className="nine-side-grid">
                     {cameras
@@ -1584,7 +1692,7 @@ function App() {
                         <div className="nine-mini-pane" key={camera.id}>
                           {renderSource(camera.id, "preview")}
                           <span className="composition-label">
-                            CAM {camera.id}
+                            {displayNameForCamera(camera.id)}
                           </span>
                         </div>
                       ))}
@@ -1594,11 +1702,11 @@ function App() {
                 <div className="composition split-composition">
                   <div className="composition-pane">
                     {renderSource(preview, "preview")}
-                    <span className="composition-label">CAM {preview}</span>
+                    <span className="composition-label">{displayNameForCamera(preview)}</span>
                   </div>
                   <div className="composition-pane">
                     {renderSource(secondaryPreview, "preview")}
-                    <span className="composition-label">CAM {secondaryPreview}</span>
+                    <span className="composition-label">{displayNameForCamera(secondaryPreview)}</span>
                   </div>
                 </div>
               ) : compositionMode === "pip" ? (
@@ -1608,7 +1716,7 @@ function App() {
                   </div>
                   <div className="pip-window">
                     {renderSource(secondaryPreview, "preview")}
-                    <span className="composition-label">CAM {secondaryPreview}</span>
+                    <span className="composition-label">{displayNameForCamera(secondaryPreview)}</span>
                   </div>
                 </div>
               ) : (
@@ -1618,10 +1726,10 @@ function App() {
                 {instantReplayMode === "preview"
                   ? `REPLAY ${instantReplaySeconds}S`
                   : compositionMode === "single"
-                    ? `CAM ${preview}`
+                    ? displayNameForCamera(preview)
                     : compositionMode === "nine"
-                      ? `9-CAM • MAIN CAM ${preview}`
-                      : `${compositionMode.toUpperCase()} • CAM ${preview} + CAM ${secondaryPreview}`}
+                      ? `9-CAM • MAIN ${displayNameForCamera(preview)}`
+                      : `${compositionMode.toUpperCase()} • ${displayNameForCamera(preview)} + ${displayNameForCamera(secondaryPreview)}`}
               </span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
             </div>
@@ -1632,7 +1740,11 @@ function App() {
               <span>PROGRAM</span>
               <strong>PGM</strong>
             </div>
-            <div className="screen">
+            <div
+              key={`program-${programTransition.key}`}
+              className={`screen program-screen transition-${programTransition.type.toLowerCase()}`}
+              style={{ "--transition-duration": `${programTransition.duration}ms` }}
+            >
               {instantReplayMode === "program" && instantReplayUrl ? (
                 <video
                   ref={instantReplayVideoRef}
@@ -1647,7 +1759,7 @@ function App() {
                   <div className="nine-main-pane">
                     {renderSource(programComposition.primary, "program")}
                     <span className="composition-label">
-                      MAIN • CAM {programComposition.primary}
+                      MAIN • {displayNameForCamera(programComposition.primary)}
                     </span>
                   </div>
                   <div className="nine-side-grid">
@@ -1657,7 +1769,7 @@ function App() {
                         <div className="nine-mini-pane" key={camera.id}>
                           {renderSource(camera.id, "program")}
                           <span className="composition-label">
-                            CAM {camera.id}
+                            {displayNameForCamera(camera.id)}
                           </span>
                         </div>
                       ))}
@@ -1667,11 +1779,11 @@ function App() {
                 <div className="composition split-composition">
                   <div className="composition-pane">
                     {renderSource(programComposition.primary, "program")}
-                    <span className="composition-label">CAM {programComposition.primary}</span>
+                    <span className="composition-label">{displayNameForCamera(programComposition.primary)}</span>
                   </div>
                   <div className="composition-pane">
                     {renderSource(programComposition.secondary, "program")}
-                    <span className="composition-label">CAM {programComposition.secondary}</span>
+                    <span className="composition-label">{displayNameForCamera(programComposition.secondary)}</span>
                   </div>
                 </div>
               ) : programComposition.mode === "pip" ? (
@@ -1681,7 +1793,7 @@ function App() {
                   </div>
                   <div className="pip-window">
                     {renderSource(programComposition.secondary, "program")}
-                    <span className="composition-label">CAM {programComposition.secondary}</span>
+                    <span className="composition-label">{displayNameForCamera(programComposition.secondary)}</span>
                   </div>
                 </div>
               ) : (
@@ -1692,10 +1804,10 @@ function App() {
                 {instantReplayMode === "program"
                   ? `INSTANT REPLAY ${instantReplaySeconds}S`
                   : programComposition.mode === "single"
-                    ? `CAM ${programComposition.primary}`
+                    ? displayNameForCamera(programComposition.primary)
                     : programComposition.mode === "nine"
-                      ? `9-CAM • MAIN CAM ${programComposition.primary}`
-                      : `${programComposition.mode.toUpperCase()} • CAM ${programComposition.primary} + CAM ${programComposition.secondary}`}
+                      ? `9-CAM • MAIN ${displayNameForCamera(programComposition.primary)}`
+                      : `${programComposition.mode.toUpperCase()} • ${displayNameForCamera(programComposition.primary)} + ${displayNameForCamera(programComposition.secondary)}`}
               </span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
             </div>
@@ -1705,12 +1817,17 @@ function App() {
         <section className="camera-bank">
           <div className="section-title">
             <div><span>SOURCES</span><strong>CAMERA MULTIVIEW</strong></div>
-            <span>{
-              cameras.filter(c =>
-                c.status !== "OFFLINE" ||
-                Boolean(cameraForSlot(c.id))
-              ).length
-            } / 9 CONNECTED</span>
+            <div className="section-title-actions">
+              <span>{
+                cameras.filter(c =>
+                  c.status !== "OFFLINE" ||
+                  Boolean(cameraForSlot(c.id))
+                ).length
+              } / 9 CONNECTED</span>
+              <button className="set-names-button" onClick={openSetNames}>
+                <Type size={14}/> SET NAMES
+              </button>
+            </div>
           </div>
 
           <div className="camera-grid">
@@ -1732,38 +1849,18 @@ function App() {
                   cam.status === "OFFLINE" &&
                   !cameraForSlot(cam.id)
                 }
-                onClick={() => setPreview(cam.id)}
-                onPointerDown={() => {
-                  if (cameraForSlot(cam.id)) startCameraLongPress(cam.id);
+                onClick={() => {
+                  setPreview(cam.id);
+                  setPreviewDirty(true);
                 }}
-                onPointerUp={stopCameraLongPress}
-                onPointerLeave={stopCameraLongPress}
-                onPointerCancel={stopCameraLongPress}
-                onDoubleClick={() => renameCamera(cam.id)}
                 className={`camera-tile
-                  ${cam.id === program ? "is-program" : ""}
+                  ${isProgramSlot(cam.id) && cameraForSlot(cam.id) ? "is-program" : ""}
                   ${cam.id === preview ? "is-preview" : ""}
                   ${cam.status === "OFFLINE" && !cameraForSlot(cam.id) ? "offline" : ""}`}
               >
                 <div className="tile-feed">
                   {streamForSlot(cam.id) ? (
-                    <video
-                      autoPlay
-                      playsInline
-                      muted
-                      ref={el => {
-                        const liveStream = streamForSlot(cam.id);
-
-                        if (
-                          el &&
-                          liveStream &&
-                          el.srcObject !== liveStream
-                        ) {
-                          el.srcObject = liveStream;
-                          el.play?.().catch(() => {});
-                        }
-                      }}
-                    />
+                    <LiveStreamVideo stream={streamForSlot(cam.id)}/>
                   ) : (
                     <>
                       <Camera size={27}/>
@@ -1775,7 +1872,7 @@ function App() {
                 <div className="tile-meta">
                   <strong>{displayNameForCamera(cam.id)}</strong>
                   {cameraForSlot(cam.id) && (
-                    <span className="drag-hint">DRAG • HOLD TO RENAME</span>
+                    <span className="drag-hint">DRAG TO PREVIEW OR MAIN CAM</span>
                   )}
                   <div>
                     <span title="Browser-reported network quality, not raw Wi-Fi RSSI">
@@ -1791,10 +1888,49 @@ function App() {
                   </div>
                 </div>
 
-                {cam.id === program && <span className="bus-label pgm">PGM</span>}
+                {isProgramSlot(cam.id) && cameraForSlot(cam.id) && <span className="bus-label pgm">PGM</span>}
                 {cam.id === preview && <span className="bus-label pvw">PVW</span>}
               </button>
             ))}
+          </div>
+
+          <div
+            className={`main-camera-home ${draggingCamera ? "drag-active" : ""}`}
+            onDragOver={event => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={event => {
+              event.preventDefault();
+              const slotId = Number(
+                event.dataTransfer.getData("text/scenepilot-camera") ||
+                draggingCamera
+              );
+              dropCameraOnMain(slotId);
+              setDraggingCamera(null);
+            }}
+          >
+            <div className="main-camera-home-copy">
+              <span>HOME SHOT</span>
+              <strong>MAIN CAM</strong>
+              <small>Drag any connected camera here. TAKE returns to this camera when no new Preview shot is selected.</small>
+            </div>
+            <div className="main-camera-home-feed">
+              {streamForSlot(mainCamera) ? (
+                <LiveStreamVideo stream={streamForSlot(mainCamera)}/>
+              ) : (
+                <div className="main-camera-placeholder">
+                  <Camera size={24}/>
+                  <span>WAITING FOR CAM {String(mainCamera).padStart(2, "0")}</span>
+                </div>
+              )}
+              <span className="main-camera-name">
+                {displayNameForCamera(mainCamera)} • CAM {String(mainCamera).padStart(2, "0")}
+              </span>
+              {isProgramSlot(mainCamera) && (
+                <span className="home-live-badge"><i/> HOME LIVE</span>
+              )}
+            </div>
           </div>
         </section>
 
@@ -1826,7 +1962,7 @@ function App() {
               ))}
             </div>
 
-            <button className="take-button" onClick={transition === "CUT" ? cut : take}>
+            <button className="take-button" onClick={take}>
               <span>TAKE</span>
               <small>{transition} • {duration}ms</small>
             </button>
@@ -1844,7 +1980,7 @@ function App() {
                 <option value="mix">MIX ALL ACTIVE PHONE MICS</option>
                 {wirelessCameras.map(camera => (
                   <option key={camera.socketId} value={camera.socketId}>
-                    CAM {String(camera.slotId || "?").padStart(2, "0")} — {camera.name || "PHONE"}
+                    CAM {String(camera.slotId || "?").padStart(2, "0")} — {displayNameForCamera(camera.slotId)}
                   </option>
                 ))}
               </select>
@@ -1881,8 +2017,8 @@ function App() {
                     />
 
                     <div className="phone-mixer-head">
-                      <strong>CAM {String(camera.slotId || "?").padStart(2, "0")}</strong>
-                      <span>{camera.name || "PHONE"}</span>
+                      <strong>{displayNameForCamera(camera.slotId)}</strong>
+                      <span>CAM {String(camera.slotId || "?").padStart(2, "0")}</span>
                     </div>
 
                     <input
@@ -1937,28 +2073,28 @@ function App() {
             <div className="layout-mode-grid">
               <button
                 className={compositionMode === "single" ? "active" : ""}
-                onClick={() => setCompositionMode("single")}
+                onClick={() => chooseCompositionMode("single")}
               >
                 <MonitorUp size={18}/><span>SINGLE</span>
               </button>
 
               <button
                 className={compositionMode === "split" ? "active" : ""}
-                onClick={() => setCompositionMode("split")}
+                onClick={() => chooseCompositionMode("split")}
               >
                 <Layers size={18}/><span>SPLIT</span>
               </button>
 
               <button
                 className={compositionMode === "pip" ? "active" : ""}
-                onClick={() => setCompositionMode("pip")}
+                onClick={() => chooseCompositionMode("pip")}
               >
                 <PictureInPicture2 size={18}/><span>PiP</span>
               </button>
 
               <button
                 className={compositionMode === "nine" ? "active" : ""}
-                onClick={() => setCompositionMode("nine")}
+                onClick={() => chooseCompositionMode("nine")}
               >
                 <Users size={18}/><span>9-CAM</span>
               </button>
@@ -1969,7 +2105,10 @@ function App() {
                 <label>SECOND CAMERA</label>
                 <select
                   value={secondaryPreview}
-                  onChange={event => setSecondaryPreview(Number(event.target.value))}
+                  onChange={event => {
+                    setSecondaryPreview(Number(event.target.value));
+                    setPreviewDirty(true);
+                  }}
                 >
                   {cameras.map(camera => (
                     <option key={camera.id} value={camera.id}>
@@ -2044,6 +2183,38 @@ function App() {
         <span>00:00:00</span>
       </footer>
 
+      {showSetNames && (
+        <div className="modal-backdrop" onClick={() => setShowSetNames(false)}>
+          <form className="join-modal set-names-modal" onSubmit={saveCameraNames} onClick={event => event.stopPropagation()}>
+            <button type="button" className="modal-close" onClick={() => setShowSetNames(false)}><X/></button>
+            <div className="join-icon"><Type size={27}/></div>
+            <span className="eyebrow">CAMERA LABELS</span>
+            <h2>Set camera names</h2>
+            <p>These names stay synchronized across Multiview, Preview, Program, Main Cam, Master Audio, and camera communications.</p>
+            <div className="camera-name-grid">
+              {cameras.map(camera => (
+                <label key={camera.id}>
+                  <span>CAM {String(camera.id).padStart(2, "0")}</span>
+                  <input
+                    value={draftCameraNames[camera.id] ?? ""}
+                    onChange={event => setDraftCameraNames(current => ({
+                      ...current,
+                      [camera.id]: event.target.value
+                    }))}
+                    maxLength={80}
+                    placeholder={`Camera ${String(camera.id).padStart(2, "0")}`}
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="set-names-actions">
+              <button type="button" onClick={() => setShowSetNames(false)}>CANCEL</button>
+              <button type="submit">SAVE NAMES</button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {showTips && (
         <div className="modal-backdrop" onClick={() => setShowTips(false)}>
           <div className="join-modal tips-modal" onClick={e => e.stopPropagation()}>
@@ -2052,26 +2223,18 @@ function App() {
             <span className="eyebrow">SCENEPILOT QUICK TIPS</span>
             <h2>Run the production</h2>
             <div className="tips-list">
-              <p><strong>1. Add cameras:</strong> Tap Add Camera and let each phone scan the QR code. Each connected phone gets its own camera slot.</p>
-              <p><strong>2. Left screen = Preview:</strong> Tap any camera tile to load that camera onto the LEFT monitor first. Preview lets you check the shot before viewers see it.</p>
-              <p><strong>3. Right screen = Program / Live:</strong> The RIGHT monitor is the camera or layout currently going out live.</p>
-              <p><strong>4. TAKE:</strong> After choosing a camera in Preview, tap TAKE to move it to Program. The new camera becomes live on the right monitor.</p>
-              <p><strong>5. CUT:</strong> CUT does the same switch immediately with no dissolve or fade.</p>
-              <p><strong>6. Switch cameras:</strong> Tap another camera tile to preview it on the left, then tap TAKE or CUT when you are ready to put that camera live.</p>
-              <p><strong>7. Camera phone status:</strong> CONNECTED / READY means the phone is available but not live. YOU ARE ON AIR means that phone is currently on Program.</p>
-              <p><strong>8. Split Screen:</strong> Choose SPLIT, select the second camera, preview both on the left, then tap TAKE to put both cameras live together.</p>
-              <p><strong>9. 9-Cam Layout:</strong> Choose 9-CAM to make the selected Preview camera the large main picture while the other eight cameras appear as smaller live windows around it. Tap TAKE to send the whole layout to Program.</p>
-              <p><strong>9. Picture-in-Picture:</strong> Choose PiP, select the smaller second camera, preview the layout, then tap TAKE.</p>
-              <p><strong>10. Zoom / Switch camera:</strong> On each phone, use Zoom In, Zoom Out, and Switch Camera for front/rear camera control while connected.</p>
-              <p><strong>11. Live Shield:</strong> Use Live Shield on the phone and enable the phone's Focus / Do Not Disturb mode before a production to reduce interruptions.</p>
-              <p><strong>12. Bandwidth:</strong> Start with 1080P. If several phones become unstable, move some cameras to 720P or Auto.</p>
-              <p><strong>13. Editor media:</strong> In Pro Editor + Replay Studio, use Import Media to load multiple local video, audio, or image files.</p>
-              <p><strong>14. Timeline:</strong> Clips can live on multiple video, audio, and text tracks. Select a clip to change start, duration, speed, opacity, or volume.</p>
-              <p><strong>15. Edit tools:</strong> Use Split at the playhead, Duplicate, Delete, Undo/Redo, timeline zoom, and Add Title while building the edit.</p>
-              <p><strong>16. Instant Replay:</strong> While a live Program camera is running, ScenePilot keeps a rolling buffer. Tap Replay 10s, 20s, or 30s to load that moment into Preview, then Play Replay to put it on Program. It returns to live automatically when the clip ends.</p>
-              <p><strong>17. Broadcast / Multistream:</strong> Select Facebook, Instagram, YouTube, Twitch, TikTok, Custom RTMP, ScenePilot Self-Hosted, or several at once. The panel is staged now; tomorrow the Debian encoder backend will make GO LIVE actually publish the Program feed.</p>
-              <p><strong>18. Self-Hosted:</strong> ScenePilot Self-Hosted is your own destination. Your Debian server will receive the Program feed and can also serve a Watch Live page from your own system.</p>
-              <p><strong>19. Server phase:</strong> Final rendered export, saved projects, permanent recordings, and the live FFmpeg broadcast engine will connect when ScenePilot moves onto the server.</p>
+              <p><strong>1. Set Names:</strong> Use SET NAMES above Camera Multiview to label one or all nine camera slots. A saved name follows that slot everywhere in the Director console.</p>
+              <p><strong>2. Nine feeds stay live:</strong> Every connected camera keeps playing in Camera Multiview at all times. Preview, Program, Main Cam, and layouts reuse the same live MediaStream without stealing it from the wall.</p>
+              <p><strong>3. Assign Main Cam:</strong> Drag any connected camera tile onto MAIN CAM below the nine-camera wall. That becomes the production's home shot.</p>
+              <p><strong>4. Preview first:</strong> Tap a camera tile or drag it to Preview. Preview changes only the left monitor and does not put that camera on air.</p>
+              <p><strong>5. TAKE:</strong> Press TAKE to send the current Preview/layout to Program. The red PGM indicator follows the source or sources actually live.</p>
+              <p><strong>6. Return home:</strong> After a shot is taken, press TAKE again without choosing a new Preview shot to return Program to the assigned Main Cam. Pressing TAKE again can return to the prepared Preview shot.</p>
+              <p><strong>7. Transitions:</strong> Select CUT, DISSOLVE, or FADE, choose 0.25s, 0.5s, or 1.0s, then press TAKE. The selected transition and duration now control the Program change.</p>
+              <p><strong>8. Layouts:</strong> SINGLE, SPLIT, PiP, and 9-CAM are prepared in Preview first. TAKE sends the prepared layout to Program; another TAKE with no new selection returns to Main Cam.</p>
+              <p><strong>9. Master Audio:</strong> Camera names from SET NAMES also appear in the Master Audio source list and phone mixer so video and audio labels match.</p>
+              <p><strong>10. Camera phones:</strong> Connected phones can keep using flip, zoom, Live Shield, telemetry, and camera communications while their live feed remains available to all Director monitors.</p>
+              <p><strong>11. Instant Replay:</strong> ScenePilot keeps the Program source buffered for replay when browser MediaRecorder support is available. Replay returns to the live Program automatically when it ends.</p>
+              <p><strong>12. If a feed drops:</strong> Leave the camera page open while ScenePilot reconnects. The Multiview tile resumes from the same source slot when its WebRTC stream returns.</p>
             </div>
           </div>
         </div>
