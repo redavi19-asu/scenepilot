@@ -112,6 +112,19 @@ function App() {
   const [showTips, setShowTips] = useState(false);
   const [showCallShield, setShowCallShield] = useState(false);
   const [liveShieldEnabled, setLiveShieldEnabled] = useState(false);
+  const [telemetryAllowed, setTelemetryAllowed] = useState(false);
+  const [cameraTelemetry, setCameraTelemetry] = useState({
+    battery: null,
+    charging: null,
+    network: null,
+    batterySupported: Boolean(navigator.getBattery),
+    networkSupported: Boolean(
+      navigator.connection ||
+      navigator.mozConnection ||
+      navigator.webkitConnection
+    ),
+    status: "NOT SHARED"
+  });
   const wakeLock = useRef(null);
   const reconnectTimers = useRef({});
   const audioElements = useRef({});
@@ -280,13 +293,19 @@ function App() {
 
 
   useEffect(() => {
-    if (!showCamera || !stream || !socket.connected) return;
+    if (!showCamera || !stream || !socket.connected || !telemetryAllowed) return;
 
     let battery = null;
     let batteryCleanup = null;
     let interval = null;
 
-    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const connection =
+      navigator.connection ||
+      navigator.mozConnection ||
+      navigator.webkitConnection;
+
+    const batterySupported = Boolean(navigator.getBattery);
+    const networkSupported = Boolean(connection);
 
     const getNetworkQuality = () => {
       if (!connection) return null;
@@ -316,12 +335,29 @@ function App() {
         battery && Number.isFinite(battery.level)
           ? Math.round(battery.level * 100)
           : null;
+      const network = getNetworkQuality();
+
+      const nextTelemetry = {
+        battery: batteryPercent,
+        charging: battery ? Boolean(battery.charging) : null,
+        network,
+        batterySupported,
+        networkSupported,
+        status: "SHARING"
+      };
+
+      setCameraTelemetry(nextTelemetry);
 
       socket.emit("camera:telemetry", {
         room: roomCode,
         battery: batteryPercent,
         charging: battery ? Boolean(battery.charging) : null,
-        network: getNetworkQuality()
+        network,
+        telemetryConsent: true,
+        support: {
+          battery: batterySupported,
+          network: networkSupported
+        }
       });
     };
 
@@ -339,19 +375,28 @@ function App() {
             battery.removeEventListener?.("chargingchange", handleBattery);
           };
         })
-        .catch(() => {});
+        .catch(() => {
+          setCameraTelemetry(current => ({
+            ...current,
+            battery: null,
+            batterySupported: false,
+            status: "SHARING"
+          }));
+          sendTelemetry();
+        });
+    } else {
+      sendTelemetry();
     }
 
     connection?.addEventListener?.("change", sendTelemetry);
     interval = window.setInterval(sendTelemetry, 15000);
-    sendTelemetry();
 
     return () => {
       if (interval) window.clearInterval(interval);
       connection?.removeEventListener?.("change", sendTelemetry);
       batteryCleanup?.();
     };
-  }, [showCamera, stream, roomCode]);
+  }, [showCamera, stream, roomCode, telemetryAllowed]);
 
   useEffect(() => {
     if (!showCamera || !navigator.mediaDevices) return;
@@ -532,7 +577,9 @@ function App() {
                 ...camera,
                 battery: Number.isFinite(payload.battery) ? payload.battery : null,
                 charging: payload.charging ?? null,
-                network: payload.network || null
+                network: payload.network || null,
+                telemetryConsent: payload.telemetryConsent !== false,
+                telemetrySupport: payload.support || camera.telemetrySupport || null
               }
             : camera
         )
@@ -944,7 +991,36 @@ function App() {
     wakeLock.current = null;
   }
 
-  async function enableCamera() {
+    function stopTelemetrySharing() {
+    setTelemetryAllowed(false);
+    setCameraTelemetry(current => ({
+      ...current,
+      battery: null,
+      charging: null,
+      network: null,
+      status: "NOT SHARED"
+    }));
+
+    if (socket.connected) {
+      socket.emit("camera:telemetry", {
+        room: roomCode,
+        battery: null,
+        charging: null,
+        network: null,
+        telemetryConsent: false,
+        support: {
+          battery: Boolean(navigator.getBattery),
+          network: Boolean(
+            navigator.connection ||
+            navigator.mozConnection ||
+            navigator.webkitConnection
+          )
+        }
+      });
+    }
+  }
+
+async function enableCamera() {
     try {
       if (!networkId || !cameraJoinToken) {
         throw new Error("This camera link is missing its ScenePilot network access token. Scan the company's current QR code again.");
@@ -1520,10 +1596,56 @@ function App() {
               </>
             )}
 
-            <div className="operator-status">
-              <span><Wifi size={17}/> {isOnAir ? "ON AIR" : signalStatus}</span>
-              <span><BatteryFull size={17}/> Battery</span>
-              <span><Mic2 size={17}/> Audio</span>
+            <div className="telemetry-consent">
+              <div>
+                <strong>DEVICE TELEMETRY</strong>
+                <span>
+                  Share battery and network quality with the Director when this browser supports it.
+                  ScenePilot does not request location for telemetry.
+                </span>
+              </div>
+
+              {!telemetryAllowed ? (
+                <button type="button" onClick={() => setTelemetryAllowed(true)}>
+                  ALLOW DEVICE TELEMETRY
+                </button>
+              ) : (
+                <button type="button" className="telemetry-stop" onClick={stopTelemetrySharing}>
+                  STOP SHARING
+                </button>
+              )}
+            </div>
+
+            <div className="operator-status telemetry-status">
+              <span>
+                <Wifi size={17}/>
+                {telemetryAllowed
+                  ? cameraTelemetry.networkSupported
+                    ? cameraTelemetry.network?.bars === 4
+                      ? "NETWORK EXCELLENT"
+                      : cameraTelemetry.network?.bars === 3
+                        ? "NETWORK GOOD"
+                        : cameraTelemetry.network?.bars === 2
+                          ? "NETWORK FAIR"
+                          : cameraTelemetry.network?.bars === 1
+                            ? "NETWORK WEAK"
+                            : "NETWORK LIMITED"
+                    : "NETWORK UNSUPPORTED"
+                  : "NETWORK NOT SHARED"}
+              </span>
+
+              <span>
+                <BatteryFull size={17}/>
+                {telemetryAllowed
+                  ? cameraTelemetry.batterySupported
+                    ? Number.isFinite(cameraTelemetry.battery)
+                      ? `${cameraTelemetry.battery}%${cameraTelemetry.charging ? " CHARGING" : ""}`
+                      : "BATTERY WAITING"
+                    : "BATTERY UNSUPPORTED"
+                  : "BATTERY NOT SHARED"}
+              </span>
+
+              <span><Mic2 size={17}/> {stream ? "AUDIO ALLOWED" : "AUDIO PERMISSION ON START"}</span>
             </div>
 
             {!stream ? (
@@ -1581,12 +1703,13 @@ function App() {
                 <p><strong>1.</strong> Enter a camera name before connecting.</p>
                 <p><strong>2.</strong> Camera Source can use the phone camera, a USB webcam, or an HDMI capture device recognized by the browser.</p>
                 <p><strong>3.</strong> Start with 1080P. Use 720P or Auto if bandwidth gets tight.</p>
-                <p><strong>4.</strong> Tap Enable Camera + Microphone and allow browser permissions.</p>
-                <p><strong>5.</strong> ScenePilot assigns the next available camera slot automatically.</p>
-                <p><strong>6.</strong> LIVE TO DIRECTOR means the WebRTC media connection is active.</p>
-                <p><strong>7.</strong> Use FLIP to switch between the rear and front camera without leaving the production.</p>
-                <p><strong>8.</strong> Zoom controls use the phone camera's hardware zoom when the browser supports it.</p>
-                <p><strong>9.</strong> If the connection drops, leave the page open while ScenePilot reconnects.</p>
+                <p><strong>4.</strong> Choose ALLOW DEVICE TELEMETRY if you want the Director to see battery and browser-reported network quality. You can stop sharing at any time.</p>
+                <p><strong>5.</strong> Tap Enable Camera + Microphone and allow the browser's native camera/microphone permission prompt.</p>
+                <p><strong>6.</strong> ScenePilot assigns the next available camera slot automatically.</p>
+                <p><strong>7.</strong> LIVE TO DIRECTOR means the WebRTC media connection is active.</p>
+                <p><strong>8.</strong> Use FLIP to switch between the rear and front camera without leaving the production.</p>
+                <p><strong>9.</strong> Zoom controls use the phone camera's hardware zoom when the browser supports it.</p>
+                <p><strong>10.</strong> If the connection drops, leave the page open while ScenePilot reconnects.</p>
               </div>
             </div>
           </div>
@@ -1601,7 +1724,26 @@ function App() {
   const cameraForSlot = slotId =>
     wirelessCameras.find(camera => camera.slotId === slotId);
 
+  const networkLabelForCamera = camera => {
+    if (!camera) return "OFFLINE";
+    if (camera.telemetryConsent === false) return "NOT SHARED";
+    if (camera.telemetrySupport?.network === false) return "UNSUPPORTED";
 
+    const bars = camera.network?.bars;
+    if (bars === 4) return "EXCELLENT";
+    if (bars === 3) return "GOOD";
+    if (bars === 2) return "FAIR";
+    if (bars === 1) return "WEAK";
+    return "LIMITED";
+  };
+
+  const batteryLabelForCamera = camera => {
+    if (!camera) return "OFFLINE";
+    if (camera.telemetryConsent === false) return "NOT SHARED";
+    if (camera.telemetrySupport?.battery === false) return "UNSUPPORTED";
+    if (!Number.isFinite(camera.battery)) return "NOT SHARED";
+    return `${camera.battery}%${camera.charging ? " ⚡" : ""}`;
+  };
 
   const displayNameForCamera = slotId => {
     if (slotId === DIRECTOR_SOURCE) return "DIRECTOR CAM";
@@ -1977,15 +2119,13 @@ function App() {
                     <span className="drag-hint">DRAG TO PREVIEW OR MAIN CAM</span>
                   )}
                   <div>
-                    <span title="Browser-reported network quality, not raw Wi-Fi RSSI">
+                    <span title="Camera operator network telemetry when the phone/browser shares it">
                       <Wifi size={12}/>
-                      {cameraForSlot(cam.id)?.network?.bars ?? "—"}
+                      {networkLabelForCamera(cameraForSlot(cam.id))}
                     </span>
-                    <span title="Battery is shown only when the camera browser exposes Battery Status">
+                    <span title="Battery telemetry is shown only after operator consent and when the browser exposes it">
                       <BatteryFull size={13}/>
-                      {Number.isFinite(cameraForSlot(cam.id)?.battery)
-                        ? `${cameraForSlot(cam.id).battery}%`
-                        : "—"}
+                      {batteryLabelForCamera(cameraForSlot(cam.id))}
                     </span>
                   </div>
                 </div>
