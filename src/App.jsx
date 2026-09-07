@@ -36,6 +36,8 @@ function ScenePilotSplash({ cameraMode }) {
   );
 }
 
+const DIRECTOR_SOURCE = "director";
+
 const initialCameras = Array.from({ length: 9 }, (_, index) => ({
   id: index + 1,
   name: `CAM ${String(index + 1).padStart(2, "0")}`,
@@ -119,6 +121,8 @@ function App() {
   const [showSetNames, setShowSetNames] = useState(false);
   const [draftCameraNames, setDraftCameraNames] = useState({});
   const [mainCamera, setMainCamera] = useState(1);
+  const [directorStream, setDirectorStream] = useState(null);
+  const [directorCameraStatus, setDirectorCameraStatus] = useState("OFF");
   const [previewDirty, setPreviewDirty] = useState(false);
   const [programTransition, setProgramTransition] = useState({
     type: "CUT",
@@ -153,6 +157,12 @@ function App() {
     const timer = window.setTimeout(() => setShowSplash(false), 1650);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      directorStream?.getTracks?.().forEach(track => track.stop());
+    };
+  }, [directorStream]);
 
   useEffect(() => {
     if (!showCamera) return;
@@ -649,9 +659,13 @@ function App() {
           ? [programComposition.primary]
           : [programComposition.primary, programComposition.secondary].filter(Boolean);
 
+    const physicalLiveSlots = liveSlots
+      .map(value => Number(value))
+      .filter(value => Number.isInteger(value) && value >= 1 && value <= 9);
+
     socket.emit("program:update", {
       room: roomCode,
-      liveSlots
+      liveSlots: physicalLiveSlots
     });
   }, [showCamera, roomCode, programComposition]);
 
@@ -660,9 +674,12 @@ function App() {
 
     const primarySlot = programComposition.primary;
     const primaryCamera = wirelessCameras.find(camera => camera.slotId === primarySlot);
-    const programStream = primaryCamera
-      ? remoteStreams[primaryCamera.socketId]
-      : null;
+    const programStream =
+      primarySlot === DIRECTOR_SOURCE
+        ? directorStream
+        : primaryCamera
+          ? remoteStreams[primaryCamera.socketId]
+          : null;
 
     if (!programStream || typeof MediaRecorder === "undefined") {
       setInstantReplayStatus("BUFFER WAITING");
@@ -742,7 +759,7 @@ function App() {
         replayRecorderRef.current = null;
       }
     };
-  }, [showCamera, programComposition.primary, wirelessCameras, remoteStreams]);
+  }, [showCamera, programComposition.primary, wirelessCameras, remoteStreams, directorStream]);
 
   function buildInstantReplay(seconds) {
     const cutoff = Date.now() - seconds * 1000;
@@ -1111,6 +1128,76 @@ function App() {
       setSignalStatus("CAMERA ACCESS FAILED");
       alert(`Camera access failed: ${error.message}`);
     }
+  }
+
+  async function enableDirectorCamera() {
+    if (showCamera || directorStream) return;
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setDirectorCameraStatus("UNSUPPORTED");
+      return;
+    }
+
+    try {
+      setDirectorCameraStatus("REQUESTING");
+
+      const media = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "user" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30, max: 30 }
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+      setDirectorStream(media);
+      setDirectorCameraStatus("READY");
+    } catch (error) {
+      console.error("ScenePilot Director Cam failed", error);
+      setDirectorCameraStatus("CAMERA BLOCKED");
+    }
+  }
+
+  function stopDirectorCamera() {
+    directorStream?.getTracks?.().forEach(track => track.stop());
+    setDirectorStream(null);
+    setDirectorCameraStatus("OFF");
+
+    if (preview === DIRECTOR_SOURCE) {
+      setPreview(mainCamera);
+      setPreviewDirty(true);
+    }
+
+    if (secondaryPreview === DIRECTOR_SOURCE) {
+      setSecondaryPreview(mainCamera === preview ? 2 : mainCamera);
+      setPreviewDirty(true);
+    }
+  }
+
+  function putDirectorInPreview() {
+    if (!directorStream) return;
+    setCompositionMode("single");
+    setPreview(DIRECTOR_SOURCE);
+    setPreviewDirty(true);
+  }
+
+  function putDirectorInPip() {
+    if (!directorStream) return;
+
+    let primary = preview;
+    if (primary === DIRECTOR_SOURCE) {
+      primary = mainCamera;
+      setPreview(primary);
+    }
+
+    setCompositionMode("pip");
+    setSecondaryPreview(DIRECTOR_SOURCE);
+    setPreviewDirty(true);
   }
 
   function stopCamera() {
@@ -1517,6 +1604,8 @@ function App() {
 
 
   const displayNameForCamera = slotId => {
+    if (slotId === DIRECTOR_SOURCE) return "DIRECTOR CAM";
+
     const savedName = cameraNames[String(slotId)] || cameraNames[slotId];
     if (savedName) return savedName;
 
@@ -1580,6 +1669,8 @@ function App() {
   };
 
   const streamForSlot = slotId => {
+    if (slotId === DIRECTOR_SOURCE) return directorStream;
+
     const camera = cameraForSlot(slotId);
     return camera ? remoteStreams[camera.socketId] : null;
   };
@@ -1611,8 +1702,16 @@ function App() {
     return (
       <div className={`fake-feed ${variant === "program" ? "program-feed" : "preview-feed"}`}>
         <Camera size={44}/>
-        <strong>CAM {String(slotId).padStart(2,"0")}</strong>
-        <span>{liveCamera?.name || fallbackCamera?.name || "SOURCE"}</span>
+        <strong>
+          {slotId === DIRECTOR_SOURCE
+            ? "DIRECTOR CAM"
+            : `CAM ${String(slotId).padStart(2,"0")}`}
+        </strong>
+        <span>
+          {slotId === DIRECTOR_SOURCE
+            ? "LOCAL SELFIE SOURCE"
+            : liveCamera?.name || fallbackCamera?.name || "SOURCE"}
+        </span>
       </div>
     );
   };
@@ -1663,11 +1762,14 @@ function App() {
               onDragOver={event => event.preventDefault()}
               onDrop={event => {
                 event.preventDefault();
-                const slotId = Number(
+                const rawSource =
                   event.dataTransfer.getData("text/scenepilot-camera") ||
-                  draggingCamera
-                );
-                dropCameraOnPreview(slotId);
+                  draggingCamera;
+                const sourceId =
+                  rawSource === DIRECTOR_SOURCE
+                    ? DIRECTOR_SOURCE
+                    : Number(rawSource);
+                dropCameraOnPreview(sourceId);
                 setDraggingCamera(null);
               }}
             >
@@ -1894,19 +1996,94 @@ function App() {
             ))}
           </div>
 
+          <div className="director-camera-panel">
+            <div className="director-camera-copy">
+              <span>LOCAL SOURCE</span>
+              <strong>DIRECTOR CAM</strong>
+              <small>
+                Use the Director device selfie camera as a production source.
+                It stays separate from the nine remote camera slots.
+              </small>
+
+              <div className="director-camera-actions">
+                {!directorStream ? (
+                  <button onClick={enableDirectorCamera}>
+                    <Camera size={15}/> ENABLE SELFIE CAM
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={putDirectorInPreview}>
+                      <MonitorUp size={15}/> PREVIEW
+                    </button>
+                    <button onClick={putDirectorInPip}>
+                      <PictureInPicture2 size={15}/> ADD AS PiP
+                    </button>
+                    <button className="director-camera-stop" onClick={stopDirectorCamera}>
+                      <PhoneOff size={15}/> TURN OFF
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <span className={`director-camera-status ${directorStream ? "ready" : ""}`}>
+                <i/> {directorCameraStatus}
+              </span>
+            </div>
+
+            <div
+              className={`director-camera-feed ${directorStream ? "draggable" : ""}`}
+              draggable={Boolean(directorStream)}
+              onDragStart={event => {
+                if (!directorStream) return;
+                setDraggingCamera(DIRECTOR_SOURCE);
+                event.dataTransfer.effectAllowed = "copy";
+                event.dataTransfer.setData("text/scenepilot-camera", DIRECTOR_SOURCE);
+              }}
+              onDragEnd={() => setDraggingCamera(null)}
+              onClick={() => {
+                if (directorStream) putDirectorInPreview();
+              }}
+              title={directorStream ? "Drag to Preview or tap to preview" : "Enable Director Cam first"}
+            >
+              {directorStream ? (
+                <LiveStreamVideo stream={directorStream}/>
+              ) : (
+                <div className="director-camera-placeholder">
+                  <Camera size={27}/>
+                  <strong>SELFIE CAMERA OFF</strong>
+                  <span>Enable when the Director wants to join the production.</span>
+                </div>
+              )}
+
+              {directorStream && (
+                <>
+                  <span className="director-camera-label">DIRECTOR CAM</span>
+                  <span className="director-camera-drag">DRAG TO PREVIEW</span>
+                </>
+              )}
+
+              {isProgramSlot(DIRECTOR_SOURCE) && directorStream && (
+                <span className="home-live-badge"><i/> LIVE</span>
+              )}
+            </div>
+          </div>
+
           <div
-            className={`main-camera-home ${draggingCamera ? "drag-active" : ""}`}
+            className={`main-camera-home ${draggingCamera && draggingCamera !== DIRECTOR_SOURCE ? "drag-active" : ""}`}
             onDragOver={event => {
               event.preventDefault();
               event.dataTransfer.dropEffect = "move";
             }}
             onDrop={event => {
               event.preventDefault();
-              const slotId = Number(
+              const rawSource =
                 event.dataTransfer.getData("text/scenepilot-camera") ||
-                draggingCamera
-              );
-              dropCameraOnMain(slotId);
+                draggingCamera;
+              if (rawSource === DIRECTOR_SOURCE) {
+                setDraggingCamera(null);
+                return;
+              }
+              dropCameraOnMain(Number(rawSource));
               setDraggingCamera(null);
             }}
           >
@@ -2106,7 +2283,10 @@ function App() {
                 <select
                   value={secondaryPreview}
                   onChange={event => {
-                    setSecondaryPreview(Number(event.target.value));
+                    const value = event.target.value;
+                    setSecondaryPreview(
+                      value === DIRECTOR_SOURCE ? DIRECTOR_SOURCE : Number(value)
+                    );
                     setPreviewDirty(true);
                   }}
                 >
@@ -2115,6 +2295,9 @@ function App() {
                       CAM {String(camera.id).padStart(2,"0")} • {displayNameForCamera(camera.id)}
                     </option>
                   ))}
+                  {directorStream && (
+                    <option value={DIRECTOR_SOURCE}>DIRECTOR CAM • LOCAL SELFIE</option>
+                  )}
                 </select>
               </div>
             )}
@@ -2232,9 +2415,10 @@ function App() {
               <p><strong>7. Transitions:</strong> Select CUT, DISSOLVE, or FADE, choose 0.25s, 0.5s, or 1.0s, then press TAKE. The selected transition and duration now control the Program change.</p>
               <p><strong>8. Layouts:</strong> SINGLE, SPLIT, PiP, and 9-CAM are prepared in Preview first. TAKE sends the prepared layout to Program; another TAKE with no new selection returns to Main Cam.</p>
               <p><strong>9. Master Audio:</strong> Camera names from SET NAMES also appear in the Master Audio source list and phone mixer so video and audio labels match.</p>
-              <p><strong>10. Camera phones:</strong> Connected phones can keep using flip, zoom, Live Shield, telemetry, and camera communications while their live feed remains available to all Director monitors.</p>
-              <p><strong>11. Instant Replay:</strong> ScenePilot keeps the Program source buffered for replay when browser MediaRecorder support is available. Replay returns to the live Program automatically when it ends.</p>
-              <p><strong>12. If a feed drops:</strong> Leave the camera page open while ScenePilot reconnects. The Multiview tile resumes from the same source slot when its WebRTC stream returns.</p>
+              <p><strong>10. Director Cam:</strong> Enable the Director device selfie camera from the dedicated Director Cam panel. Drag it to Preview, tap PREVIEW, or use ADD AS PiP. It never consumes one of the nine remote camera slots.</p>
+              <p><strong>11. Camera phones:</strong> Connected phones can keep using flip, zoom, Live Shield, telemetry, and camera communications while their live feed remains available to all Director monitors.</p>
+              <p><strong>12. Instant Replay:</strong> ScenePilot keeps the Program source buffered for replay when browser MediaRecorder support is available. Replay returns to the live Program automatically when it ends.</p>
+              <p><strong>13. If a feed drops:</strong> Leave the camera page open while ScenePilot reconnects. The Multiview tile resumes from the same source slot when its WebRTC stream returns.</p>
             </div>
           </div>
         </div>
