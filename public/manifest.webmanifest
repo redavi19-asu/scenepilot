@@ -1,9 +1,34 @@
 {
-  "name": "ScenePilot",
+  "id": "/",
+  "name": "ScenePilot Live Production",
   "short_name": "ScenePilot",
-  "description": "Multi-camera live production switcher",
-  "start_url": "./",
+  "description": "Multi-camera live production, switching, instant replay, and editing.",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
+  "orientation": "any",
   "background_color": "#111311",
-  "theme_color": "#e7e4db"
+  "theme_color": "#111311",
+  "categories": ["video", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Director Console",
+      "short_name": "Director",
+      "url": "/"
+    },
+    {
+      "name": "Camera Mode",
+      "short_name": "Camera",
+      "url": "/?camera=1"
+    }
+  ]
 }
