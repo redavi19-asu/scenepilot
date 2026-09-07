@@ -1,3 +1,529 @@
+const SESSION_COOKIE = "sp_session";
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const PASSWORD_ITERATIONS = 210000;
+
+function json(data, status = 200, extraHeaders = {}) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      ...extraHeaders
+    }
+  });
+}
+
+function normalizeEmail(value = "") {
+  return String(value).trim().toLowerCase();
+}
+
+function parseCookies(request) {
+  const result = {};
+  const header = request.headers.get("Cookie") || "";
+
+  for (const part of header.split(";")) {
+    const index = part.indexOf("=");
+    if (index === -1) continue;
+    const key = part.slice(0, index).trim();
+    const value = part.slice(index + 1).trim();
+    if (key) result[key] = value;
+  }
+
+  return result;
+}
+
+function bytesToHex(bytes) {
+  return [...bytes]
+    .map(value => value.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function hexToBytes(hex) {
+  const clean = String(hex || "");
+  const bytes = new Uint8Array(clean.length / 2);
+
+  for (let index = 0; index < bytes.length; index++) {
+    bytes[index] = Number.parseInt(clean.slice(index * 2, index * 2 + 2), 16);
+  }
+
+  return bytes;
+}
+
+function randomToken(size = 32) {
+  const bytes = new Uint8Array(size);
+  crypto.getRandomValues(bytes);
+  return bytesToHex(bytes);
+}
+
+async function sha256(value) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return bytesToHex(new Uint8Array(digest));
+}
+
+async function hashPassword(password, saltHex = null) {
+  const salt = saltHex
+    ? hexToBytes(saltHex)
+    : crypto.getRandomValues(new Uint8Array(16));
+
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      hash: "SHA-256",
+      salt,
+      iterations: PASSWORD_ITERATIONS
+    },
+    keyMaterial,
+    256
+  );
+
+  return {
+    salt: bytesToHex(salt),
+    hash: bytesToHex(new Uint8Array(bits))
+  };
+}
+
+async function verifyPassword(password, salt, expectedHash) {
+  const result = await hashPassword(password, salt);
+  return result.hash === expectedHash;
+}
+
+function cookieForSession(token) {
+  const maxAge = Math.floor(SESSION_TTL_MS / 1000);
+  return [
+    `${SESSION_COOKIE}=${token}`,
+    "Path=/",
+    `Max-Age=${maxAge}`,
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax"
+  ].join("; ");
+}
+
+function clearSessionCookie() {
+  return [
+    `${SESSION_COOKIE}=`,
+    "Path=/",
+    "Max-Age=0",
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax"
+  ].join("; ");
+}
+
+function publicUser(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    email: row.email,
+    displayName: row.display_name || "",
+    role: row.role || "user",
+    status: row.status || "active",
+    marketingOptIn: Boolean(row.marketing_opt_in),
+    plan: row.plan || "beta",
+    accessStatus: row.access_status || "active",
+    createdAt: row.created_at || null,
+    lastLoginAt: row.last_login_at || null
+  };
+}
+
+async function getCurrentUser(request, env) {
+  if (!env.DB) return null;
+
+  const token = parseCookies(request)[SESSION_COOKIE];
+  if (!token) return null;
+
+  const sessionId = await sha256(token);
+  const now = Date.now();
+
+  const row = await env.DB.prepare(
+    `SELECT
+      u.id,
+      u.email,
+      u.display_name,
+      u.role,
+      u.status,
+      u.marketing_opt_in,
+      u.created_at,
+      u.last_login_at,
+      COALESCE(up.plan, 'beta') AS plan,
+      COALESCE(up.access_status, 'active') AS access_status
+    FROM sessions s
+    JOIN users u ON u.id = s.user_id
+    LEFT JOIN user_products up
+      ON up.user_id = u.id
+      AND up.product_id = 'product_scenepilot'
+    WHERE s.id = ?
+      AND s.expires_at > ?
+    LIMIT 1`
+  ).bind(sessionId, now).first();
+
+  if (!row) return null;
+  if (row.status !== "active") return null;
+
+  return publicUser(row);
+}
+
+async function createSession(env, userId, request) {
+  const token = randomToken(32);
+  const sessionId = await sha256(token);
+  const now = Date.now();
+  const expiresAt = now + SESSION_TTL_MS;
+
+  await env.DB.prepare(
+    `INSERT INTO sessions (
+      id, user_id, expires_at, created_at, user_agent
+    ) VALUES (?, ?, ?, ?, ?)`
+  ).bind(
+    sessionId,
+    userId,
+    expiresAt,
+    now,
+    request.headers.get("User-Agent") || ""
+  ).run();
+
+  return token;
+}
+
+async function requireAdmin(request, env) {
+  const user = await getCurrentUser(request, env);
+
+  if (!user || (user.role !== "owner" && user.role !== "admin")) {
+    return { user: null, response: json({ error: "Admin access required." }, 403) };
+  }
+
+  return { user, response: null };
+}
+
+async function readJson(request) {
+  try {
+    return await request.json();
+  } catch (_) {
+    return {};
+  }
+}
+
+async function handleRegister(request, env) {
+  if (!env.DB) {
+    return json({ error: "ICA D1 database is not bound to ScenePilot yet." }, 503);
+  }
+
+  const body = await readJson(request);
+  const email = normalizeEmail(body.email);
+  const displayName = String(body.displayName || "").trim().slice(0, 100);
+  const password = String(body.password || "");
+  const marketingOptIn = body.marketingOptIn ? 1 : 0;
+
+  if (!displayName) {
+    return json({ error: "Enter your name." }, 400);
+  }
+
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    return json({ error: "Enter a valid email address." }, 400);
+  }
+
+  if (password.length < 8) {
+    return json({ error: "Password must be at least 8 characters." }, 400);
+  }
+
+  const existing = await env.DB.prepare(
+    "SELECT id FROM users WHERE email = ? LIMIT 1"
+  ).bind(email).first();
+
+  if (existing) {
+    return json({ error: "An account already exists for that email." }, 409);
+  }
+
+  const countRow = await env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM users"
+  ).first();
+
+  const isFirstUser = Number(countRow?.count || 0) === 0;
+  const role = isFirstUser ? "owner" : "user";
+  const plan = isFirstUser ? "pro" : "beta";
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  const passwordData = await hashPassword(password);
+
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO users (
+        id, email, display_name, password_hash, password_salt,
+        role, status, marketing_opt_in, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?)`
+    ).bind(
+      id,
+      email,
+      displayName,
+      passwordData.hash,
+      passwordData.salt,
+      role,
+      marketingOptIn,
+      now
+    ),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO user_products (
+        user_id, product_id, plan, access_status, source, created_at
+      ) VALUES (?, 'product_scenepilot', ?, 'active', ?, ?)`
+    ).bind(
+      id,
+      plan,
+      isFirstUser ? "owner-bootstrap" : "beta-signup",
+      now
+    )
+  ]);
+
+  const token = await createSession(env, id, request);
+
+  const user = await getCurrentUser(
+    new Request(request.url, {
+      headers: {
+        Cookie: `${SESSION_COOKIE}=${token}`
+      }
+    }),
+    env
+  );
+
+  return json(
+    { user, firstOwner: isFirstUser },
+    201,
+    { "Set-Cookie": cookieForSession(token) }
+  );
+}
+
+async function handleLogin(request, env) {
+  if (!env.DB) {
+    return json({ error: "ICA D1 database is not bound to ScenePilot yet." }, 503);
+  }
+
+  const body = await readJson(request);
+  const email = normalizeEmail(body.email);
+  const password = String(body.password || "");
+
+  const row = await env.DB.prepare(
+    `SELECT
+      id,
+      email,
+      password_hash,
+      password_salt,
+      status
+    FROM users
+    WHERE email = ?
+    LIMIT 1`
+  ).bind(email).first();
+
+  if (!row || !(await verifyPassword(password, row.password_salt, row.password_hash))) {
+    return json({ error: "Email or password is incorrect." }, 401);
+  }
+
+  if (row.status !== "active") {
+    return json({ error: "This account is not active." }, 403);
+  }
+
+  const now = Date.now();
+
+  await env.DB.prepare(
+    "UPDATE users SET last_login_at = ? WHERE id = ?"
+  ).bind(now, row.id).run();
+
+  await env.DB.prepare(
+    "DELETE FROM sessions WHERE user_id = ? AND expires_at <= ?"
+  ).bind(row.id, now).run();
+
+  const token = await createSession(env, row.id, request);
+
+  const user = await getCurrentUser(
+    new Request(request.url, {
+      headers: {
+        Cookie: `${SESSION_COOKIE}=${token}`
+      }
+    }),
+    env
+  );
+
+  if (user?.accessStatus !== "active") {
+    return json({ error: "ScenePilot access is suspended for this account." }, 403);
+  }
+
+  return json(
+    { user },
+    200,
+    { "Set-Cookie": cookieForSession(token) }
+  );
+}
+
+async function handleLogout(request, env) {
+  const token = parseCookies(request)[SESSION_COOKIE];
+
+  if (env.DB && token) {
+    const sessionId = await sha256(token);
+    await env.DB.prepare(
+      "DELETE FROM sessions WHERE id = ?"
+    ).bind(sessionId).run();
+  }
+
+  return json(
+    { ok: true },
+    200,
+    { "Set-Cookie": clearSessionCookie() }
+  );
+}
+
+async function handleMe(request, env) {
+  if (!env.DB) {
+    return json({ error: "ICA D1 database is not bound to ScenePilot yet." }, 503);
+  }
+
+  const user = await getCurrentUser(request, env);
+
+  if (!user) {
+    return json({ user: null }, 401);
+  }
+
+  return json({ user });
+}
+
+async function handleAdminUsers(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (auth.response) return auth.response;
+
+  const result = await env.DB.prepare(
+    `SELECT
+      u.id,
+      u.email,
+      u.display_name,
+      u.role,
+      u.status,
+      u.marketing_opt_in,
+      u.created_at,
+      u.last_login_at,
+      COALESCE(up.plan, 'beta') AS plan,
+      COALESCE(up.access_status, 'active') AS access_status
+    FROM users u
+    LEFT JOIN user_products up
+      ON up.user_id = u.id
+      AND up.product_id = 'product_scenepilot'
+    ORDER BY u.created_at DESC`
+  ).all();
+
+  return json({
+    users: (result.results || []).map(publicUser)
+  });
+}
+
+async function handleAdminAccess(request, env, userId) {
+  const auth = await requireAdmin(request, env);
+  if (auth.response) return auth.response;
+
+  const body = await readJson(request);
+  const allowedPlans = new Set(["beta", "free", "ambassador", "pro"]);
+  const allowedAccess = new Set(["active", "suspended"]);
+  const allowedRoles = new Set(["user", "admin"]);
+
+  const plan = allowedPlans.has(body.plan) ? body.plan : "beta";
+  const accessStatus = allowedAccess.has(body.accessStatus) ? body.accessStatus : "active";
+  const role = allowedRoles.has(body.role) ? body.role : "user";
+  const now = Date.now();
+
+  if (auth.user.id === userId) {
+    await env.DB.prepare(
+      `INSERT INTO user_products (
+        user_id, product_id, plan, access_status, source, created_at
+      ) VALUES (?, 'product_scenepilot', ?, ?, 'admin', ?)
+      ON CONFLICT(user_id, product_id)
+      DO UPDATE SET
+        plan = excluded.plan,
+        access_status = excluded.access_status`
+    ).bind(userId, plan, accessStatus, now).run();
+
+    return json({ ok: true });
+  }
+
+  await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE users SET role = ? WHERE id = ? AND role != 'owner'"
+    ).bind(role, userId),
+    env.DB.prepare(
+      `INSERT INTO user_products (
+        user_id, product_id, plan, access_status, source, created_at
+      ) VALUES (?, 'product_scenepilot', ?, ?, 'admin', ?)
+      ON CONFLICT(user_id, product_id)
+      DO UPDATE SET
+        plan = excluded.plan,
+        access_status = excluded.access_status`
+    ).bind(userId, plan, accessStatus, now)
+  ]);
+
+  return json({ ok: true });
+}
+
+async function handleCampaigns(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (auth.response) return auth.response;
+
+  if (request.method === "GET") {
+    const result = await env.DB.prepare(
+      `SELECT id, subject, body_text, status, created_at, sent_at
+       FROM email_campaigns
+       ORDER BY created_at DESC
+       LIMIT 50`
+    ).all();
+
+    return json({
+      campaigns: (result.results || []).map(row => ({
+        id: row.id,
+        subject: row.subject,
+        bodyText: row.body_text,
+        status: row.status,
+        createdAt: row.created_at,
+        sentAt: row.sent_at
+      }))
+    });
+  }
+
+  const body = await readJson(request);
+  const subject = String(body.subject || "").trim().slice(0, 180);
+  const bodyText = String(body.bodyText || "").trim().slice(0, 20000);
+
+  if (!subject || !bodyText) {
+    return json({ error: "Campaign subject and message are required." }, 400);
+  }
+
+  const id = crypto.randomUUID();
+  const now = Date.now();
+
+  await env.DB.prepare(
+    `INSERT INTO email_campaigns (
+      id, subject, body_text, status, created_by, created_at
+    ) VALUES (?, ?, ?, 'draft', ?, ?)`
+  ).bind(
+    id,
+    subject,
+    bodyText,
+    auth.user.id,
+    now
+  ).run();
+
+  return json({
+    campaign: {
+      id,
+      subject,
+      bodyText,
+      status: "draft",
+      createdAt: now
+    }
+  }, 201);
+}
+
 export class ScenePilotRoom {
   constructor(state, env) {
     this.state = state;
@@ -5,6 +531,7 @@ export class ScenePilotRoom {
     this.sessions = new Map();
     this.cameras = new Map();
     this.activeDirectorId = null;
+    this.liveSlots = [];
   }
 
   async fetch(request) {
@@ -21,7 +548,10 @@ export class ScenePilotRoom {
     const session = {
       id: crypto.randomUUID(),
       ws: server,
-      role: null
+      role: null,
+      canDirect: request.headers.get("X-ScenePilot-Can-Direct") === "1",
+      userId: request.headers.get("X-ScenePilot-User-Id") || null,
+      displayName: request.headers.get("X-ScenePilot-Display-Name") || ""
     };
 
     this.sessions.set(session.id, session);
@@ -58,7 +588,14 @@ export class ScenePilotRoom {
 
   getActiveDirector() {
     if (!this.activeDirectorId) return null;
-    return this.sessions.get(this.activeDirectorId) || null;
+
+    const director = this.sessions.get(this.activeDirectorId) || null;
+
+    if (!director) {
+      this.activeDirectorId = null;
+    }
+
+    return director;
   }
 
   assignSlot(requestedSlot, sessionId) {
@@ -79,6 +616,74 @@ export class ScenePilotRoom {
     return allowed.find(slot => !used.has(slot)) || 7;
   }
 
+  sendChatMessage(session, payload) {
+    const text = String(payload.text || "").trim().slice(0, 500);
+    if (!text) return;
+
+    const now = Date.now();
+
+    if (session.role === "camera") {
+      const director = this.getActiveDirector();
+
+      if (!director) {
+        this.send(session, "chat:error", {
+          error: "Director is not connected."
+        });
+        return;
+      }
+
+      const camera = this.cameras.get(session.id);
+
+      const message = {
+        id: crypto.randomUUID(),
+        text,
+        ts: now,
+        fromRole: "camera",
+        fromId: session.id,
+        fromName: camera?.name || "CAMERA",
+        cameraId: session.id,
+        slotId: camera?.slotId || null
+      };
+
+      this.send(director, "chat:message", message);
+      this.send(session, "chat:message", message);
+      return;
+    }
+
+    if (
+      session.role === "director" &&
+      this.activeDirectorId === session.id
+    ) {
+      const targetId = payload.target || null;
+
+      const message = {
+        id: crypto.randomUUID(),
+        text,
+        ts: now,
+        fromRole: "director",
+        fromId: session.id,
+        fromName: session.displayName || "DIRECTOR",
+        cameraId: targetId,
+        target: targetId || "all"
+      };
+
+      if (targetId) {
+        const target = this.sessions.get(targetId);
+        if (target?.role === "camera") {
+          this.send(target, "chat:message", message);
+        }
+      } else {
+        for (const candidate of this.sessions.values()) {
+          if (candidate.role === "camera") {
+            this.send(candidate, "chat:message", message);
+          }
+        }
+      }
+
+      this.send(session, "chat:message", message);
+    }
+  }
+
   handleMessage(session, raw) {
     let message;
 
@@ -92,8 +697,33 @@ export class ScenePilotRoom {
     const payload = message?.payload || {};
 
     if (event === "director:join") {
+      if (!session.canDirect || session.role === "camera") {
+        this.send(session, "director:denied", {
+          reason: "auth_required",
+          message: "A signed-in ScenePilot account is required for Director mode."
+        });
+        return;
+      }
+
+      const currentDirector = this.getActiveDirector();
+
+      if (currentDirector && currentDirector.id !== session.id) {
+        session.role = "standby";
+
+        this.send(session, "director:denied", {
+          reason: "director_in_use",
+          message: "This production already has an active Director."
+        });
+
+        return;
+      }
+
       session.role = "director";
       this.activeDirectorId = session.id;
+
+      this.send(session, "director:granted", {
+        socketId: session.id
+      });
 
       this.send(
         session,
@@ -105,9 +735,10 @@ export class ScenePilotRoom {
     }
 
     if (event === "director:focus") {
-      if (session.role === "director") {
-        this.activeDirectorId = session.id;
-
+      if (
+        session.role === "director" &&
+        this.activeDirectorId === session.id
+      ) {
         this.send(
           session,
           "room:cameras",
@@ -119,6 +750,10 @@ export class ScenePilotRoom {
     }
 
     if (event === "camera:join") {
+      if (session.role === "director") {
+        return;
+      }
+
       session.role = "camera";
 
       const slotId = this.assignSlot(
@@ -128,7 +763,7 @@ export class ScenePilotRoom {
 
       const camera = {
         socketId: session.id,
-        name: payload.name || "ROAMING 1",
+        name: String(payload.name || "ROAMING 1").slice(0, 80),
         connected: true,
         slotId
       };
@@ -145,6 +780,37 @@ export class ScenePilotRoom {
         slotId,
         directorAvailable: Boolean(director)
       });
+
+      if (this.liveSlots.length) {
+        this.send(session, "program:update", {
+          liveSlots: this.liveSlots
+        });
+      }
+
+      return;
+    }
+
+    if (event === "chat:send") {
+      this.sendChatMessage(session, payload);
+      return;
+    }
+
+    if (
+      event === "program:update" &&
+      session.role === "director" &&
+      this.activeDirectorId === session.id
+    ) {
+      this.liveSlots = Array.isArray(payload.liveSlots)
+        ? payload.liveSlots.map(Number).filter(Number.isFinite)
+        : [];
+
+      for (const candidate of this.sessions.values()) {
+        if (candidate.role === "camera") {
+          this.send(candidate, "program:update", {
+            liveSlots: this.liveSlots
+          });
+        }
+      }
 
       return;
     }
@@ -188,33 +854,119 @@ export class ScenePilotRoom {
     if (this.activeDirectorId === session.id) {
       this.activeDirectorId = null;
 
-      const standby = [...this.sessions.values()]
-        .find(candidate => candidate.role === "director");
-
-      if (standby) {
-        this.activeDirectorId = standby.id;
-        this.send(
-          standby,
-          "room:cameras",
-          [...this.cameras.values()]
-        );
+      for (const candidate of this.sessions.values()) {
+        if (candidate.role === "standby") {
+          this.send(candidate, "director:available", {
+            message: "The Director position is available. Refresh to claim it."
+          });
+        }
       }
     }
   }
+}
+
+async function handleApi(request, env, url) {
+  if (url.pathname === "/api/health") {
+    return json({
+      ok: true,
+      databaseBound: Boolean(env.DB),
+      service: "ScenePilot"
+    });
+  }
+
+  if (url.pathname === "/api/auth/register" && request.method === "POST") {
+    return handleRegister(request, env);
+  }
+
+  if (url.pathname === "/api/auth/login" && request.method === "POST") {
+    return handleLogin(request, env);
+  }
+
+  if (url.pathname === "/api/auth/logout" && request.method === "POST") {
+    return handleLogout(request, env);
+  }
+
+  if (url.pathname === "/api/auth/me" && request.method === "GET") {
+    return handleMe(request, env);
+  }
+
+  if (url.pathname === "/api/admin/users" && request.method === "GET") {
+    return handleAdminUsers(request, env);
+  }
+
+  const accessMatch = url.pathname.match(
+    /^\/api\/admin\/users\/([^/]+)\/access$/
+  );
+
+  if (accessMatch && request.method === "POST") {
+    return handleAdminAccess(
+      request,
+      env,
+      decodeURIComponent(accessMatch[1])
+    );
+  }
+
+  if (
+    url.pathname === "/api/admin/campaigns" &&
+    (request.method === "GET" || request.method === "POST")
+  ) {
+    return handleCampaigns(request, env);
+  }
+
+  return json({ error: "API route not found." }, 404);
 }
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    if (url.pathname.startsWith("/api/")) {
+      return handleApi(request, env, url);
+    }
+
     if (url.pathname === "/signal") {
       const room =
         url.searchParams.get("room") || "SP-4827";
 
+      let user = null;
+
+      if (env.DB) {
+        try {
+          user = await getCurrentUser(request, env);
+        } catch (error) {
+          console.error("ScenePilot auth lookup failed", error);
+        }
+      }
+
+      const headers = new Headers(request.headers);
+      const canDirect = Boolean(
+        user &&
+        user.status === "active" &&
+        user.accessStatus === "active"
+      );
+
+      headers.set(
+        "X-ScenePilot-Can-Direct",
+        canDirect ? "1" : "0"
+      );
+
+      if (user?.id) {
+        headers.set("X-ScenePilot-User-Id", user.id);
+      }
+
+      if (user?.displayName) {
+        headers.set(
+          "X-ScenePilot-Display-Name",
+          user.displayName.slice(0, 100)
+        );
+      }
+
       const id = env.ROOMS.idFromName(room);
       const roomObject = env.ROOMS.get(id);
 
-      return roomObject.fetch(request);
+      return roomObject.fetch(
+        new Request(request, { headers })
+      );
     }
 
     return env.ASSETS.fetch(request);
