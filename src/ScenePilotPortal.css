@@ -1,0 +1,905 @@
+
+.sp-landing,
+.sp-auth-shell,
+.sp-admin {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(255,255,255,.06), transparent 32%),
+    linear-gradient(180deg, #0d0f0b 0%, #121510 100%);
+  color: #f3f1e8;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.sp-landing * ,
+.sp-auth-shell *,
+.sp-admin *,
+.sp-account-bar *,
+.sp-comms-panel *,
+.sp-comms-fab * {
+  box-sizing: border-box;
+}
+
+.sp-landing button,
+.sp-auth-shell button,
+.sp-admin button,
+.sp-account-bar button,
+.sp-comms-panel button {
+  font: inherit;
+}
+
+.sp-landing-nav {
+  min-height: 76px;
+  padding: 14px clamp(20px, 5vw, 72px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255,255,255,.09);
+  background: rgba(8,10,7,.82);
+  backdrop-filter: blur(16px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.sp-landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sp-landing-mark,
+.sp-auth-logo {
+  width: 44px;
+  height: 44px;
+  border: 1px solid #62695c;
+  display: grid;
+  place-items: center;
+  background: #171b14;
+}
+
+.sp-landing-brand strong {
+  display: block;
+  letter-spacing: .15em;
+  font-size: 15px;
+}
+
+.sp-landing-brand small {
+  display: block;
+  margin-top: 4px;
+  color: #9ca393;
+  font-size: 9px;
+  letter-spacing: .14em;
+}
+
+.sp-nav-login,
+.sp-primary,
+.sp-secondary,
+.sp-disabled-pay,
+.sp-auth-submit,
+.sp-admin button {
+  border: 1px solid rgba(255,255,255,.15);
+  padding: 12px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 850;
+  letter-spacing: .06em;
+  cursor: pointer;
+}
+
+.sp-nav-login,
+.sp-primary,
+.sp-auth-submit {
+  background: #f3f0e7;
+  color: #12140f;
+}
+
+.sp-secondary,
+.sp-disabled-pay {
+  background: #171a15;
+  color: #a8ad9f;
+}
+
+.sp-secondary:disabled,
+.sp-disabled-pay:disabled {
+  cursor: not-allowed;
+  opacity: .72;
+}
+
+.sp-hero {
+  max-width: 1320px;
+  margin: 0 auto;
+  min-height: 690px;
+  padding: clamp(60px, 9vw, 118px) clamp(22px, 5vw, 70px);
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(420px, .95fr);
+  align-items: center;
+  gap: clamp(44px, 7vw, 96px);
+}
+
+.sp-kicker {
+  color: #9ca493;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .2em;
+}
+
+.sp-hero h1 {
+  margin: 18px 0 20px;
+  max-width: 820px;
+  font-size: clamp(48px, 6.2vw, 92px);
+  line-height: .95;
+  letter-spacing: -.045em;
+  font-weight: 850;
+}
+
+.sp-hero-copy > p {
+  max-width: 720px;
+  color: #bcc0b5;
+  font-size: clamp(17px, 1.7vw, 21px);
+  line-height: 1.7;
+}
+
+.sp-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.sp-primary,
+.sp-secondary {
+  min-height: 50px;
+  padding-inline: 20px;
+}
+
+.sp-beta-note {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #929a8d;
+  font-size: 13px;
+}
+
+.sp-hero-console {
+  border: 1px solid #4a5045;
+  background: #10130e;
+  box-shadow: 0 30px 90px rgba(0,0,0,.45);
+  padding: 16px;
+  transform: perspective(1200px) rotateY(-5deg) rotateX(2deg);
+}
+
+.sp-console-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  letter-spacing: .13em;
+  color: #9ca393;
+  margin-bottom: 12px;
+}
+
+.sp-console-top i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #89bf80;
+}
+
+.sp-console-screens {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sp-console-screens > div {
+  min-height: 190px;
+  border: 1px solid #394035;
+  background: linear-gradient(145deg, #1b2119, #090b08);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 9px;
+}
+
+.sp-console-screens strong {
+  letter-spacing: .12em;
+  font-size: 12px;
+}
+
+.sp-console-screens small {
+  color: #868d80;
+}
+
+.sp-console-cams {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+}
+
+.sp-console-cams span {
+  min-height: 44px;
+  border: 1px solid #333a30;
+  display: grid;
+  place-items: center;
+  color: #92998d;
+  font-size: 10px;
+  letter-spacing: .1em;
+}
+
+.sp-feature-strip {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 clamp(22px, 5vw, 70px) 90px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.sp-feature-strip article {
+  padding: 26px;
+  border: 1px solid #363c33;
+  background: #151913;
+}
+
+.sp-feature-strip strong {
+  display: block;
+  margin-top: 18px;
+  letter-spacing: .11em;
+  font-size: 12px;
+}
+
+.sp-feature-strip p,
+.sp-plans p,
+.sp-campaign-card p {
+  color: #989f92;
+  line-height: 1.65;
+}
+
+.sp-plans {
+  max-width: 1180px;
+  margin: 0 auto 90px;
+  padding: 38px;
+  border: 1px solid #42483e;
+  background: #f0ede4;
+  color: #13160f;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 30px;
+}
+
+.sp-plans .sp-kicker,
+.sp-plans p {
+  color: #596054;
+}
+
+.sp-plans h2 {
+  margin: 9px 0 8px;
+  font-size: clamp(28px, 3vw, 42px);
+  max-width: 720px;
+}
+
+.sp-disabled-pay {
+  min-width: 260px;
+  background: #171a15;
+  color: #d5d6cf;
+}
+
+.sp-landing-footer {
+  border-top: 1px solid rgba(255,255,255,.08);
+  min-height: 70px;
+  padding: 0 clamp(22px, 5vw, 70px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #777f72;
+  font-size: 11px;
+  letter-spacing: .08em;
+}
+
+.sp-auth-shell {
+  display: grid;
+  place-items: center;
+  padding: 34px 20px;
+  position: relative;
+}
+
+.sp-auth-back {
+  position: absolute;
+  top: 24px;
+  left: 28px;
+  border: 0;
+  background: transparent;
+  color: #9ba293;
+  cursor: pointer;
+}
+
+.sp-auth-card {
+  width: min(100%, 500px);
+  border: 1px solid #444b40;
+  background: #151913;
+  padding: clamp(26px, 5vw, 42px);
+  box-shadow: 0 24px 80px rgba(0,0,0,.42);
+}
+
+.sp-auth-logo {
+  margin-bottom: 22px;
+}
+
+.sp-auth-card h1 {
+  margin: 10px 0;
+  font-size: clamp(30px, 5vw, 46px);
+  letter-spacing: -.035em;
+}
+
+.sp-auth-card > p {
+  color: #9ca393;
+  line-height: 1.6;
+}
+
+.sp-auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 26px 0 20px;
+  border: 1px solid #3a4037;
+}
+
+.sp-auth-tabs button {
+  border: 0;
+  padding: 12px;
+  background: transparent;
+  color: #878e81;
+  cursor: pointer;
+  font-weight: 850;
+  letter-spacing: .08em;
+  font-size: 11px;
+}
+
+.sp-auth-tabs button.active {
+  background: #ece9df;
+  color: #12150f;
+}
+
+.sp-auth-card form > label,
+.sp-comms-target {
+  display: block;
+  margin-bottom: 14px;
+  color: #9aa192;
+  font-size: 10px;
+  letter-spacing: .12em;
+  font-weight: 850;
+}
+
+.sp-auth-card input,
+.sp-comms-panel input,
+.sp-comms-panel select,
+.sp-admin input,
+.sp-admin textarea,
+.sp-admin select {
+  width: 100%;
+  border: 1px solid #424940;
+  background: #0c0f0b;
+  color: #f2f0e9;
+  padding: 12px 13px;
+  font: inherit;
+}
+
+.sp-auth-card label > input {
+  margin-top: 7px;
+}
+
+.sp-check {
+  display: flex !important;
+  gap: 9px;
+  align-items: flex-start;
+  text-transform: none;
+  letter-spacing: 0 !important;
+  line-height: 1.4;
+}
+
+.sp-check input {
+  width: auto;
+  margin-top: 2px !important;
+}
+
+.sp-auth-error,
+.sp-admin-status {
+  border: 1px solid #85463f;
+  background: rgba(132, 48, 41, .18);
+  color: #e6a59f;
+  padding: 11px 13px;
+  margin-bottom: 14px;
+  line-height: 1.45;
+}
+
+.sp-auth-submit {
+  width: 100%;
+  min-height: 49px;
+  margin-top: 8px;
+}
+
+.sp-portal-loading {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  background: #10130e;
+  color: #b4baad;
+  letter-spacing: .12em;
+  font: 800 12px Inter, system-ui, sans-serif;
+}
+
+.sp-account-bar {
+  position: fixed;
+  top: 86px;
+  right: 18px;
+  z-index: 80;
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+  padding: 5px;
+  background: rgba(11,14,10,.92);
+  border: 1px solid #3d4439;
+  backdrop-filter: blur(12px);
+}
+
+.sp-account-bar > div {
+  min-width: 160px;
+  padding: 7px 10px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.sp-account-bar span {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sp-account-bar small {
+  font-size: 8px;
+  color: #8f9789;
+  letter-spacing: .1em;
+}
+
+.sp-account-bar button {
+  border: 1px solid #41473d;
+  background: #181c16;
+  color: #bdc3b8;
+  padding: 8px 10px;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .08em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.sp-comms-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 22px;
+  z-index: 120;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid #697063;
+  background: #f0ede4;
+  color: #13160f;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 850 11px Inter, system-ui, sans-serif;
+  letter-spacing: .08em;
+  box-shadow: 0 16px 44px rgba(0,0,0,.35);
+  cursor: pointer;
+}
+
+.sp-comms-fab.camera {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 36px));
+  justify-content: center;
+}
+
+.sp-comms-fab b {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #a9322b;
+  color: white;
+  font-size: 9px;
+}
+
+.sp-comms-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0,0,0,.68);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.sp-comms-panel {
+  width: min(100%, 520px);
+  height: min(720px, calc(100vh - 36px));
+  background: #141812;
+  color: #f0eee6;
+  border: 1px solid #4a5145;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  box-shadow: 0 30px 90px rgba(0,0,0,.55);
+}
+
+.sp-comms-panel header {
+  padding: 18px;
+  border-bottom: 1px solid #353b32;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sp-comms-panel header strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 17px;
+}
+
+.sp-comms-panel header button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #3f463b;
+  background: #0f120e;
+  color: #d1d5ca;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.sp-comms-target {
+  padding: 12px 18px 0;
+  margin: 0;
+}
+
+.sp-comms-target select {
+  margin-top: 7px;
+}
+
+.sp-comms-thread {
+  overflow: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sp-comms-thread article {
+  max-width: 82%;
+  align-self: flex-start;
+  padding: 10px 12px;
+  border: 1px solid #3c4338;
+  background: #0e110d;
+}
+
+.sp-comms-thread article.mine {
+  align-self: flex-end;
+  background: #ece9df;
+  color: #151812;
+  border-color: #ece9df;
+}
+
+.sp-comms-thread article small {
+  font-size: 8px;
+  letter-spacing: .11em;
+  font-weight: 900;
+  color: #8f9789;
+}
+
+.sp-comms-thread article.mine small {
+  color: #5c6258;
+}
+
+.sp-comms-thread article p {
+  margin: 5px 0 2px;
+  line-height: 1.45;
+}
+
+.sp-comms-thread article time {
+  font-size: 8px;
+  opacity: .65;
+}
+
+.sp-comms-empty {
+  margin: auto;
+  display: grid;
+  place-items: center;
+  gap: 9px;
+  color: #777f72;
+}
+
+.sp-comms-panel form {
+  padding: 12px;
+  border-top: 1px solid #353b32;
+  display: grid;
+  grid-template-columns: 1fr 48px;
+  gap: 8px;
+}
+
+.sp-comms-panel form button {
+  border: 0;
+  background: #ece9df;
+  color: #12150f;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.sp-admin {
+  padding: 28px clamp(18px, 4vw, 56px) 70px;
+}
+
+.sp-admin > header {
+  max-width: 1320px;
+  margin: 0 auto 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+}
+
+.sp-admin h1 {
+  margin: 7px 0 0;
+  font-size: clamp(34px, 5vw, 60px);
+  letter-spacing: -.04em;
+}
+
+.sp-admin-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.sp-admin-actions button {
+  background: #191d17;
+  color: #d5d9ce;
+}
+
+.sp-admin-status,
+.sp-admin-summary,
+.sp-admin-card {
+  max-width: 1320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.sp-admin-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.sp-admin-summary article {
+  min-height: 130px;
+  border: 1px solid #3d4439;
+  background: #151913;
+  padding: 20px;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+}
+
+.sp-admin-summary strong {
+  font-size: 30px;
+}
+
+.sp-admin-summary span {
+  color: #8f9789;
+  font-size: 9px;
+  letter-spacing: .12em;
+}
+
+.sp-admin-card {
+  border: 1px solid #3d4439;
+  background: #151913;
+  padding: 22px;
+  margin-bottom: 18px;
+}
+
+.sp-admin-card h2 {
+  margin: 6px 0 0;
+  font-size: 24px;
+}
+
+.sp-user-table-wrap {
+  overflow-x: auto;
+  margin-top: 18px;
+}
+
+.sp-user-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.sp-user-table th,
+.sp-user-table td {
+  padding: 12px;
+  border-bottom: 1px solid #30362d;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.sp-user-table th {
+  color: #838b7e;
+  font-size: 9px;
+  letter-spacing: .12em;
+}
+
+.sp-user-table td > strong,
+.sp-user-table td > small {
+  display: block;
+}
+
+.sp-user-table td > small {
+  margin-top: 4px;
+  color: #8a9285;
+}
+
+.sp-campaign-card {
+  display: grid;
+  grid-template-columns: minmax(260px, .75fr) minmax(360px, 1fr);
+  gap: 28px;
+}
+
+.sp-campaign-card form {
+  display: grid;
+  gap: 9px;
+}
+
+.sp-campaign-card form button {
+  background: #ece9df;
+  color: #12150f;
+}
+
+.sp-campaign-list {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 7px;
+}
+
+.sp-campaign-list article {
+  padding: 11px 12px;
+  border: 1px solid #333a30;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sp-campaign-list span {
+  color: #858d80;
+  font-size: 10px;
+}
+
+@media (max-width: 900px) {
+  .sp-hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .sp-hero-console {
+    transform: none;
+  }
+
+  .sp-feature-strip,
+  .sp-admin-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .sp-plans,
+  .sp-admin > header,
+  .sp-campaign-card {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sp-account-bar {
+    top: auto;
+    bottom: 80px;
+    left: 10px;
+    right: 10px;
+    justify-content: space-between;
+  }
+
+  .sp-account-bar > div {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .sp-comms-fab.director {
+    right: 10px;
+    bottom: 18px;
+  }
+}
+
+@media (max-width: 560px) {
+  .sp-landing-nav,
+  .sp-landing-footer {
+    padding-inline: 16px;
+  }
+
+  .sp-landing-brand small {
+    display: none;
+  }
+
+  .sp-hero {
+    padding: 54px 18px;
+  }
+
+  .sp-hero h1 {
+    font-size: 48px;
+  }
+
+  .sp-console-screens {
+    grid-template-columns: 1fr;
+  }
+
+  .sp-feature-strip {
+    padding-inline: 18px;
+  }
+
+  .sp-plans {
+    margin-inline: 18px;
+    padding: 24px;
+  }
+
+  .sp-hero-actions button {
+    width: 100%;
+  }
+
+  .sp-auth-back {
+    position: static;
+    justify-self: start;
+    margin-bottom: 14px;
+  }
+
+  .sp-auth-shell {
+    align-content: start;
+  }
+
+  .sp-auth-card {
+    padding: 24px 18px;
+  }
+
+  .sp-admin {
+    padding-inline: 12px;
+  }
+
+  .sp-admin-actions {
+    flex-wrap: wrap;
+  }
+
+  .sp-campaign-card {
+    display: block;
+  }
+
+  .sp-campaign-card form {
+    margin-top: 20px;
+  }
+
+  .sp-comms-panel {
+    height: calc(100vh - 20px);
+  }
+}
