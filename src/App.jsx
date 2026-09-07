@@ -1351,6 +1351,10 @@ function App() {
               <p><strong>10. Zoom / Switch camera:</strong> On each phone, use Zoom In, Zoom Out, and Switch Camera for front/rear camera control while connected.</p>
               <p><strong>11. Live Shield:</strong> Use Live Shield on the phone and enable the phone's Focus / Do Not Disturb mode before a production to reduce interruptions.</p>
               <p><strong>12. Bandwidth:</strong> Start with 1080P. If several phones become unstable, move some cameras to 720P or Auto.</p>
+              <p><strong>13. Editor media:</strong> In Pro Editor + Replay Studio, use Import Media to load multiple local video, audio, or image files.</p>
+              <p><strong>14. Timeline:</strong> Clips can live on multiple video, audio, and text tracks. Select a clip to change start, duration, speed, opacity, or volume.</p>
+              <p><strong>15. Edit tools:</strong> Use Split at the playhead, Duplicate, Delete, Undo/Redo, timeline zoom, and Add Title while building the edit.</p>
+              <p><strong>16. Server phase:</strong> Final rendered export, saved projects, server recordings, and instant replay will connect to this same editor when ScenePilot moves onto the server.</p>
             </div>
           </div>
         </div>
