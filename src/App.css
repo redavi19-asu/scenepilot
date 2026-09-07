@@ -1241,3 +1241,32 @@ footer span:last-child{margin-left:auto}
     animation:none!important
   }
 }
+
+.director-lock-banner {
+  margin: 12px 18px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(230, 181, 77, .45);
+  background: rgba(92, 67, 15, .22);
+  color: #f0d68f;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  position: relative;
+  z-index: 25;
+}
+
+.director-lock-banner strong,
+.director-lock-banner span {
+  display: block;
+}
+
+.director-lock-banner strong {
+  font-size: 10px;
+  letter-spacing: .12em;
+}
+
+.director-lock-banner span {
+  margin-top: 3px;
+  color: #c9bd99;
+  font-size: 11px;
+}
