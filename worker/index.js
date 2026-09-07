@@ -884,7 +884,10 @@ export class ScenePilotRoom {
         socketId: session.id,
         name: String(payload.name || "ROAMING 1").slice(0, 80),
         connected: true,
-        slotId
+        slotId,
+        battery: null,
+        charging: null,
+        network: null
       };
 
       this.cameras.set(session.id, camera);
@@ -903,6 +906,49 @@ export class ScenePilotRoom {
       if (this.liveSlots.length) {
         this.send(session, "program:update", {
           liveSlots: this.liveSlots
+        });
+      }
+
+      return;
+    }
+
+    if (event === "camera:telemetry") {
+      if (session.role !== "camera") return;
+
+      const camera = this.cameras.get(session.id);
+      if (!camera) return;
+
+      camera.battery = Number.isFinite(payload.battery)
+        ? Math.max(0, Math.min(100, Number(payload.battery)))
+        : null;
+      camera.charging =
+        typeof payload.charging === "boolean"
+          ? payload.charging
+          : null;
+      camera.network = payload.network && typeof payload.network === "object"
+        ? {
+            bars: Number.isFinite(payload.network.bars)
+              ? Math.max(1, Math.min(4, Number(payload.network.bars)))
+              : null,
+            downlink: Number.isFinite(payload.network.downlink)
+              ? Number(payload.network.downlink)
+              : null,
+            rtt: Number.isFinite(payload.network.rtt)
+              ? Number(payload.network.rtt)
+              : null,
+            effectiveType: payload.network.effectiveType
+              ? String(payload.network.effectiveType).slice(0, 20)
+              : null
+          }
+        : null;
+
+      const director = this.getActiveDirector();
+      if (director) {
+        this.send(director, "camera:telemetry", {
+          socketId: session.id,
+          battery: camera.battery,
+          charging: camera.charging,
+          network: camera.network
         });
       }
 
