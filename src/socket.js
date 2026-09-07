@@ -2,6 +2,8 @@ class ScenePilotSocket {
   constructor() {
     this.ws = null;
     this.room = null;
+    this.network = null;
+    this.joinToken = null;
     this.listeners = new Map();
     this.queue = [];
     this.wantConnected = false;
@@ -51,6 +53,12 @@ class ScenePilotSocket {
     return this;
   }
 
+  setNetwork(network, joinToken = null) {
+    this.network = network || null;
+    this.joinToken = joinToken || null;
+    return this;
+  }
+
   connect() {
     this.wantConnected = true;
     this.manualClose = false;
@@ -79,7 +87,7 @@ class ScenePilotSocket {
       window.location.protocol === "https:" ? "wss:" : "ws:";
 
     const url =
-      `${protocol}//${window.location.host}/signal?room=${encodeURIComponent(this.room)}`;
+      `${protocol}//${window.location.host}/signal?room=${encodeURIComponent(this.room)}&network=${encodeURIComponent(this.network || "")}${this.joinToken ? `&join=${encodeURIComponent(this.joinToken)}` : ""}`;
 
     const ws = new WebSocket(url);
     this.ws = ws;
