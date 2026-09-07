@@ -1,6 +1,6 @@
 const SESSION_COOKIE = "sp_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const PASSWORD_ITERATIONS = 210000;
+const PASSWORD_ITERATIONS = 100000;
 const TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
@@ -295,6 +295,20 @@ async function verifyTurnstile(request, env, token, expectedAction) {
   }
 }
 
+async function ensureScenePilotProduct(env) {
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO products (
+      id, slug, name, status, created_at
+    ) VALUES (
+      'product_scenepilot',
+      'scenepilot',
+      'ScenePilot',
+      'active',
+      ?
+    )`
+  ).bind(Date.now()).run();
+}
+
 async function handleRegister(request, env) {
   if (!env.DB) {
     return json({ error: "ICA D1 database is not bound to ScenePilot yet." }, 503);
@@ -327,6 +341,8 @@ async function handleRegister(request, env) {
   if (password.length < 8) {
     return json({ error: "Password must be at least 8 characters." }, 400);
   }
+
+  await ensureScenePilotProduct(env);
 
   const existing = await env.DB.prepare(
     "SELECT id FROM users WHERE email = ? LIMIT 1"
@@ -970,14 +986,32 @@ export class ScenePilotRoom {
 
 async function handleApi(request, env, url) {
   if (url.pathname === "/api/health") {
+    let databaseReady = false;
+    let userCount = null;
+
+    if (env.DB) {
+      try {
+        const row = await env.DB.prepare(
+          "SELECT COUNT(*) AS count FROM users"
+        ).first();
+        userCount = Number(row?.count || 0);
+        await ensureScenePilotProduct(env);
+        databaseReady = true;
+      } catch (error) {
+        console.error("ScenePilot D1 health check failed", error);
+      }
+    }
+
     return json({
-      ok: true,
+      ok: Boolean(env.DB) && databaseReady,
       databaseBound: Boolean(env.DB),
+      databaseReady,
+      userCount,
       turnstileConfigured: Boolean(
         String(env.TURNSTILE_SECRET_KEY || "").trim()
       ),
       service: "ScenePilot"
-    });
+    }, Boolean(env.DB) && databaseReady ? 200 : 503);
   }
 
   if (url.pathname === "/api/auth/register" && request.method === "POST") {
@@ -1027,7 +1061,22 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith("/api/")) {
-      return handleApi(request, env, url);
+      try {
+        return await handleApi(request, env, url);
+      } catch (error) {
+        console.error(
+          "ScenePilot API unhandled error",
+          error
+        );
+
+        return json({
+          error: "ScenePilot account service error.",
+          detail:
+            error instanceof Error
+              ? error.message
+              : String(error)
+        }, 500);
+      }
     }
 
     if (url.pathname === "/signal") {
