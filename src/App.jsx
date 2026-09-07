@@ -4,7 +4,7 @@ import {
   Settings, Maximize2, MonitorUp, Users, QrCode,
   Type, Layers, PictureInPicture2, Video, Camera,
   Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut, PhoneOff, ShieldCheck,
-  Scissors, Play, Save, Download, SkipBack, Film
+  Scissors, Play, Save, Download, SkipBack, Film, Upload
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
@@ -71,6 +71,9 @@ function App() {
     primary: 1,
     secondary: null
   });
+  const [draggingCamera, setDraggingCamera] = useState(null);
+  const [localClip, setLocalClip] = useState(null);
+  const localClipUrl = useRef(null);
 
   const roomCode =
     new URLSearchParams(window.location.search).get("room") || "SP-4827";
@@ -306,6 +309,14 @@ function App() {
       cameraVideo.current.srcObject = stream;
     }
   }, [stream, showCamera]);
+
+  useEffect(() => {
+    return () => {
+      if (localClipUrl.current) {
+        URL.revokeObjectURL(localClipUrl.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (showCamera || !socket.connected) return;
@@ -687,6 +698,41 @@ function App() {
     take();
   }
 
+  function loadLocalClip(file) {
+    if (!file) return;
+
+    if (localClipUrl.current) {
+      URL.revokeObjectURL(localClipUrl.current);
+    }
+
+    const url = URL.createObjectURL(file);
+    localClipUrl.current = url;
+
+    setLocalClip({
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      url
+    });
+
+    setShowReplayEditor(true);
+  }
+
+  function dropCameraOnPreview(slotId) {
+    if (!slotId) return;
+
+    if (compositionMode === "single") {
+      setPreview(slotId);
+      return;
+    }
+
+    if (preview === slotId) {
+      return;
+    }
+
+    setSecondaryPreview(slotId);
+  }
+
   if (showCamera) {
     return (
       <div className="operator-shell">
@@ -997,7 +1043,19 @@ function App() {
               <span>PREVIEW</span>
               <strong>PVW</strong>
             </div>
-            <div className="screen">
+            <div
+              className={`screen preview-drop-zone ${draggingCamera ? "drag-active" : ""}`}
+              onDragOver={event => event.preventDefault()}
+              onDrop={event => {
+                event.preventDefault();
+                const slotId = Number(
+                  event.dataTransfer.getData("text/scenepilot-camera") ||
+                  draggingCamera
+                );
+                dropCameraOnPreview(slotId);
+                setDraggingCamera(null);
+              }}
+            >
               {compositionMode === "split" ? (
                 <div className="composition split-composition">
                   <div className="composition-pane">
@@ -1087,6 +1145,17 @@ function App() {
             {cameras.map(cam => (
               <button
                 key={cam.id}
+                draggable={Boolean(cameraForSlot(cam.id))}
+                onDragStart={event => {
+                  if (!cameraForSlot(cam.id)) return;
+                  setDraggingCamera(cam.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData(
+                    "text/scenepilot-camera",
+                    String(cam.id)
+                  );
+                }}
+                onDragEnd={() => setDraggingCamera(null)}
                 disabled={
                   cam.status === "OFFLINE" &&
                   !cameraForSlot(cam.id)
@@ -1126,6 +1195,9 @@ function App() {
 
                 <div className="tile-meta">
                   <strong>{cameraForSlot(cam.id)?.name || cam.name}</strong>
+                  {cameraForSlot(cam.id) && (
+                    <span className="drag-hint">DRAG TO PREVIEW</span>
+                  )}
                   <div>
                     <span><Wifi size={12}/>{cam.signal || "—"}</span>
                     <span><BatteryFull size={13}/>{cam.battery || "—"}%</span>
@@ -1267,14 +1339,37 @@ function App() {
               <aside className="recording-library">
                 <div className="panel-label">RECORDING LIBRARY</div>
 
-                <div className="recording-empty">
-                  <Film size={34}/>
-                  <strong>No server recordings yet</strong>
-                  <span>
-                    Once ScenePilot is on your server, completed Program recordings
-                    will appear here automatically.
-                  </span>
-                </div>
+                <label className="import-local-clip">
+                  <Upload size={18}/>
+                  <span>IMPORT LOCAL VIDEO</span>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={event => {
+                      const file = event.target.files?.[0];
+                      loadLocalClip(file);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+
+                {localClip ? (
+                  <div className="local-clip-card">
+                    <Film size={28}/>
+                    <div>
+                      <strong>{localClip.name}</strong>
+                      <span>LOCAL FILE • {(localClip.size / 1024 / 1024).toFixed(1)} MB</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="recording-empty">
+                    <Film size={34}/>
+                    <strong>No recordings loaded</strong>
+                    <span>
+                      Import a local video now, or use server recordings later.
+                    </span>
+                  </div>
+                )}
 
                 <div className="library-footer">
                   <span>ROOM {roomCode}</span>
@@ -1284,11 +1379,20 @@ function App() {
 
               <div className="editor-stage">
                 <div className="editor-preview">
-                  <div className="editor-preview-placeholder">
-                    <Play size={42}/>
-                    <strong>REPLAY PREVIEW</strong>
-                    <span>Select a saved recording to edit or replay.</span>
-                  </div>
+                  {localClip ? (
+                    <video
+                      src={localClip.url}
+                      controls
+                      playsInline
+                      className="local-editor-video"
+                    />
+                  ) : (
+                    <div className="editor-preview-placeholder">
+                      <Play size={42}/>
+                      <strong>REPLAY PREVIEW</strong>
+                      <span>Select or import a recording to edit or replay.</span>
+                    </div>
+                  )}
 
                   <span className="editor-timecode">00:00:00:00</span>
                 </div>
@@ -1297,10 +1401,16 @@ function App() {
                   <button disabled title="Available after server recording is connected">
                     <SkipBack size={17}/> LAST 10 SEC
                   </button>
-                  <button disabled title="Available after server recording is connected">
+                  <button
+                    disabled={!localClip}
+                    title={localClip ? "Timeline trimming is ready for the next editor pass" : "Import a local video first"}
+                  >
                     <Scissors size={17}/> TRIM
                   </button>
-                  <button disabled title="Available after server recording is connected">
+                  <button
+                    disabled={!localClip}
+                    title={localClip ? "Local clip workflow ready for the next editor pass" : "Import a local video first"}
+                  >
                     <Save size={17}/> SAVE CLIP
                   </button>
                   <button disabled title="Available after server recording is connected">
@@ -1309,7 +1419,10 @@ function App() {
                   <button disabled title="Available after server recording is connected">
                     <Play size={17}/> PLAY TO PROGRAM
                   </button>
-                  <button disabled title="Available after server recording is connected">
+                  <button
+                    disabled={!localClip}
+                    title={localClip ? "Export wiring comes with the next editor pass" : "Import a local video first"}
+                  >
                     <Download size={17}/> EXPORT
                   </button>
                 </div>
@@ -1326,7 +1439,7 @@ function App() {
                   <div className="timeline-track video-track">
                     <span>VIDEO</span>
                     <div className="timeline-placeholder">
-                      Recorded Program video timeline
+                      {localClip ? localClip.name : "Recorded Program video timeline"}
                     </div>
                   </div>
 
@@ -1341,9 +1454,9 @@ function App() {
                 </div>
 
                 <div className="editor-note">
-                  <strong>SERVER PHASE:</strong>
-                  Program recording, saved files, instant replay, trimming and MP4
-                  export will plug into this panel when ScenePilot moves to your server.
+                  <strong>EDITOR:</strong>
+                  Local video import works now. Server recording, instant replay and
+                  permanent storage will plug into this same editor when ScenePilot moves to your server.
                 </div>
               </div>
             </div>
