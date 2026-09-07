@@ -1270,3 +1270,18 @@ footer span:last-child{margin-left:auto}
   color: #c9bd99;
   font-size: 11px;
 }
+
+.audio-master-select{display:grid;gap:5px;margin-top:8px}
+.audio-master-select span{font-size:7px;color:#777;letter-spacing:.08em}
+.audio-master-select select{width:100%;background:#171a17;color:#e7eae4;border:1px solid #3d403b;padding:8px;font:inherit;font-size:9px}
+.phone-mixer{display:grid;gap:7px;margin-top:10px;max-height:245px;overflow:auto}
+.phone-mixer-channel{border:1px solid #363a35;background:#171917;padding:8px}
+.phone-mixer-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.phone-mixer-head strong{font-size:9px;color:#f2f4ef}
+.phone-mixer-head span{font-size:7px;color:#8d928a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.phone-fader{width:100%;margin:8px 0 6px}
+.phone-mixer-actions{display:grid;grid-template-columns:auto auto 1fr;gap:5px;align-items:center}
+.phone-mixer-actions button{border:1px solid #494d47;background:#20231f;color:#aeb3aa;padding:5px 7px;font:inherit;font-size:7px;font-weight:800;cursor:pointer}
+.phone-mixer-actions button.active{background:#8d302b;color:white;border-color:#b04a43}
+.phone-mixer-actions span{text-align:right;color:#7f847c;font-size:7px}
+.phone-mixer-empty{padding:12px;border:1px dashed #3c403a;color:#777d74;font-size:8px;line-height:1.4}
