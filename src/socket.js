@@ -63,7 +63,7 @@ class ScenePilotSocket {
     this.wantConnected = true;
     this.manualClose = false;
 
-    if (this.room) {
+    if (this.room && this.network) {
       this.open();
     }
 
@@ -71,7 +71,7 @@ class ScenePilotSocket {
   }
 
   open() {
-    if (!this.wantConnected || !this.room) return;
+    if (!this.wantConnected || !this.room || !this.network) return;
 
     if (
       this.ws &&
@@ -123,7 +123,7 @@ class ScenePilotSocket {
 
       this.dispatch("disconnect");
 
-      if (!this.manualClose && this.wantConnected && this.room) {
+      if (!this.manualClose && this.wantConnected && this.room && this.network) {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => this.open(), 1200);
       }
@@ -148,7 +148,7 @@ class ScenePilotSocket {
 
     this.queue.push(message);
 
-    if (this.wantConnected && this.room) {
+    if (this.wantConnected && this.room && this.network) {
       this.open();
     }
 
