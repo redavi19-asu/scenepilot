@@ -578,9 +578,12 @@ function App() {
   useEffect(() => {
     if (showCamera || !socket.connected) return;
 
-    const liveSlots = programComposition.mode === "single"
-      ? [programComposition.primary]
-      : [programComposition.primary, programComposition.secondary].filter(Boolean);
+    const liveSlots =
+      programComposition.mode === "nine"
+        ? cameras.map(camera => camera.id)
+        : programComposition.mode === "single"
+          ? [programComposition.primary]
+          : [programComposition.primary, programComposition.secondary].filter(Boolean);
 
     socket.emit("program:update", {
       room: roomCode,
@@ -1092,7 +1095,7 @@ function App() {
     setProgramComposition({
       mode: compositionMode,
       primary: preview,
-      secondary: secondaryPreview
+      secondary: compositionMode === "nine" ? null : secondaryPreview
     });
   }
 
@@ -1124,7 +1127,7 @@ function App() {
   function dropCameraOnPreview(slotId) {
     if (!slotId) return;
 
-    if (compositionMode === "single") {
+    if (compositionMode === "single" || compositionMode === "nine") {
       setPreview(slotId);
       return;
     }
@@ -1568,6 +1571,25 @@ function App() {
                   playsInline
                   preload="auto"
                 />
+              ) : compositionMode === "nine" ? (
+                <div className="composition nine-composition">
+                  <div className="nine-main-pane">
+                    {renderSource(preview, "preview")}
+                    <span className="composition-label">MAIN • CAM {preview}</span>
+                  </div>
+                  <div className="nine-side-grid">
+                    {cameras
+                      .filter(camera => camera.id !== preview)
+                      .map(camera => (
+                        <div className="nine-mini-pane" key={camera.id}>
+                          {renderSource(camera.id, "preview")}
+                          <span className="composition-label">
+                            CAM {camera.id}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
               ) : compositionMode === "split" ? (
                 <div className="composition split-composition">
                   <div className="composition-pane">
@@ -1597,7 +1619,9 @@ function App() {
                   ? `REPLAY ${instantReplaySeconds}S`
                   : compositionMode === "single"
                     ? `CAM ${preview}`
-                    : `${compositionMode.toUpperCase()} • CAM ${preview} + CAM ${secondaryPreview}`}
+                    : compositionMode === "nine"
+                      ? `9-CAM • MAIN CAM ${preview}`
+                      : `${compositionMode.toUpperCase()} • CAM ${preview} + CAM ${secondaryPreview}`}
               </span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
             </div>
@@ -1618,6 +1642,27 @@ function App() {
                   playsInline
                   onEnded={returnToLive}
                 />
+              ) : programComposition.mode === "nine" ? (
+                <div className="composition nine-composition">
+                  <div className="nine-main-pane">
+                    {renderSource(programComposition.primary, "program")}
+                    <span className="composition-label">
+                      MAIN • CAM {programComposition.primary}
+                    </span>
+                  </div>
+                  <div className="nine-side-grid">
+                    {cameras
+                      .filter(camera => camera.id !== programComposition.primary)
+                      .map(camera => (
+                        <div className="nine-mini-pane" key={camera.id}>
+                          {renderSource(camera.id, "program")}
+                          <span className="composition-label">
+                            CAM {camera.id}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
               ) : programComposition.mode === "split" ? (
                 <div className="composition split-composition">
                   <div className="composition-pane">
@@ -1648,7 +1693,9 @@ function App() {
                   ? `INSTANT REPLAY ${instantReplaySeconds}S`
                   : programComposition.mode === "single"
                     ? `CAM ${programComposition.primary}`
-                    : `${programComposition.mode.toUpperCase()} • CAM ${programComposition.primary} + CAM ${programComposition.secondary}`}
+                    : programComposition.mode === "nine"
+                      ? `9-CAM • MAIN CAM ${programComposition.primary}`
+                      : `${programComposition.mode.toUpperCase()} • CAM ${programComposition.primary} + CAM ${programComposition.secondary}`}
               </span>
               <button className="fullscreen"><Maximize2 size={17}/></button>
             </div>
@@ -1908,9 +1955,16 @@ function App() {
               >
                 <PictureInPicture2 size={18}/><span>PiP</span>
               </button>
+
+              <button
+                className={compositionMode === "nine" ? "active" : ""}
+                onClick={() => setCompositionMode("nine")}
+              >
+                <Users size={18}/><span>9-CAM</span>
+              </button>
             </div>
 
-            {compositionMode !== "single" && (
+            {compositionMode !== "single" && compositionMode !== "nine" && (
               <div className="secondary-source-picker">
                 <label>SECOND CAMERA</label>
                 <select
@@ -2006,6 +2060,7 @@ function App() {
               <p><strong>6. Switch cameras:</strong> Tap another camera tile to preview it on the left, then tap TAKE or CUT when you are ready to put that camera live.</p>
               <p><strong>7. Camera phone status:</strong> CONNECTED / READY means the phone is available but not live. YOU ARE ON AIR means that phone is currently on Program.</p>
               <p><strong>8. Split Screen:</strong> Choose SPLIT, select the second camera, preview both on the left, then tap TAKE to put both cameras live together.</p>
+              <p><strong>9. 9-Cam Layout:</strong> Choose 9-CAM to make the selected Preview camera the large main picture while the other eight cameras appear as smaller live windows around it. Tap TAKE to send the whole layout to Program.</p>
               <p><strong>9. Picture-in-Picture:</strong> Choose PiP, select the smaller second camera, preview the layout, then tap TAKE.</p>
               <p><strong>10. Zoom / Switch camera:</strong> On each phone, use Zoom In, Zoom Out, and Switch Camera for front/rear camera control while connected.</p>
               <p><strong>11. Live Shield:</strong> Use Live Shield on the phone and enable the phone's Focus / Do Not Disturb mode before a production to reduce interruptions.</p>
