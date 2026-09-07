@@ -1572,3 +1572,155 @@ footer span:last-child{margin-left:auto}
     padding:24px 18px;
   }
 }
+
+
+/* Director Cam local production source */
+.director-camera-panel {
+  margin-top:10px;
+  border:1px solid #454c41;
+  background:#111510;
+  padding:10px;
+  display:grid;
+  grid-template-columns:minmax(220px,.7fr) minmax(300px,1.3fr);
+  gap:12px;
+  align-items:stretch;
+}
+.director-camera-copy {
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:6px;
+}
+.director-camera-copy > span:first-child {
+  color:#858d80;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.15em;
+}
+.director-camera-copy > strong {
+  font-size:15px;
+  letter-spacing:.08em;
+}
+.director-camera-copy > small {
+  color:#929a8d;
+  font-size:9px;
+  line-height:1.45;
+}
+.director-camera-actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:5px;
+}
+.director-camera-actions button {
+  min-height:34px;
+  border:1px solid #5a6255;
+  background:#22271f;
+  color:#e7eadf;
+  padding:0 10px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.05em;
+  cursor:pointer;
+}
+.director-camera-actions .director-camera-stop {
+  border-color:#75423e;
+  color:#e7b3ad;
+}
+.director-camera-status {
+  width:max-content;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  color:#8d9488;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.08em;
+}
+.director-camera-status i {
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#6e746b;
+}
+.director-camera-status.ready {
+  color:#a8c6a0;
+}
+.director-camera-status.ready i {
+  background:#77a86c;
+}
+.director-camera-feed {
+  min-height:150px;
+  position:relative;
+  overflow:hidden;
+  background:#070907;
+  border:1px solid #394036;
+  cursor:default;
+}
+.director-camera-feed.draggable {
+  cursor:grab;
+  border-color:#66765f;
+}
+.director-camera-feed.draggable:active {
+  cursor:grabbing;
+}
+.director-camera-feed video {
+  width:100%;
+  height:100%;
+  min-height:150px;
+  object-fit:cover;
+  display:block;
+  transform:scaleX(-1);
+}
+.director-camera-placeholder {
+  height:100%;
+  min-height:150px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  color:#747b70;
+  text-align:center;
+  padding:16px;
+}
+.director-camera-placeholder strong {
+  color:#92998d;
+  font-size:10px;
+  letter-spacing:.08em;
+}
+.director-camera-placeholder span {
+  max-width:300px;
+  font-size:8px;
+  line-height:1.4;
+}
+.director-camera-label,
+.director-camera-drag {
+  position:absolute;
+  bottom:8px;
+  background:rgba(5,7,5,.82);
+  padding:5px 7px;
+  font-size:7px;
+  font-weight:950;
+  letter-spacing:.07em;
+}
+.director-camera-label { left:8px; }
+.director-camera-drag { right:8px; color:#a9c59f; }
+
+@media(max-width:700px) {
+  .director-camera-panel {
+    grid-template-columns:1fr;
+  }
+  .director-camera-feed,
+  .director-camera-feed video,
+  .director-camera-placeholder {
+    min-height:180px;
+  }
+  .director-camera-actions button {
+    flex:1 1 120px;
+  }
+}
