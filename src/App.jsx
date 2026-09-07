@@ -1411,19 +1411,31 @@ async function enableCamera() {
   useEffect(() => {
     setCameraAudio(current => {
       const next = { ...current };
+
       wirelessCameras.forEach(camera => {
         if (!next[camera.socketId]) {
           next[camera.socketId] = { volume: 1, muted: false, solo: false };
         }
       });
+
+      if (directorStream && !next[DIRECTOR_SOURCE]) {
+        next[DIRECTOR_SOURCE] = { volume: 1, muted: false, solo: false };
+      }
+
       Object.keys(next).forEach(id => {
-        if (!wirelessCameras.some(camera => camera.socketId === id)) {
+        const isRemoteCamera =
+          wirelessCameras.some(camera => camera.socketId === id);
+        const isDirectorCamera =
+          id === DIRECTOR_SOURCE && Boolean(directorStream);
+
+        if (!isRemoteCamera && !isDirectorCamera) {
           delete next[id];
         }
       });
+
       return next;
     });
-  }, [wirelessCameras]);
+  }, [wirelessCameras, directorStream]);
 
   const anySolo = Object.values(cameraAudio).some(channel => channel.solo);
 
@@ -1431,6 +1443,20 @@ async function enableCamera() {
     const channel = cameraAudio[camera.socketId] || { volume: 1, muted: false, solo: false };
     const selectedByMaster =
       masterAudioSource === "mix" || masterAudioSource === camera.socketId;
+    const audibleBySolo = !anySolo || channel.solo;
+
+    if (!selectedByMaster || !audibleBySolo || channel.muted) return 0;
+    return Math.max(0, Math.min(1, Number(channel.volume ?? 1)));
+  };
+
+  const effectiveDirectorVolume = () => {
+    const channel = cameraAudio[DIRECTOR_SOURCE] || {
+      volume: 1,
+      muted: false,
+      solo: false
+    };
+    const selectedByMaster =
+      masterAudioSource === "mix" || masterAudioSource === DIRECTOR_SOURCE;
     const audibleBySolo = !anySolo || channel.solo;
 
     if (!selectedByMaster || !audibleBySolo || channel.muted) return 0;
@@ -1459,7 +1485,17 @@ async function enableCamera() {
       el.muted = volume === 0;
       el.play?.().catch(() => {});
     });
-  }, [cameraAudio, masterAudioSource, wirelessCameras, remoteStreams]);
+
+    if (!directorStream && masterAudioSource === DIRECTOR_SOURCE) {
+      setMasterAudioSource("mix");
+    }
+  }, [
+    cameraAudio,
+    masterAudioSource,
+    wirelessCameras,
+    remoteStreams,
+    directorStream
+  ]);
 
   if (showSplash) {
     return <ScenePilotSplash cameraMode={showCamera} />;
@@ -2319,7 +2355,10 @@ async function enableCamera() {
                 value={masterAudioSource}
                 onChange={event => setMasterAudioSource(event.target.value)}
               >
-                <option value="mix">MIX ALL ACTIVE PHONE MICS</option>
+                <option value="mix">MIX ALL ACTIVE MICS</option>
+                {directorStream && (
+                  <option value={DIRECTOR_SOURCE}>DIRECTOR CAM — LOCAL MIC</option>
+                )}
                 {wirelessCameras.map(camera => (
                   <option key={camera.socketId} value={camera.socketId}>
                     CAM {String(camera.slotId || "?").padStart(2, "0")} — {displayNameForCamera(camera.slotId)}
@@ -2329,6 +2368,65 @@ async function enableCamera() {
             </label>
 
             <div className="phone-mixer">
+              {directorStream && (() => {
+                const channel = cameraAudio[DIRECTOR_SOURCE] || {
+                  volume: 1,
+                  muted: false,
+                  solo: false
+                };
+                const volume = effectiveDirectorVolume();
+
+                return (
+                  <div className="phone-mixer-channel director-audio-channel">
+                    <div className="phone-mixer-head">
+                      <strong>DIRECTOR CAM</strong>
+                      <span>LOCAL MIC • MONITOR MUTED</span>
+                    </div>
+
+                    <input
+                      className="phone-fader"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={channel.volume}
+                      onChange={event => {
+                        updateCameraAudio(DIRECTOR_SOURCE, {
+                          volume: Number(event.target.value)
+                        });
+                      }}
+                    />
+
+                    <div className="phone-mixer-actions">
+                      <button
+                        className={channel.muted ? "active" : ""}
+                        onClick={() =>
+                          updateCameraAudio(DIRECTOR_SOURCE, {
+                            muted: !channel.muted
+                          })
+                        }
+                      >
+                        MUTE
+                      </button>
+                      <button
+                        className={channel.solo ? "active" : ""}
+                        onClick={() =>
+                          updateCameraAudio(DIRECTOR_SOURCE, {
+                            solo: !channel.solo
+                          })
+                        }
+                      >
+                        SOLO
+                      </button>
+                      <span>
+                        {Math.round(Number(channel.volume || 0) * 100)}%
+                        {volume === 0 ? " • OFF" : ""}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {wirelessCameras.length ? wirelessCameras.map(camera => {
                 const channel = cameraAudio[camera.socketId] || {
                   volume: 1,
@@ -2398,14 +2496,16 @@ async function enableCamera() {
                     </div>
                   </div>
                 );
-              }) : (
-                <div className="phone-mixer-empty">Connect a phone to expose its microphone channel.</div>
-              )}
+              }) : !directorStream ? (
+                <div className="phone-mixer-empty">
+                  Connect a phone or enable Director Cam to expose a microphone channel.
+                </div>
+              ) : null}
             </div>
 
             <div className="audio-footer">
-              <span><Volume2 size={15}/> PHONE AUDIO MIXER</span>
-              <span>{wirelessCameras.length} CH</span>
+              <span><Volume2 size={15}/> LIVE AUDIO MIXER</span>
+              <span>{wirelessCameras.length + (directorStream ? 1 : 0)} CH</span>
             </div>
           </div>
 
