@@ -1,6 +1,8 @@
 const SESSION_COOKIE = "sp_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const PASSWORD_ITERATIONS = 210000;
+const TURNSTILE_VERIFY_URL =
+  "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
@@ -212,12 +214,103 @@ async function readJson(request) {
   }
 }
 
+async function verifyTurnstile(request, env, token, expectedAction) {
+  const secret = String(env.TURNSTILE_SECRET_KEY || "").trim();
+
+  if (!secret) {
+    return json({
+      error: "Cloudflare Turnstile is not configured for ScenePilot yet."
+    }, 503);
+  }
+
+  const responseToken = String(token || "").trim();
+
+  if (!responseToken) {
+    return json({
+      error: "Complete the Cloudflare security check before continuing."
+    }, 400);
+  }
+
+  try {
+    const form = new FormData();
+    form.set("secret", secret);
+    form.set("response", responseToken);
+
+    const remoteIp =
+      request.headers.get("CF-Connecting-IP");
+
+    if (remoteIp) {
+      form.set("remoteip", remoteIp);
+    }
+
+    const verification = await fetch(
+      TURNSTILE_VERIFY_URL,
+      {
+        method: "POST",
+        body: form
+      }
+    );
+
+    if (!verification.ok) {
+      console.error(
+        "ScenePilot Turnstile HTTP error",
+        verification.status
+      );
+
+      return json({
+        error: "Security verification is temporarily unavailable."
+      }, 503);
+    }
+
+    const result = await verification.json();
+
+    if (
+      !result.success ||
+      (
+        result.action &&
+        expectedAction &&
+        result.action !== expectedAction
+      )
+    ) {
+      console.warn(
+        "ScenePilot Turnstile verification failed",
+        result["error-codes"] || []
+      );
+
+      return json({
+        error: "Security verification failed. Please try again."
+      }, 403);
+    }
+
+    return null;
+  } catch (error) {
+    console.error(
+      "ScenePilot Turnstile verification error",
+      error
+    );
+
+    return json({
+      error: "Security verification is temporarily unavailable."
+    }, 503);
+  }
+}
+
 async function handleRegister(request, env) {
   if (!env.DB) {
     return json({ error: "ICA D1 database is not bound to ScenePilot yet." }, 503);
   }
 
   const body = await readJson(request);
+
+  const turnstileError = await verifyTurnstile(
+    request,
+    env,
+    body.turnstileToken,
+    "register"
+  );
+
+  if (turnstileError) return turnstileError;
+
   const email = normalizeEmail(body.email);
   const displayName = String(body.displayName || "").trim().slice(0, 100);
   const password = String(body.password || "");
@@ -306,6 +399,16 @@ async function handleLogin(request, env) {
   }
 
   const body = await readJson(request);
+
+  const turnstileError = await verifyTurnstile(
+    request,
+    env,
+    body.turnstileToken,
+    "login"
+  );
+
+  if (turnstileError) return turnstileError;
+
   const email = normalizeEmail(body.email);
   const password = String(body.password || "");
 
@@ -870,6 +973,9 @@ async function handleApi(request, env, url) {
     return json({
       ok: true,
       databaseBound: Boolean(env.DB),
+      turnstileConfigured: Boolean(
+        String(env.TURNSTILE_SECRET_KEY || "").trim()
+      ),
       service: "ScenePilot"
     });
   }
