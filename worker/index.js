@@ -1521,7 +1521,7 @@ async function handleBroadcastControl(request, env, action) {
 }
 
 async function handleApi(request, env, url) {
-  if (url.pathname === "/api/health") {
+  if (url.pathname === "/api/health" || url.pathname === "/health") {
     let databaseReady = false;
     let userCount = null;
 
@@ -1617,6 +1617,19 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    if (url.pathname === "/health") {
+      try {
+        return await handleApi(request, env, url);
+      } catch (error) {
+        console.error("ScenePilot health endpoint error", error);
+        return json({
+          ok: false,
+          service: "ScenePilot",
+          error: error instanceof Error ? error.message : String(error)
+        }, 500);
+      }
+    }
+
     if (url.pathname.startsWith("/api/")) {
       try {
         return await handleApi(request, env, url);
@@ -1709,6 +1722,51 @@ export default {
       );
     }
 
-    return env.ASSETS.fetch(request);
+    if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
+      return env.ASSETS.fetch(request);
+    }
+
+    if (
+      url.pathname === "/" ||
+      url.pathname === "/app" ||
+      url.pathname === "/admin"
+    ) {
+      return new Response(
+        `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ScenePilot</title>
+  <style>
+    body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0d0b;color:#eef1ea;font-family:Arial,sans-serif}
+    main{max-width:640px;padding:32px;text-align:center}
+    h1{margin:0 0 10px;font-size:42px}
+    p{color:#a8aea4;line-height:1.6}
+    code{color:#d7ddd2}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>ScenePilot</h1>
+    <p>The ScenePilot Worker is online, but the static asset binding is unavailable in this environment.</p>
+    <p>API health remains available at <code>/api/health</code>.</p>
+  </main>
+</body>
+</html>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-store"
+          }
+        }
+      );
+    }
+
+    return json({
+      error: "ScenePilot route not found.",
+      path: url.pathname
+    }, 404);
   }
 };
