@@ -82,7 +82,7 @@ function LandingPage() {
 
             <div className="sp-hero-actions">
               <button className="sp-primary" onClick={() => go("/app")}>
-                <LogIn size={18}/> LOGIN / START BETA
+                <LogIn size={18}/> LOGIN
               </button>
               <button className="sp-secondary" disabled title="Desktop download will unlock after release packaging is complete.">
                 <Download size={18}/> DOWNLOAD — COMING SOON
@@ -91,7 +91,7 @@ function LandingPage() {
 
             <div className="sp-beta-note">
               <ShieldCheck size={17}/>
-              <span>Beta accounts are free while ScenePilot is being finalized.</span>
+              <span>Private beta access is currently invite-only.</span>
             </div>
           </div>
 
@@ -152,7 +152,7 @@ function LandingPage() {
 }
 
 function AuthPanel({ onAuthenticated }) {
-  const [mode, setMode] = useState("login");
+  const mode = "login";
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -217,51 +217,10 @@ function AuthPanel({ onAuthenticated }) {
       <div className="sp-auth-card">
         <div className="sp-auth-logo"><Radio size={26}/></div>
         <span className="sp-kicker">ICA SOFTWARE ACCOUNT</span>
-        <h1>{mode === "login" ? "Welcome back." : "Create your ScenePilot account."}</h1>
-        <p>
-          {mode === "login"
-            ? "Sign in to open the Director console."
-            : "Beta access is free. The first account created becomes the owner account."}
-        </p>
-
-        <div className="sp-auth-tabs">
-          <button
-            className={mode === "login" ? "active" : ""}
-            onClick={() => {
-              setMode("login");
-              setTurnstileToken("");
-              setTurnstileResetKey(value => value + 1);
-              setStatus("");
-            }}
-          >
-            LOGIN
-          </button>
-          <button
-            className={mode === "register" ? "active" : ""}
-            onClick={() => {
-              setMode("register");
-              setTurnstileToken("");
-              setTurnstileResetKey(value => value + 1);
-              setStatus("");
-            }}
-          >
-            CREATE ACCOUNT
-          </button>
-        </div>
+        <h1>Welcome back.</h1>
+        <p>Sign in to open the Director console. New accounts are currently invite-only.</p>
 
         <form onSubmit={submit}>
-          {mode === "register" && (
-            <label>
-              NAME
-              <input
-                value={displayName}
-                onChange={event => setDisplayName(event.target.value)}
-                autoComplete="name"
-                required
-              />
-            </label>
-          )}
-
           <label>
             EMAIL
             <input
@@ -279,25 +238,14 @@ function AuthPanel({ onAuthenticated }) {
               type="password"
               value={password}
               onChange={event => setPassword(event.target.value)}
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              autoComplete="current-password"
               minLength={8}
               required
             />
           </label>
 
-          {mode === "register" && (
-            <label className="sp-check">
-              <input
-                type="checkbox"
-                checked={marketing}
-                onChange={event => setMarketing(event.target.checked)}
-              />
-              <span>Send me ScenePilot and I Computer Anything product updates.</span>
-            </label>
-          )}
-
           <TurnstileWidget
-            action={mode === "register" ? "register" : "login"}
+            action="login"
             onToken={handleTurnstileToken}
             resetKey={turnstileResetKey}
           />
@@ -305,8 +253,8 @@ function AuthPanel({ onAuthenticated }) {
           {status && <div className="sp-auth-error">{status}</div>}
 
           <button className="sp-auth-submit" disabled={busy || !turnstileToken}>
-            {mode === "login" ? <LogIn size={17}/> : <UserPlus size={17}/>}
-            {busy ? "PLEASE WAIT..." : mode === "login" ? "LOGIN" : "CREATE FREE BETA ACCOUNT"}
+            <LogIn size={17}/>
+            {busy ? "PLEASE WAIT..." : "LOGIN"}
           </button>
         </form>
       </div>
