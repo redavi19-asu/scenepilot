@@ -2085,3 +2085,145 @@ footer span:last-child{margin-left:auto}
     margin-top:8px;
   }
 }
+
+/* Compact Director/Main source strip for tablets */
+.source-feature-row{
+  display:grid !important;
+  grid-template-columns:1fr 1fr !important;
+  gap:8px !important;
+  margin-top:8px !important;
+  align-items:stretch !important;
+}
+
+.source-feature-row .director-camera-panel,
+.source-feature-row .main-camera-home{
+  margin-top:0 !important;
+  min-width:0 !important;
+  padding:7px !important;
+  gap:7px !important;
+  display:grid !important;
+  grid-template-columns:minmax(120px,.9fr) minmax(150px,1.1fr) !important;
+  align-items:stretch !important;
+}
+
+.source-feature-row .director-camera-copy,
+.source-feature-row .main-camera-home-copy{
+  min-width:0 !important;
+  justify-content:center !important;
+  gap:3px !important;
+}
+
+.source-feature-row .director-camera-copy > span:first-child,
+.source-feature-row .main-camera-home-copy > span{
+  font-size:6px !important;
+}
+
+.source-feature-row .director-camera-copy > strong,
+.source-feature-row .main-camera-home-copy > strong{
+  font-size:11px !important;
+  line-height:1.05 !important;
+}
+
+.source-feature-row .director-camera-copy > small,
+.source-feature-row .main-camera-home-copy > small{
+  font-size:7px !important;
+  line-height:1.2 !important;
+  max-width:none !important;
+}
+
+.source-feature-row .director-camera-actions{
+  gap:4px !important;
+  margin-top:2px !important;
+}
+
+.source-feature-row .director-camera-actions button{
+  min-height:26px !important;
+  padding:0 6px !important;
+  font-size:6px !important;
+  flex:0 1 auto !important;
+}
+
+.source-feature-row .director-camera-status{
+  font-size:6px !important;
+}
+
+.source-feature-row .director-camera-feed,
+.source-feature-row .director-camera-feed video,
+.source-feature-row .director-camera-placeholder,
+.source-feature-row .main-camera-home-feed{
+  min-height:86px !important;
+  height:86px !important;
+  aspect-ratio:auto !important;
+}
+
+.source-feature-row .director-camera-placeholder{
+  padding:8px !important;
+}
+
+.source-feature-row .director-camera-placeholder strong{
+  font-size:8px !important;
+}
+
+.source-feature-row .director-camera-placeholder span{
+  font-size:6px !important;
+}
+
+.source-feature-row .director-camera-label,
+.source-feature-row .director-camera-drag,
+.source-feature-row .main-camera-name,
+.source-feature-row .home-live-badge{
+  font-size:6px !important;
+  padding:3px 5px !important;
+}
+
+@media(max-width:900px){
+  .source-feature-row{
+    grid-template-columns:1fr 1fr !important;
+  }
+
+  .source-feature-row .director-camera-panel,
+  .source-feature-row .main-camera-home{
+    grid-template-columns:minmax(105px,.9fr) minmax(125px,1.1fr) !important;
+  }
+
+  .source-feature-row .director-camera-feed,
+  .source-feature-row .director-camera-feed video,
+  .source-feature-row .director-camera-placeholder,
+  .source-feature-row .main-camera-home-feed{
+    min-height:78px !important;
+    height:78px !important;
+  }
+}
+
+@media(max-width:700px){
+  .source-feature-row{
+    grid-template-columns:1fr 1fr !important;
+    gap:6px !important;
+  }
+
+  .source-feature-row .director-camera-panel,
+  .source-feature-row .main-camera-home{
+    grid-template-columns:minmax(82px,.8fr) minmax(96px,1.2fr) !important;
+    padding:5px !important;
+    gap:5px !important;
+  }
+
+  .source-feature-row .director-camera-copy > small,
+  .source-feature-row .main-camera-home-copy > small{
+    display:none !important;
+  }
+
+  .source-feature-row .director-camera-actions button{
+    min-height:22px !important;
+    padding:0 4px !important;
+    font-size:5px !important;
+  }
+
+  .source-feature-row .director-camera-feed,
+  .source-feature-row .director-camera-feed video,
+  .source-feature-row .director-camera-placeholder,
+  .source-feature-row .main-camera-home-feed{
+    min-height:68px !important;
+    height:68px !important;
+  }
+}
