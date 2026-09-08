@@ -252,12 +252,20 @@ io.on("connection", socket => {
       return;
     }
 
-    if (command !== "zoom") return;
+    if (command !== "zoom" && command !== "torch") return;
+
+    if (command === "zoom") {
+      targetSocket.emit("camera:control", {
+        command: "zoom",
+        action: action === "start" ? "start" : "stop",
+        direction: Number(direction) < 0 ? -1 : 1
+      });
+      return;
+    }
 
     targetSocket.emit("camera:control", {
-      command: "zoom",
-      action: action === "start" ? "start" : "stop",
-      direction: Number(direction) < 0 ? -1 : 1
+      command: "torch",
+      enabled: Boolean(arguments[0]?.enabled)
     });
   });
 
