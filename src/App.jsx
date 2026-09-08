@@ -3,7 +3,7 @@ import {
   Radio, Circle, Mic2, Volume2, Wifi, BatteryFull,
   Settings, Maximize2, MonitorUp, Users, QrCode,
   Type, Layers, PictureInPicture2, Video, Camera,
-  Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut, PhoneOff, ShieldCheck,
+  Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut, PhoneOff, ShieldCheck, Flashlight,
   Scissors, Play, Save, Download, SkipBack, Film, Upload
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -149,6 +149,9 @@ function App() {
   const [zoomValue, setZoomValue] = useState(1);
   const zoomValueRef = useRef(1);
   const zoomHoldTimer = useRef(null);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [remoteTorchState, setRemoteTorchState] = useState({});
   const [videoInputs, setVideoInputs] = useState([]);
   const [selectedVideoDevice, setSelectedVideoDevice] = useState("");
   const [showReplayEditor, setShowReplayEditor] = useState(true);
@@ -864,6 +867,8 @@ function App() {
     const videoTrack = mediaStream?.getVideoTracks?.()[0];
     const capabilities = videoTrack?.getCapabilities?.();
     const zoom = capabilities?.zoom;
+    setTorchSupported(Boolean(capabilities?.torch));
+    setTorchOn(false);
 
     if (
       zoom &&
@@ -939,6 +944,42 @@ function App() {
       command: "zoom",
       action,
       direction
+    });
+  }
+
+  async function setCameraTorch(enabled, mediaStream = stream) {
+    const videoTrack = mediaStream?.getVideoTracks?.()[0];
+    const capabilities = videoTrack?.getCapabilities?.();
+    if (!videoTrack || !capabilities?.torch) return false;
+
+    try {
+      await videoTrack.applyConstraints({
+        advanced: [{ torch: Boolean(enabled) }]
+      });
+      setTorchOn(Boolean(enabled));
+      return true;
+    } catch (error) {
+      console.warn("ScenePilot camera light unavailable", error);
+      return false;
+    }
+  }
+
+  async function toggleCameraTorch() {
+    await setCameraTorch(!torchOn);
+  }
+
+  function sendDirectorTorch(camera) {
+    if (!camera?.socketId) return;
+    const next = !Boolean(remoteTorchState[camera.socketId]);
+    setRemoteTorchState(current => ({
+      ...current,
+      [camera.socketId]: next
+    }));
+    socket.emit("camera:control", {
+      room: roomCode,
+      target: camera.socketId,
+      command: "torch",
+      enabled: next
     });
   }
 
@@ -1211,12 +1252,18 @@ async function enableCamera() {
       };
 
       const handleCameraControl = payload => {
-        if (payload?.command !== "zoom") return;
-        if (payload.action === "start") {
-          const direction = Number(payload.direction) < 0 ? -1 : 1;
-          startZoomHold(direction, media);
-        } else if (payload.action === "stop") {
-          stopZoomHold();
+        if (payload?.command === "zoom") {
+          if (payload.action === "start") {
+            const direction = Number(payload.direction) < 0 ? -1 : 1;
+            startZoomHold(direction, media);
+          } else if (payload.action === "stop") {
+            stopZoomHold();
+          }
+          return;
+        }
+
+        if (payload?.command === "torch") {
+          setCameraTorch(Boolean(payload.enabled), media);
         }
       };
 
@@ -1672,6 +1719,17 @@ async function enableCamera() {
                   >
                     <ZoomIn size={24}/>
                     <span>ZOOM IN</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`camera-control-button light-control ${torchOn ? "active" : ""}`}
+                    onClick={toggleCameraTorch}
+                    disabled={!torchSupported}
+                    title={torchSupported ? "Turn camera light on or off" : "Camera light is unavailable on this device/browser"}
+                  >
+                    <Flashlight size={24}/>
+                    <span>{torchOn ? "LIGHT ON" : "CAMERA LIGHT"}</span>
                   </button>
 
                   <button
@@ -2296,6 +2354,7 @@ async function enableCamera() {
             ))}
           </div>
 
+          <div className="source-feature-row">
           <div className="director-camera-panel">
             <div className="director-camera-copy">
               <span>LOCAL SOURCE</span>
@@ -2420,6 +2479,7 @@ async function enableCamera() {
                 <span className="home-live-badge"><i/> HOME LIVE</span>
               )}
             </div>
+          </div>
           </div>
         </section>
 
@@ -2663,6 +2723,14 @@ async function enableCamera() {
                     >
                       <ZoomIn size={16}/> ZOOM IN
                     </button>
+                    <button
+                      type="button"
+                      className={remoteTorchState[camera.socketId] ? "light-active" : ""}
+                      onClick={() => sendDirectorTorch(camera)}
+                      title="Toggle the remote camera light when supported by that device"
+                    >
+                      <Flashlight size={16}/> {remoteTorchState[camera.socketId] ? "LIGHT ON" : "LIGHT"}
+                    </button>
                   </div>
                 </div>
               )) : (
@@ -2846,7 +2914,7 @@ async function enableCamera() {
               <p><strong>8. Layouts:</strong> SINGLE, SPLIT, PiP, and 9-CAM are prepared in Preview first. TAKE sends the prepared layout to Program; another TAKE with no new selection returns to Main Cam.</p>
               <p><strong>9. Master Audio:</strong> Camera names from SET NAMES also appear in the Master Audio source list and phone mixer so video and audio labels match.</p>
               <p><strong>10. Director Cam:</strong> Enable the Director device camera from the dedicated Director Cam panel. Use SWITCH CAMERA for front/rear, then drag it to Preview, tap PREVIEW, or use ADD AS PiP. It never consumes one of the nine remote camera slots.</p>
-              <p><strong>11. Camera phones:</strong> Connected phones can keep using flip, press-and-hold smooth zoom, Live Shield, telemetry, and camera communications while their live feed remains available to all Director monitors. The Director can also press and hold remote zoom controls for supported phone cameras.</p>
+              <p><strong>11. Camera phones:</strong> Connected phones can use flip, press-and-hold smooth zoom, camera light/torch when the browser exposes it, Live Shield, telemetry, and camera communications. The Director can remotely hold zoom and toggle the camera light on supported devices.</p>
               <p><strong>12. Instant Replay:</strong> ScenePilot keeps the Program source buffered for replay when browser MediaRecorder support is available. Replay returns to the live Program automatically when it ends.</p>
               <p><strong>13. If a feed drops:</strong> Leave the camera page open while ScenePilot reconnects. The Multiview tile resumes from the same source slot when its WebRTC stream returns.</p>
             </div>
