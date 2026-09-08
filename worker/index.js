@@ -999,12 +999,20 @@ export class ScenePilotRoom {
 
       const target = this.sessions.get(payload.target);
       if (!target || target.role !== "camera") return;
-      if (payload.command !== "zoom") return;
+      if (payload.command !== "zoom" && payload.command !== "torch") return;
+
+      if (payload.command === "zoom") {
+        this.send(target, "camera:control", {
+          command: "zoom",
+          action: payload.action === "start" ? "start" : "stop",
+          direction: Number(payload.direction) < 0 ? -1 : 1
+        });
+        return;
+      }
 
       this.send(target, "camera:control", {
-        command: "zoom",
-        action: payload.action === "start" ? "start" : "stop",
-        direction: Number(payload.direction) < 0 ? -1 : 1
+        command: "torch",
+        enabled: Boolean(payload.enabled)
       });
 
       return;
