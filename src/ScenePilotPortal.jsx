@@ -740,6 +740,21 @@ function IntercomPanel({ mode }) {
   ]);
 
   useEffect(() => {
+    if (mode !== "director" || !open) return;
+
+    const ids =
+      targetId
+        ? [targetId]
+        : targets.map(camera => camera.socketId);
+
+    ids.forEach(id => {
+      ensurePeer(id, true).catch(error => {
+        console.warn("ScenePilot intercom preconnect error", error);
+      });
+    });
+  }, [mode, open, targetId, targets, ensurePeer]);
+
+  useEffect(() => {
     const stop = () => endTalk();
 
     window.addEventListener("blur", stop);
