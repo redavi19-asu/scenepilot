@@ -73,6 +73,18 @@ export default function BroadcastGraphics() {
       .filter(key => graphics[key]).length
   ), [graphics]);
 
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("scenepilot:graphics-state", {
+      detail: {
+        graphics,
+        remaining,
+        topicImage,
+        logoImage,
+        now: Date.now()
+      }
+    }));
+  }, [graphics, remaining, topicImage, logoImage]);
+
   function setValue(key, value) {
     setGraphics(current => ({ ...current, [key]: value }));
   }
