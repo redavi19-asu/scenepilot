@@ -1192,3 +1192,285 @@
     height: min(260px, calc(100vh - 18px));
   }
 }
+
+
+/* ScenePilot private walkie-talkie intercom */
+.sp-intercom-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 76px;
+  z-index: 121;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 190, 0, .5);
+  border-radius: 8px;
+  background: rgba(23, 20, 8, .96);
+  color: #ffd84d;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: 900 9px Inter, system-ui, sans-serif;
+  letter-spacing: .08em;
+  box-shadow: 0 10px 30px rgba(0,0,0,.38);
+  cursor: pointer;
+}
+
+.sp-intercom-fab.receiving {
+  border-color: #ffe867;
+  color: #161000;
+  background: linear-gradient(135deg, #ffe44f, #ff9e00);
+  box-shadow: 0 0 26px rgba(255, 177, 0, .65);
+}
+
+.sp-intercom-fab b {
+  min-width: 24px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #151006;
+  color: #ffe96a;
+  font-size: 7px;
+}
+
+.sp-intercom-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 122px;
+  z-index: 210;
+  width: min(320px, calc(100vw - 24px));
+  border: 1px solid #50481f;
+  border-radius: 12px;
+  background: rgba(17, 18, 13, .98);
+  color: #f2f0e7;
+  box-shadow: 0 24px 70px rgba(0,0,0,.58);
+  overflow: hidden;
+}
+
+.sp-intercom-panel header {
+  padding: 10px 11px;
+  border-bottom: 1px solid #37351f;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sp-intercom-panel header span {
+  display: block;
+  color: #b4aa70;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+
+.sp-intercom-panel header strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  letter-spacing: .08em;
+}
+
+.sp-intercom-panel header button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #494527;
+  background: #0f100d;
+  color: #ddd7b7;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.sp-intercom-panel label {
+  display: block;
+  padding: 10px 11px 0;
+  color: #aaa47d;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .11em;
+}
+
+.sp-intercom-panel select {
+  width: 100%;
+  min-height: 34px;
+  margin-top: 5px;
+  padding: 7px 9px;
+  border: 1px solid #4c4728;
+  background: #0e100c;
+  color: #f1eee0;
+  font: 800 10px Inter, system-ui, sans-serif;
+}
+
+.sp-intercom-status {
+  margin: 9px 11px 0;
+  min-height: 29px;
+  padding: 0 9px;
+  border: 1px solid #3e3c26;
+  background: #11130e;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #b8b590;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: .06em;
+}
+
+.sp-intercom-status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d2b443;
+  box-shadow: 0 0 10px rgba(210, 180, 67, .5);
+}
+
+.sp-intercom-status.receiving {
+  color: #171000;
+  border-color: #fff06a;
+  background: linear-gradient(135deg, #ffe44f, #ff9e00);
+}
+
+.sp-intercom-status.receiving i {
+  background: #171000;
+  box-shadow: none;
+}
+
+.sp-intercom-ptt {
+  width: calc(100% - 22px);
+  min-height: 86px;
+  margin: 9px 11px 0;
+  border: 1px solid #807027;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #27230f, #17170e);
+  color: #ffe164;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 3px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+}
+
+.sp-intercom-ptt strong {
+  font-size: 13px;
+  letter-spacing: .08em;
+}
+
+.sp-intercom-ptt small {
+  color: #aaa47a;
+  font-size: 8px;
+}
+
+.sp-intercom-ptt.talking {
+  background: linear-gradient(135deg, #ffe23f, #ff9700);
+  color: #181000;
+  border-color: #fff18a;
+  box-shadow: 0 0 30px rgba(255, 168, 0, .55);
+}
+
+.sp-intercom-ptt.talking small {
+  color: #5d3b00;
+}
+
+.sp-intercom-panel > p {
+  margin: 8px 11px 10px;
+  color: #817d64;
+  font-size: 8px;
+  line-height: 1.35;
+}
+
+.sp-intercom-camera {
+  position: fixed;
+  left: 10px;
+  bottom: 8px;
+  z-index: 122;
+  width: min(220px, calc(100vw - 120px));
+  border: 1px solid #4f4826;
+  border-radius: 9px;
+  background: rgba(16, 17, 12, .96);
+  padding: 6px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.4);
+}
+
+.sp-intercom-camera.receiving {
+  border-color: #fff06a;
+  background: linear-gradient(135deg, #ffd93d, #ff9700);
+  color: #181000;
+  box-shadow: 0 0 26px rgba(255, 171, 0, .58);
+}
+
+.sp-intercom-camera-status {
+  min-height: 22px;
+  padding: 0 5px 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #b6ae79;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .07em;
+}
+
+.sp-intercom-camera.receiving .sp-intercom-camera-status {
+  color: #181000;
+}
+
+.sp-intercom-camera > button {
+  width: 100%;
+  min-height: 29px;
+  border: 1px solid #655b28;
+  border-radius: 6px;
+  background: #22200f;
+  color: #ffe060;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font: 900 8px Inter, system-ui, sans-serif;
+  letter-spacing: .05em;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sp-intercom-camera > button.talking {
+  background: linear-gradient(135deg, #ffe23f, #ff9700);
+  color: #181000;
+  border-color: #fff18a;
+}
+
+@media (max-width: 900px) {
+  .sp-intercom-fab {
+    right: 10px;
+    bottom: 61px;
+  }
+
+  .sp-intercom-panel {
+    right: 10px;
+    bottom: 105px;
+  }
+}
+
+@media (max-width: 700px) {
+  .sp-intercom-panel {
+    width: min(290px, calc(100vw - 20px));
+  }
+
+  .sp-intercom-camera {
+    left: 8px;
+    bottom: 44px;
+    width: min(188px, calc(100vw - 120px));
+  }
+
+  .sp-intercom-camera-status {
+    font-size: 6px;
+  }
+
+  .sp-intercom-camera > button {
+    min-height: 27px;
+    font-size: 7px;
+  }
+}
