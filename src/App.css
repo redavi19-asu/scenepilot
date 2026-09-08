@@ -1938,3 +1938,92 @@ footer span:last-child{margin-left:auto}
     height:101px;
   }
 }
+
+
+.remote-camera-control-panel{
+  border:1px solid #3f433d;
+  background:#121412;
+  padding:10px;
+}
+.remote-camera-control-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin:6px 0 8px;
+}
+.remote-camera-control-head strong{
+  font-size:10px;
+  letter-spacing:1px;
+}
+.remote-camera-control-head span{
+  color:#7d8279;
+  font-size:6px;
+  font-weight:900;
+}
+.remote-camera-control-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:7px;
+}
+.remote-camera-control-card{
+  border:1px solid #393d37;
+  background:#181b17;
+  padding:8px;
+}
+.remote-camera-control-card>div:first-child{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  margin-bottom:7px;
+}
+.remote-camera-control-card strong{
+  font-size:8px;
+}
+.remote-camera-control-card span{
+  color:#777c74;
+  font-size:6px;
+  font-weight:900;
+}
+.remote-camera-zoom-buttons{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+}
+.remote-camera-zoom-buttons button{
+  min-height:38px;
+  border:1px solid #4b5048;
+  background:#232720;
+  color:#d7dbd3;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  font-size:7px;
+  font-weight:950;
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+}
+.remote-camera-zoom-buttons button:active{
+  border-color:#d39a26;
+  background:#3a2d16;
+  color:#ffe0a0;
+}
+.remote-camera-control-empty{
+  grid-column:1/-1;
+  border:1px dashed #3f433d;
+  color:#7c8178;
+  padding:12px;
+  font-size:7px;
+}
+.camera-control-button{
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+}
+@media(max-width:760px){
+  .remote-camera-control-grid{grid-template-columns:1fr}
+  .remote-camera-control-head{align-items:flex-start;flex-direction:column}
+}
