@@ -2533,3 +2533,12 @@ body.scenepilot-viewfinder-clean .sp-comms-fab.camera{
     right:8px!important;
   }
 }
+
+
+/* Keep the live camera settings card clear of walkie-talkie/comms on phones */
+@media(max-width:520px){
+  .operator-card:has(.disconnect-camera){
+    bottom:calc(env(safe-area-inset-bottom,0px) + 150px)!important;
+    max-height:40vh!important;
+  }
+}
