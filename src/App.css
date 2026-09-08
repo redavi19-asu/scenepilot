@@ -2659,3 +2659,145 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
 @media(max-width:760px){
   .record-mode-grid{grid-template-columns:1fr}
 }
+
+
+.take-standby-row{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-top:12px
+}
+
+.take-standby-row .take-button{
+  margin-top:0
+}
+
+.standby-button{
+  border:1px solid rgba(238,185,68,.48);
+  background:linear-gradient(180deg,#302814,#1d190e);
+  color:#f5d477;
+  min-height:72px;
+  padding:12px 14px;
+  cursor:pointer;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  transition:.18s ease;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.025)
+}
+
+.standby-button span{
+  font-size:13px;
+  font-weight:950;
+  letter-spacing:.08em
+}
+
+.standby-button small{
+  color:#b9aa7f;
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.045em
+}
+
+.standby-button:hover{
+  transform:translateY(-1px);
+  border-color:#f0c04f;
+  box-shadow:0 0 18px rgba(238,185,68,.16)
+}
+
+.standby-button.active{
+  background:linear-gradient(180deg,#efb83d,#c48518);
+  border-color:#ffd86e;
+  color:#17140d;
+  box-shadow:0 0 24px rgba(238,185,68,.36)
+}
+
+.standby-button.active small{
+  color:#382a12
+}
+
+.program-standby-screen{
+  position:absolute;
+  inset:0;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 50% 42%,rgba(216,171,67,.12),transparent 30%),
+    linear-gradient(135deg,#101713,#1a261f 48%,#0a0f0c);
+  display:grid;
+  place-items:center;
+  z-index:18
+}
+
+.program-standby-grid{
+  position:absolute;
+  inset:-40%;
+  background-image:repeating-linear-gradient(
+    135deg,
+    transparent 0 56px,
+    rgba(224,181,79,.055) 57px 58px
+  );
+  transform:rotate(0deg)
+}
+
+.program-standby-content{
+  position:relative;
+  z-index:2;
+  width:min(84%,760px);
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  color:#fff
+}
+
+.program-standby-brand{
+  color:#d8ae4d;
+  font-size:10px;
+  font-weight:950;
+  letter-spacing:.36em;
+  margin-bottom:18px
+}
+
+.program-standby-content i{
+  display:block;
+  width:96px;
+  height:3px;
+  background:#d8ae4d;
+  box-shadow:0 0 18px rgba(216,174,77,.25);
+  margin-bottom:18px
+}
+
+.program-standby-content strong{
+  font-size:clamp(23px,4vw,48px);
+  line-height:1;
+  font-weight:950;
+  letter-spacing:.035em
+}
+
+.program-standby-content small{
+  margin-top:12px;
+  color:#c5cbc5;
+  font-size:clamp(9px,1.5vw,14px);
+  font-weight:650;
+  letter-spacing:.025em
+}
+
+.live-badge.standby{
+  background:#dfa927;
+  color:#17140c;
+  border-color:#f3c653;
+  z-index:25
+}
+
+.live-badge.standby i{
+  background:#17140c;
+  box-shadow:none
+}
+
+@media(max-width:760px){
+  .take-standby-row{
+    grid-template-columns:1fr
+  }
+}
