@@ -2801,3 +2801,183 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
     grid-template-columns:1fr
   }
 }
+
+
+.camera-startup-gate{
+  position:fixed;
+  inset:0;
+  z-index:12000;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  background:rgba(5,7,5,.92);
+  backdrop-filter:blur(8px)
+}
+
+.camera-startup-card{
+  width:min(92vw,560px);
+  border:1px solid #4a4f48;
+  background:
+    radial-gradient(circle at 50% 0%,rgba(225,184,76,.08),transparent 34%),
+    linear-gradient(180deg,#10130f,#0a0c0a);
+  box-shadow:0 24px 80px rgba(0,0,0,.52);
+  padding:24px;
+  color:#f4f3ef
+}
+
+.camera-startup-brand{
+  text-align:center;
+  margin-bottom:20px
+}
+
+.camera-startup-brand h2{
+  margin:8px 0 7px;
+  font-size:28px;
+  line-height:1.05
+}
+
+.camera-startup-brand p{
+  margin:0 auto;
+  max-width:430px;
+  color:#a9aea5;
+  font-size:12px;
+  line-height:1.5
+}
+
+.camera-startup-step{
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr) auto;
+  gap:13px;
+  align-items:center;
+  border:1px solid #343a33;
+  background:#0e110e;
+  padding:14px;
+  margin-top:10px;
+  opacity:.64;
+  transition:.18s ease
+}
+
+.camera-startup-step.active{
+  opacity:1;
+  border-color:#b18b2d;
+  box-shadow:0 0 22px rgba(225,184,76,.08)
+}
+
+.camera-startup-step.complete{
+  opacity:1;
+  border-color:#53634d;
+  background:#101610
+}
+
+.camera-startup-step-number{
+  width:38px;
+  height:38px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  border:1px solid #5e625c;
+  color:#d8b24f;
+  font-size:14px;
+  font-weight:900
+}
+
+.camera-startup-step.complete .camera-startup-step-number{
+  color:#b8d9a7;
+  border-color:#657d5e
+}
+
+.camera-startup-step-copy strong,
+.camera-startup-step-copy span{
+  display:block
+}
+
+.camera-startup-step-copy strong{
+  font-size:11px;
+  letter-spacing:.08em
+}
+
+.camera-startup-step-copy span{
+  margin-top:4px;
+  color:#9ca197;
+  font-size:10px;
+  line-height:1.4
+}
+
+.camera-startup-step button{
+  min-width:96px;
+  border:1px solid #d1a93a;
+  background:#d8b24f;
+  color:#15130d;
+  padding:10px 12px;
+  font-size:9px;
+  font-weight:950;
+  letter-spacing:.08em
+}
+
+.camera-startup-step button:disabled{
+  cursor:not-allowed;
+  opacity:.45
+}
+
+.camera-startup-step button.accepted{
+  background:#263322;
+  border-color:#5c7653;
+  color:#cce1c3;
+  opacity:1
+}
+
+.camera-startup-footer{
+  margin-top:18px;
+  padding-top:15px;
+  border-top:1px solid #2c302b;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  color:#8f958b
+}
+
+.camera-startup-footer span{
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.08em
+}
+
+.camera-startup-footer strong{
+  color:#d8b24f;
+  font-size:9px;
+  letter-spacing:.08em;
+  text-align:right
+}
+
+@media(max-width:640px){
+  .camera-startup-gate{
+    padding:18px
+  }
+
+  .camera-startup-card{
+    width:min(94vw,480px);
+    padding:20px 16px
+  }
+
+  .camera-startup-step{
+    grid-template-columns:38px 1fr;
+    align-items:start
+  }
+
+  .camera-startup-step button{
+    grid-column:1 / -1;
+    width:100%;
+    min-height:44px
+  }
+
+  .camera-startup-footer{
+    flex-direction:column;
+    align-items:center;
+    text-align:center
+  }
+
+  .camera-startup-footer strong{
+    text-align:center
+  }
+}
