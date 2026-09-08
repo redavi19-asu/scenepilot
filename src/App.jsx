@@ -128,6 +128,11 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get("camera") === "1";
   });
+  const [cameraSetupOpen, setCameraSetupOpen] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("camera") === "1";
+  });
+  const [cameraSetupBusy, setCameraSetupBusy] = useState(false);
   const [stream, setStream] = useState(null);
   const cameraVideo = useRef(null);
   const remoteVideos = useRef({});
@@ -1692,6 +1697,18 @@ function App() {
     }
   }
 
+async function completeCameraStartup() {
+    if (!telemetryAllowed || cameraSetupBusy) return;
+
+    setCameraSetupBusy(true);
+    try {
+      const connected = await enableCamera();
+      if (connected) setCameraSetupOpen(false);
+    } finally {
+      setCameraSetupBusy(false);
+    }
+  }
+
 async function enableCamera() {
     try {
       if (!networkId || !cameraJoinToken) {
@@ -1890,9 +1907,11 @@ async function enableCamera() {
       socket.setNetwork(networkId, cameraJoinToken);
       socket.setRoom(roomCode);
       socket.connect();
+      return true;
     } catch (error) {
       setSignalStatus("CAMERA ACCESS FAILED");
       alert(`Camera access failed: ${error.message}`);
+      return false;
     }
   }
 
@@ -2211,7 +2230,7 @@ async function enableCamera() {
 
   if (showCamera) {
     return (
-      <div className={`operator-shell ${operatorControlsCollapsed ? "controls-collapsed" : ""}`}>
+      <div className={`operator-shell ${operatorControlsCollapsed ? "controls-collapsed" : ""} ${cameraSetupOpen ? "setup-active" : ""}`}>
         <header className="operator-header">
           <div>
             <span className="eyebrow">SCENEPILOT CAMERA</span>
@@ -2219,6 +2238,54 @@ async function enableCamera() {
           </div>
           <span className="room-pill">{network?.name || "SCENEPILOT NETWORK"} • ROOM {roomCode}</span>
         </header>
+
+        {cameraSetupOpen && (
+          <div className="camera-startup-gate" role="dialog" aria-modal="true" aria-label="Camera startup setup">
+            <div className="camera-startup-card">
+              <div className="camera-startup-brand">
+                <span className="eyebrow">SCENEPILOT CAMERA</span>
+                <h2>Two quick permissions</h2>
+                <p>Finish these two steps before the camera operator screen opens.</p>
+              </div>
+
+              <div className={`camera-startup-step ${telemetryAllowed ? "complete" : "active"}`}>
+                <div className="camera-startup-step-number">{telemetryAllowed ? "✓" : "1"}</div>
+                <div className="camera-startup-step-copy">
+                  <strong>ALLOW DEVICE TELEMETRY</strong>
+                  <span>Share battery and network quality with the Director. Location is not requested.</span>
+                </div>
+                <button
+                  type="button"
+                  className={telemetryAllowed ? "accepted" : ""}
+                  disabled={telemetryAllowed}
+                  onClick={() => setTelemetryAllowed(true)}
+                >
+                  {telemetryAllowed ? "ACCEPTED" : "ALLOW"}
+                </button>
+              </div>
+
+              <div className={`camera-startup-step ${telemetryAllowed && !stream ? "active" : ""} ${stream ? "complete" : ""}`}>
+                <div className="camera-startup-step-number">{stream ? "✓" : "2"}</div>
+                <div className="camera-startup-step-copy">
+                  <strong>CAMERA + MICROPHONE</strong>
+                  <span>Allow the phone camera and microphone so the Director can receive this feed.</span>
+                </div>
+                <button
+                  type="button"
+                  disabled={!telemetryAllowed || cameraSetupBusy || Boolean(stream)}
+                  onClick={completeCameraStartup}
+                >
+                  {stream ? "CONNECTED" : cameraSetupBusy ? "OPENING…" : "ENABLE"}
+                </button>
+              </div>
+
+              <div className="camera-startup-footer">
+                <span>{telemetryAllowed ? "STEP 1 COMPLETE" : "START WITH STEP 1"}</span>
+                <strong>{telemetryAllowed ? "NEXT: ENABLE CAMERA + MICROPHONE" : "2 STEPS TO JOIN"}</strong>
+              </div>
+            </div>
+          </div>
+        )}
 
         <main className="operator-main">
           <div className="phone-monitor">
