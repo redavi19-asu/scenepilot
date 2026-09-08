@@ -165,6 +165,7 @@ function App() {
   });
   const wakeLock = useRef(null);
   const reconnectTimers = useRef({});
+  const directorLinkStatsRef = useRef({});
   const audioElements = useRef({});
   const [masterAudioSource, setMasterAudioSource] = useState("mix");
   const [cameraAudio, setCameraAudio] = useState({});
@@ -398,7 +399,12 @@ function App() {
       navigator.mozConnection ||
       navigator.webkitConnection;
 
-    const batterySupported = Boolean(navigator.getBattery);
+    const nativeBatteryReader =
+      window.Capacitor?.Plugins?.Device?.getBatteryInfo ||
+      window.Capacitor?.Plugins?.Battery?.getBatteryInfo ||
+      null;
+
+    const batterySupported = Boolean(navigator.getBattery || nativeBatteryReader);
     const networkSupported = Boolean(connection);
 
     const getNetworkQuality = () => {
@@ -424,16 +430,12 @@ function App() {
       };
     };
 
-    const sendTelemetry = () => {
-      const batteryPercent =
-        battery && Number.isFinite(battery.level)
-          ? Math.round(battery.level * 100)
-          : null;
+    const emitTelemetry = (batteryPercent, chargingValue) => {
       const network = getNetworkQuality();
 
       const nextTelemetry = {
         battery: batteryPercent,
-        charging: battery ? Boolean(battery.charging) : null,
+        charging: chargingValue,
         network,
         batterySupported,
         networkSupported,
@@ -445,7 +447,7 @@ function App() {
       socket.emit("camera:telemetry", {
         room: roomCode,
         battery: batteryPercent,
-        charging: battery ? Boolean(battery.charging) : null,
+        charging: chargingValue,
         network,
         telemetryConsent: true,
         support: {
@@ -453,6 +455,37 @@ function App() {
           network: networkSupported
         }
       });
+    };
+
+    const sendTelemetry = async () => {
+      if (battery && Number.isFinite(battery.level)) {
+        emitTelemetry(
+          Math.round(battery.level * 100),
+          Boolean(battery.charging)
+        );
+        return;
+      }
+
+      if (nativeBatteryReader) {
+        try {
+          const info = await nativeBatteryReader.call(
+            window.Capacitor?.Plugins?.Device || window.Capacitor?.Plugins?.Battery
+          );
+          const rawLevel = Number(info?.batteryLevel);
+          const batteryPercent = Number.isFinite(rawLevel)
+            ? Math.round((rawLevel <= 1 ? rawLevel * 100 : rawLevel))
+            : null;
+          emitTelemetry(
+            Number.isFinite(batteryPercent) ? Math.max(0, Math.min(100, batteryPercent)) : null,
+            typeof info?.isCharging === "boolean" ? info.isCharging : null
+          );
+          return;
+        } catch (error) {
+          console.warn("ScenePilot native battery telemetry unavailable", error);
+        }
+      }
+
+      emitTelemetry(null, null);
     };
 
     if (navigator.getBattery) {
@@ -473,7 +506,7 @@ function App() {
           setCameraTelemetry(current => ({
             ...current,
             battery: null,
-            batterySupported: false,
+            batterySupported: Boolean(nativeBatteryReader),
             status: "SHARING"
           }));
           sendTelemetry();
@@ -671,9 +704,18 @@ function App() {
                 ...camera,
                 battery: Number.isFinite(payload.battery) ? payload.battery : null,
                 charging: payload.charging ?? null,
-                network: payload.network || null,
+                network: payload.network
+                  ? {
+                      ...(camera.network || {}),
+                      ...payload.network,
+                      source: payload.network.source || camera.network?.source || "device"
+                    }
+                  : camera.network || null,
                 telemetryConsent: payload.telemetryConsent !== false,
-                telemetrySupport: payload.support || camera.telemetrySupport || null
+                telemetrySupport: {
+                  ...(camera.telemetrySupport || {}),
+                  ...(payload.support || {})
+                }
               }
             : camera
         )
@@ -769,6 +811,120 @@ function App() {
       socket.disconnect();
     };
   }, [showCamera, roomCode, networkId]);
+
+  useEffect(() => {
+    if (showCamera) return;
+
+    let cancelled = false;
+
+    const updateLinkHealth = async () => {
+      const updates = {};
+
+      for (const camera of wirelessCameras) {
+        const peer = peers.current[camera.socketId];
+        if (!peer?.getStats || peer.connectionState === "closed") continue;
+
+        try {
+          const report = await peer.getStats();
+          let inbound = null;
+          let selectedPair = null;
+
+          report.forEach(stat => {
+            if (
+              stat.type === "inbound-rtp" &&
+              stat.kind === "video" &&
+              !stat.isRemote
+            ) {
+              inbound = stat;
+            }
+
+            if (
+              stat.type === "candidate-pair" &&
+              stat.state === "succeeded" &&
+              (stat.selected || stat.nominated)
+            ) {
+              selectedPair = stat;
+            }
+          });
+
+          const packetsReceived = Number(inbound?.packetsReceived || 0);
+          const packetsLost = Math.max(0, Number(inbound?.packetsLost || 0));
+          const totalPackets = packetsReceived + packetsLost;
+          const lossPct = totalPackets > 0 ? (packetsLost / totalPackets) * 100 : 0;
+          const jitterMs = Number.isFinite(Number(inbound?.jitter))
+            ? Number(inbound.jitter) * 1000
+            : null;
+          const rttMs = Number.isFinite(Number(selectedPair?.currentRoundTripTime))
+            ? Number(selectedPair.currentRoundTripTime) * 1000
+            : null;
+
+          let bars = 4;
+          if (
+            (Number.isFinite(rttMs) && rttMs > 450) ||
+            lossPct >= 8 ||
+            (Number.isFinite(jitterMs) && jitterMs > 80)
+          ) {
+            bars = 1;
+          } else if (
+            (Number.isFinite(rttMs) && rttMs > 250) ||
+            lossPct >= 4 ||
+            (Number.isFinite(jitterMs) && jitterMs > 50)
+          ) {
+            bars = 2;
+          } else if (
+            (Number.isFinite(rttMs) && rttMs > 120) ||
+            lossPct >= 1.5 ||
+            (Number.isFinite(jitterMs) && jitterMs > 30)
+          ) {
+            bars = 3;
+          }
+
+          updates[camera.socketId] = {
+            bars,
+            rtt: Number.isFinite(rttMs) ? Math.round(rttMs) : null,
+            jitter: Number.isFinite(jitterMs) ? Math.round(jitterMs) : null,
+            lossPct: Number(lossPct.toFixed(1)),
+            source: "webrtc"
+          };
+        } catch (error) {
+          console.warn("ScenePilot link stats unavailable", camera.socketId, error);
+        }
+      }
+
+      if (cancelled || !Object.keys(updates).length) return;
+
+      directorLinkStatsRef.current = {
+        ...directorLinkStatsRef.current,
+        ...updates
+      };
+
+      setWirelessCameras(prev =>
+        prev.map(camera => {
+          const link = updates[camera.socketId];
+          if (!link) return camera;
+          return {
+            ...camera,
+            network: {
+              ...(camera.network || {}),
+              ...link
+            },
+            telemetrySupport: {
+              ...(camera.telemetrySupport || {}),
+              network: true
+            }
+          };
+        })
+      );
+    };
+
+    updateLinkHealth();
+    const timer = window.setInterval(updateLinkHealth, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [showCamera, wirelessCameras.map(camera => camera.socketId).join("|")]);
 
   useEffect(() => {
     if (cameraVideo.current && stream) {
@@ -2623,14 +2779,14 @@ async function enableCamera() {
   const networkLabelForCamera = camera => {
     if (!camera) return "OFFLINE";
     if (camera.telemetryConsent === false) return "NOT SHARED";
-    if (camera.telemetrySupport?.network === false) return "UNSUPPORTED";
+    if (camera.telemetrySupport?.network === false && !camera.network) return "WAITING";
 
     const bars = camera.network?.bars;
     if (bars === 4) return "EXCELLENT";
     if (bars === 3) return "GOOD";
     if (bars === 2) return "FAIR";
     if (bars === 1) return "WEAK";
-    return "LIMITED";
+    return camera.network ? "LIMITED" : "CHECKING";
   };
 
   const batteryLabelForCamera = camera => {
