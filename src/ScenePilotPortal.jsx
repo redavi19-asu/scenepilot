@@ -687,6 +687,11 @@ function IntercomPanel({ mode }) {
       if (!payload?.active) {
         setIncomingPtt(null);
         if (!talking) setStatus(enabled ? "INTERCOM READY" : "INTERCOM OFF");
+        if (mode === "camera") {
+          window.dispatchEvent(new CustomEvent("scenepilot:operator-alert", {
+            detail: { type: "ptt", active: false }
+          }));
+        }
         return;
       }
 
@@ -696,6 +701,16 @@ function IntercomPanel({ mode }) {
           ? "DIRECTOR TALKING"
           : `CAM ${String(payload.slotId || "?").padStart(2, "0")} TALKING`
       );
+
+      if (mode === "camera" && payload.fromRole === "director") {
+        window.dispatchEvent(new CustomEvent("scenepilot:operator-alert", {
+          detail: {
+            type: "ptt",
+            active: true,
+            label: "DIRECTOR CALLING"
+          }
+        }));
+      }
     };
 
     const handleConnect = () => {
@@ -909,6 +924,18 @@ function CommsPanel({ mode }) {
   });
 
   useEffect(() => {
+    const clearOperatorAlert = () => {
+      setIncomingAlert(null);
+      setUnread(0);
+    };
+
+    window.addEventListener("scenepilot:operator-alert-cleared", clearOperatorAlert);
+    return () => {
+      window.removeEventListener("scenepilot:operator-alert-cleared", clearOperatorAlert);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!incomingAlert) return;
 
     const timer = window.setTimeout(() => {
@@ -946,6 +973,13 @@ function CommsPanel({ mode }) {
 
       if (mode === "camera" && message.fromRole === "director") {
         setIncomingAlert(message);
+        window.dispatchEvent(new CustomEvent("scenepilot:operator-alert", {
+          detail: {
+            type: "message",
+            active: true,
+            label: "NEW MESSAGE"
+          }
+        }));
       }
     };
 
