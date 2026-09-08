@@ -2438,3 +2438,70 @@ footer span:last-child{margin-left:auto}
     min-height:29px !important;
   }
 }
+
+
+/* Camera operator collapsible viewfinder mode */
+.operator-controls-toggle{
+  position:absolute;
+  z-index:30;
+  top:calc(env(safe-area-inset-top,0px) + 88px);
+  right:12px;
+  min-height:36px;
+  padding:0 10px;
+  border:1px solid rgba(255,255,255,.35);
+  border-radius:999px;
+  background:rgba(7,9,7,.78);
+  color:#f4f5f1;
+  backdrop-filter:blur(10px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  font-size:7px;
+  font-weight:950;
+  letter-spacing:.07em;
+  box-shadow:0 8px 22px rgba(0,0,0,.28);
+}
+
+.operator-shell.controls-collapsed .camera-live-controls,
+.operator-shell.controls-collapsed .operator-card,
+.operator-shell.controls-collapsed .return-director,
+.operator-shell.controls-collapsed .operator-overlay{
+  display:none!important;
+}
+
+.operator-shell.controls-collapsed .operator-controls-toggle{
+  top:auto;
+  right:12px;
+  bottom:calc(env(safe-area-inset-bottom,0px) + 14px);
+  background:rgba(14,18,13,.84);
+  border-color:#75946d;
+  color:#e7f3e2;
+}
+
+.operator-shell.controls-collapsed .on-air-banner{
+  max-width:min(330px,72vw);
+}
+
+body.scenepilot-viewfinder-clean .sp-intercom-camera,
+body.scenepilot-viewfinder-clean .sp-comms-fab.camera{
+  display:none!important;
+}
+
+@media(max-width:700px){
+  .operator-controls-toggle{
+    top:calc(env(safe-area-inset-top,0px) + 82px);
+    right:8px;
+    min-height:34px;
+    padding:0 8px;
+    font-size:6px;
+  }
+
+  .operator-shell.controls-collapsed .operator-live{
+    top:calc(env(safe-area-inset-top,0px) + 70px);
+  }
+
+  .operator-shell.controls-collapsed .on-air-banner{
+    top:calc(env(safe-area-inset-top,0px) + 104px);
+  }
+}
