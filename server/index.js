@@ -82,10 +82,31 @@ io.on("connection", socket => {
       cameras
     );
 
+    for (const cameraSocketId of io.sockets.adapter.rooms.get(room) || []) {
+      const cameraSocket = io.sockets.sockets.get(cameraSocketId);
+      if (cameraSocket?.data?.role === "camera") {
+        cameraSocket.emit("intercom:director", {
+          directorId: socket.id
+        });
+      }
+    }
+
     console.log(
       "DIRECTOR JOINED:",
       room,
       socket.id
+    );
+  });
+
+  socket.on("director:focus", ({ room }) => {
+    if (socket.data.role !== "director") return;
+
+    const targetRoom = room || socket.data.room;
+    if (!targetRoom || !rooms.has(targetRoom)) return;
+
+    socket.emit(
+      "room:cameras",
+      [...rooms.get(targetRoom).values()]
     );
   });
 
@@ -138,10 +159,16 @@ io.on("connection", socket => {
           camera
         );
 
+      const directorSocketId = [...io.sockets.adapter.rooms.get(room) || []]
+        .find(id => io.sockets.sockets.get(id)?.data?.role === "director");
+
       socket.emit("camera:registered", {
         slotId: camera.slotId,
-        directorAvailable: [...io.sockets.adapter.rooms.get(room) || []]
-          .some(id => io.sockets.sockets.get(id)?.data?.role === "director")
+        directorAvailable: Boolean(directorSocketId)
+      });
+
+      socket.emit("intercom:director", {
+        directorId: directorSocketId || null
       });
 
       console.log(
@@ -209,6 +236,82 @@ io.on("connection", socket => {
       support: camera.telemetrySupport
     });
   });
+
+  socket.on("intercom:ptt", ({ room, target, active }) => {
+    const targetRoom = room || socket.data.room;
+    if (!targetRoom) return;
+
+    if (socket.data.role === "director") {
+      const payload = {
+        from: socket.id,
+        fromRole: "director",
+        active: active === true
+      };
+
+      if (target) {
+        const targetSocket = io.sockets.sockets.get(target);
+        if (
+          targetSocket?.data?.role === "camera" &&
+          targetSocket?.data?.room === targetRoom
+        ) {
+          targetSocket.emit("intercom:ptt", payload);
+        }
+      } else {
+        for (const memberId of io.sockets.adapter.rooms.get(targetRoom) || []) {
+          const member = io.sockets.sockets.get(memberId);
+          if (member?.data?.role === "camera") {
+            member.emit("intercom:ptt", payload);
+          }
+        }
+      }
+
+      return;
+    }
+
+    if (socket.data.role === "camera") {
+      const directorSocketId = [...io.sockets.adapter.rooms.get(targetRoom) || []]
+        .find(id => io.sockets.sockets.get(id)?.data?.role === "director");
+
+      if (!directorSocketId) return;
+
+      const camera = rooms.get(targetRoom)?.get(socket.id);
+
+      io.to(directorSocketId).emit("intercom:ptt", {
+        from: socket.id,
+        fromRole: "camera",
+        active: active === true,
+        slotId: camera?.slotId || null
+      });
+    }
+  });
+
+  for (const eventName of ["intercom:offer", "intercom:answer", "intercom:ice"]) {
+    socket.on(eventName, payload => {
+      const target = payload?.target;
+      if (!target) return;
+
+      const targetSocket = io.sockets.sockets.get(target);
+      if (!targetSocket || targetSocket.data.room !== socket.data.room) return;
+
+      const directorToCamera =
+        socket.data.role === "director" &&
+        targetSocket.data.role === "camera";
+
+      const cameraToDirector =
+        socket.data.role === "camera" &&
+        targetSocket.data.role === "director";
+
+      if (!directorToCamera && !cameraToDirector) return;
+
+      const forwarded = {
+        ...payload,
+        from: socket.id
+      };
+
+      delete forwarded.target;
+      targetSocket.emit(eventName, forwarded);
+    });
+  }
 
   socket.on("program:update", ({ room, liveSlots }) => {
     if (socket.data.role !== "director") return;
@@ -285,6 +388,17 @@ io.on("connection", socket => {
   socket.on("disconnect", () => {
     const room =
       socket.data.room;
+
+    if (socket.data.role === "director" && room) {
+      for (const memberId of io.sockets.adapter.rooms.get(room) || []) {
+        const member = io.sockets.sockets.get(memberId);
+        if (member?.data?.role === "camera") {
+          member.emit("intercom:director", {
+            directorId: null
+          });
+        }
+      }
+    }
 
     if (
       socket.data.role === "camera" &&
