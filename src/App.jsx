@@ -95,6 +95,31 @@ function App() {
   const [recordStatus, setRecordStatus] = useState("READY");
   const productionRecordersRef = useRef([]);
   const productionChunksRef = useRef([]);
+  const programCanvasRef = useRef(null);
+  const programCompositeStreamRef = useRef(null);
+  const programRenderFrameRef = useRef(0);
+  const programVideoElementsRef = useRef({});
+  const programLastFrameRef = useRef(null);
+  const programTransitionStateRef = useRef({ key: 0, startedAt: 0, duration: 0, type: "CUT" });
+  const graphicsStateRef = useRef({
+    graphics: {
+      live: false,
+      lowerThird: false,
+      ticker: false,
+      countdown: false,
+      topic: false,
+      logo: false,
+      headline: "",
+      subheadline: "",
+      tickerText: "",
+      countdownLabel: "",
+      logoText: "SP",
+      topicSide: "right"
+    },
+    remaining: 0,
+    topicImage: "",
+    logoImage: ""
+  });
   const [showJoin, setShowJoin] = useState(false);
   const [showCamera, setShowCamera] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -214,6 +239,16 @@ function App() {
     window.addEventListener("scenepilot:operator-alert", handleOperatorAlert);
     return () => {
       window.removeEventListener("scenepilot:operator-alert", handleOperatorAlert);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleGraphicsState = event => {
+      if (event?.detail) graphicsStateRef.current = event.detail;
+    };
+    window.addEventListener("scenepilot:graphics-state", handleGraphicsState);
+    return () => {
+      window.removeEventListener("scenepilot:graphics-state", handleGraphicsState);
     };
   }, []);
 
@@ -750,6 +785,7 @@ function App() {
         } catch (_) {}
       });
       productionRecordersRef.current = [];
+      stopProgramCompositor();
     };
   }, [instantReplayUrl]);
 
@@ -866,6 +902,276 @@ function App() {
   }, [showCamera, programComposition.primary, wirelessCameras, remoteStreams, directorStream]);
 
 
+
+  function getVideoElementForStream(key, mediaStream) {
+    if (!mediaStream) return null;
+    let video = programVideoElementsRef.current[key];
+    if (!video) {
+      video = document.createElement("video");
+      video.autoplay = true;
+      video.playsInline = true;
+      video.muted = true;
+      programVideoElementsRef.current[key] = video;
+    }
+    if (video.srcObject !== mediaStream) {
+      video.srcObject = mediaStream;
+      video.play?.().catch(() => {});
+    }
+    return video;
+  }
+
+  function sourceVideoForSlot(slotId) {
+    if (slotId === DIRECTOR_SOURCE) {
+      return getVideoElementForStream("director", directorStream);
+    }
+    const camera = wirelessCameras.find(item => item.slotId === slotId);
+    if (!camera) return null;
+    return getVideoElementForStream(camera.socketId, remoteStreams[camera.socketId]);
+  }
+
+  function drawVideoCover(ctx, video, x, y, width, height) {
+    if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+      ctx.fillStyle = "#181a18";
+      ctx.fillRect(x, y, width, height);
+      return;
+    }
+    const scale = Math.max(width / video.videoWidth, height / video.videoHeight);
+    const drawWidth = video.videoWidth * scale;
+    const drawHeight = video.videoHeight * scale;
+    const dx = x + (width - drawWidth) / 2;
+    const dy = y + (height - drawHeight) / 2;
+    ctx.drawImage(video, dx, dy, drawWidth, drawHeight);
+  }
+
+  function drawSourceLabel(ctx, label, x, y) {
+    ctx.save();
+    ctx.font = "700 18px Arial";
+    ctx.textBaseline = "middle";
+    const padX = 12;
+    const metrics = ctx.measureText(label);
+    const width = metrics.width + padX * 2;
+    ctx.fillStyle = "rgba(0,0,0,.62)";
+    ctx.fillRect(x, y - 18, width, 36);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(label, x + padX, y);
+    ctx.restore();
+  }
+
+  function drawProgramLayout(ctx, width, height) {
+    const mode = programComposition.mode;
+    const primary = programComposition.primary;
+    const secondary = programComposition.secondary;
+
+    if (mode === "split") {
+      drawVideoCover(ctx, sourceVideoForSlot(primary), 0, 0, width / 2, height);
+      drawVideoCover(ctx, sourceVideoForSlot(secondary), width / 2, 0, width / 2, height);
+      drawSourceLabel(ctx, displayNameForCamera(primary), 18, height - 34);
+      drawSourceLabel(ctx, displayNameForCamera(secondary), width / 2 + 18, height - 34);
+      return;
+    }
+
+    if (mode === "pip") {
+      drawVideoCover(ctx, sourceVideoForSlot(primary), 0, 0, width, height);
+      const pipWidth = Math.round(width * 0.30);
+      const pipHeight = Math.round(height * 0.30);
+      const x = width - pipWidth - 28;
+      const y = 28;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(x - 4, y - 4, pipWidth + 8, pipHeight + 8);
+      drawVideoCover(ctx, sourceVideoForSlot(secondary), x, y, pipWidth, pipHeight);
+      drawSourceLabel(ctx, displayNameForCamera(secondary), x + 10, y + pipHeight - 24);
+      return;
+    }
+
+    if (mode === "nine") {
+      const mainWidth = Math.round(width * 0.66);
+      drawVideoCover(ctx, sourceVideoForSlot(primary), 0, 0, mainWidth, height);
+      drawSourceLabel(ctx, `MAIN • ${displayNameForCamera(primary)}`, 18, height - 34);
+
+      const others = cameras.filter(camera => camera.id !== primary).slice(0, 8);
+      const gridX = mainWidth;
+      const gridWidth = width - mainWidth;
+      const cellWidth = gridWidth / 2;
+      const cellHeight = height / 4;
+      others.forEach((camera, index) => {
+        const col = index % 2;
+        const row = Math.floor(index / 2);
+        const x = gridX + col * cellWidth;
+        const y = row * cellHeight;
+        drawVideoCover(ctx, sourceVideoForSlot(camera.id), x, y, cellWidth, cellHeight);
+        ctx.strokeStyle = "rgba(255,255,255,.18)";
+        ctx.strokeRect(x, y, cellWidth, cellHeight);
+      });
+      return;
+    }
+
+    drawVideoCover(ctx, sourceVideoForSlot(primary), 0, 0, width, height);
+  }
+
+  function drawGraphicsOverlay(ctx, width, height) {
+    const state = graphicsStateRef.current || {};
+    const graphics = state.graphics || {};
+    const now = new Date();
+
+    ctx.save();
+
+    if (graphics.live) {
+      ctx.fillStyle = "#d62828";
+      ctx.fillRect(34, 28, 96, 38);
+      ctx.fillStyle = "#fff";
+      ctx.font = "900 20px Arial";
+      ctx.fillText("LIVE", 66, 53);
+    }
+
+    if (graphics.logo) {
+      const x = width - 116;
+      const y = height - 108;
+      ctx.fillStyle = "rgba(0,0,0,.62)";
+      ctx.fillRect(x, y, 78, 54);
+      ctx.fillStyle = "#fff";
+      ctx.font = "900 24px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(graphics.logoText || "SP", x + 39, y + 35);
+      ctx.textAlign = "left";
+    }
+
+    if (graphics.countdown) {
+      ctx.fillStyle = "rgba(0,0,0,.68)";
+      ctx.fillRect(width - 320, 28, 286, 58);
+      ctx.fillStyle = "#fff";
+      ctx.font = "700 16px Arial";
+      ctx.fillText(graphics.countdownLabel || "COMING UP", width - 300, 49);
+      const total = Math.max(0, Number(state.remaining || 0));
+      const mins = Math.floor(total / 60);
+      const secs = total % 60;
+      ctx.font = "900 24px Arial";
+      ctx.fillText(`${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`, width - 140, 64);
+    }
+
+    if (graphics.lowerThird) {
+      const x = 42;
+      const y = height - (graphics.ticker ? 150 : 104);
+      const w = Math.min(width * .72, 850);
+      ctx.fillStyle = "rgba(14,15,14,.88)";
+      ctx.fillRect(x, y, w, 74);
+      ctx.fillStyle = "#f0c24b";
+      ctx.font = "900 16px Arial";
+      ctx.fillText(graphics.headline || "COMING UP", x + 18, y + 25);
+      ctx.fillStyle = "#fff";
+      ctx.font = "700 22px Arial";
+      ctx.fillText(graphics.subheadline || "Live coverage continues shortly", x + 18, y + 54);
+    }
+
+    if (graphics.ticker) {
+      const y = height - 58;
+      ctx.fillStyle = "rgba(10,10,10,.92)";
+      ctx.fillRect(0, y, width, 58);
+      ctx.fillStyle = "#d62828";
+      ctx.fillRect(0, y, 112, 58);
+      ctx.fillStyle = "#fff";
+      ctx.font = "900 17px Arial";
+      ctx.fillText("UPDATE", 22, y + 35);
+      ctx.font = "700 18px Arial";
+      const tickerText = String(graphics.tickerText || "");
+      const offset = -((Date.now() / 35) % Math.max(1, width + ctx.measureText(tickerText).width));
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(125, y, width - 250, 58);
+      ctx.clip();
+      ctx.fillText(tickerText, 140 + offset + width, y + 35);
+      ctx.fillText(tickerText, 420 + offset + width, y + 35);
+      ctx.restore();
+      ctx.font = "700 16px Arial";
+      ctx.fillText(now.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}), width - 110, y + 35);
+    }
+
+    ctx.restore();
+  }
+
+  function startProgramCompositor() {
+    if (programCompositeStreamRef.current) return programCompositeStreamRef.current;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 1280;
+    canvas.height = 720;
+    programCanvasRef.current = canvas;
+    const ctx = canvas.getContext("2d", { alpha: false });
+
+    const lastFrame = document.createElement("canvas");
+    lastFrame.width = canvas.width;
+    lastFrame.height = canvas.height;
+    programLastFrameRef.current = lastFrame;
+
+    let lastTransitionKey = programTransition.key;
+
+    const render = () => {
+      const width = canvas.width;
+      const height = canvas.height;
+
+      if (programTransition.key !== lastTransitionKey) {
+        lastFrame.getContext("2d").drawImage(canvas, 0, 0);
+        lastTransitionKey = programTransition.key;
+        programTransitionStateRef.current = {
+          key: programTransition.key,
+          startedAt: performance.now(),
+          duration: Number(programTransition.duration || 0),
+          type: programTransition.type || "CUT"
+        };
+      }
+
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, width, height);
+      drawProgramLayout(ctx, width, height);
+      drawGraphicsOverlay(ctx, width, height);
+
+      const tx = programTransitionStateRef.current;
+      const elapsed = performance.now() - Number(tx.startedAt || 0);
+      const durationMs = Math.max(0, Number(tx.duration || 0));
+      if (durationMs > 0 && elapsed < durationMs && tx.type !== "CUT") {
+        const progress = Math.max(0, Math.min(1, elapsed / durationMs));
+        ctx.save();
+        if (tx.type === "DISSOLVE") {
+          ctx.globalAlpha = 1 - progress;
+          ctx.drawImage(lastFrame, 0, 0);
+        } else if (tx.type === "FADE") {
+          const fade = progress < .5 ? progress * 2 : (1 - progress) * 2;
+          ctx.globalAlpha = Math.max(0, Math.min(1, fade));
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, width, height);
+        }
+        ctx.restore();
+      }
+
+      programRenderFrameRef.current = requestAnimationFrame(render);
+    };
+
+    render();
+
+    if (!canvas.captureStream) return null;
+    const composite = canvas.captureStream(30);
+
+    const sourceAudio = currentProgramMediaStream();
+    sourceAudio?.getAudioTracks?.().forEach(track => {
+      try { composite.addTrack(track); } catch (_) {}
+    });
+
+    programCompositeStreamRef.current = composite;
+    return composite;
+  }
+
+  function stopProgramCompositor() {
+    if (programRenderFrameRef.current) {
+      cancelAnimationFrame(programRenderFrameRef.current);
+      programRenderFrameRef.current = 0;
+    }
+    programCompositeStreamRef.current?.getTracks?.().forEach(track => {
+      if (track.kind === "video") track.stop?.();
+    });
+    programCompositeStreamRef.current = null;
+    programCanvasRef.current = null;
+    programLastFrameRef.current = null;
+  }
+
   function chooseRecordingMimeType() {
     if (typeof MediaRecorder === "undefined") return "";
     const candidates = [
@@ -961,8 +1267,8 @@ function App() {
     const recorders = [];
 
     if (recordMode === "program" || recordMode === "both") {
-      const programStream = currentProgramMediaStream();
-      const recorder = createProductionRecorder(programStream, "program", "program");
+      const programStream = startProgramCompositor() || currentProgramMediaStream();
+      const recorder = createProductionRecorder(programStream, "program-master", "program");
       if (recorder) recorders.push(recorder);
     }
 
@@ -1011,6 +1317,7 @@ function App() {
 
     productionRecordersRef.current = [];
     productionChunksRef.current = [];
+    stopProgramCompositor();
     setRecording(false);
     setRecordStatus("SAVED TO THIS DEVICE");
   }
@@ -3079,8 +3386,8 @@ async function enableCamera() {
               <span>REC • LOCAL DEVICE</span>
             </div>
             <p className="record-help">
-              ISO files are recorded separately from each connected incoming camera stream on this director device.
-              Native mobile packaging can later move ISO capture onto each camera phone for full-quality originals.
+              Program records the composed production master: camera switches, layouts, transitions and on-air graphics.
+              ISO files stay separate for editing. Native mobile packaging can later move ISO capture onto each camera phone for full-quality originals.
             </p>
           </div>
 
