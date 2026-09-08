@@ -850,6 +850,14 @@ export class ScenePilotRoom {
         [...this.cameras.values()]
       );
 
+      for (const candidate of this.sessions.values()) {
+        if (candidate.role === "camera") {
+          this.send(candidate, "intercom:director", {
+            directorId: session.id
+          });
+        }
+      }
+
       return;
     }
 
@@ -903,6 +911,10 @@ export class ScenePilotRoom {
       this.send(session, "camera:registered", {
         slotId,
         directorAvailable: Boolean(director)
+      });
+
+      this.send(session, "intercom:director", {
+        directorId: director?.id || null
       });
 
       if (this.liveSlots.length) {
@@ -977,6 +989,84 @@ export class ScenePilotRoom {
       return;
     }
 
+    if (event === "intercom:ptt") {
+      const active = payload.active === true;
+
+      if (
+        session.role === "director" &&
+        this.activeDirectorId === session.id
+      ) {
+        const targetId = payload.target || null;
+        const outgoing = {
+          from: session.id,
+          fromRole: "director",
+          active
+        };
+
+        if (targetId) {
+          const target = this.sessions.get(targetId);
+          if (target?.role === "camera") {
+            this.send(target, "intercom:ptt", outgoing);
+          }
+        } else {
+          for (const candidate of this.sessions.values()) {
+            if (candidate.role === "camera") {
+              this.send(candidate, "intercom:ptt", outgoing);
+            }
+          }
+        }
+
+        return;
+      }
+
+      if (session.role === "camera") {
+        const director = this.getActiveDirector();
+        if (!director) return;
+
+        const camera = this.cameras.get(session.id);
+
+        this.send(director, "intercom:ptt", {
+          from: session.id,
+          fromRole: "camera",
+          active,
+          slotId: camera?.slotId || null
+        });
+      }
+
+      return;
+    }
+
+    if (
+      event === "intercom:offer" ||
+      event === "intercom:answer" ||
+      event === "intercom:ice"
+    ) {
+      const target = this.sessions.get(payload.target);
+      if (!target) return;
+
+      const directorToCamera =
+        session.role === "director" &&
+        this.activeDirectorId === session.id &&
+        target.role === "camera";
+
+      const cameraToDirector =
+        session.role === "camera" &&
+        target.id === this.activeDirectorId &&
+        target.role === "director";
+
+      if (!directorToCamera && !cameraToDirector) return;
+
+      const forwarded = {
+        ...payload,
+        from: session.id
+      };
+
+      delete forwarded.target;
+
+      this.send(target, event, forwarded);
+      return;
+    }
+
     if (
       event === "program:update" &&
       session.role === "director" &&
@@ -1037,6 +1127,12 @@ export class ScenePilotRoom {
       this.activeDirectorId = null;
 
       for (const candidate of this.sessions.values()) {
+        if (candidate.role === "camera") {
+          this.send(candidate, "intercom:director", {
+            directorId: null
+          });
+        }
+
         if (candidate.role === "standby") {
           this.send(candidate, "director:available", {
             message: "The Director position is available. Refresh to claim it."
