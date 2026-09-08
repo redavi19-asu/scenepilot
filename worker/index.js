@@ -989,6 +989,27 @@ export class ScenePilotRoom {
       return;
     }
 
+    if (event === "camera:control") {
+      if (
+        session.role !== "director" ||
+        this.activeDirectorId !== session.id
+      ) {
+        return;
+      }
+
+      const target = this.sessions.get(payload.target);
+      if (!target || target.role !== "camera") return;
+      if (payload.command !== "zoom") return;
+
+      this.send(target, "camera:control", {
+        command: "zoom",
+        action: payload.action === "start" ? "start" : "stop",
+        direction: Number(payload.direction) < 0 ? -1 : 1
+      });
+
+      return;
+    }
+
     if (event === "intercom:ptt") {
       const active = payload.active === true;
 
