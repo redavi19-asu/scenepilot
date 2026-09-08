@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   RadioTower, Users, Camera, Video,
-  Server, Settings2, Eye, EyeOff, Play, Square, Globe2, Save, CheckCircle2
+  Server, Settings2, Eye, EyeOff, Play, Square, Globe2, Save, CheckCircle2,
+  Copy, Share2, QrCode, ExternalLink
 } from "lucide-react";
 import "./BroadcastPanel.css";
 
@@ -49,7 +51,15 @@ export default function BroadcastPanel({ roomCode = "SP-4827" }) {
   const [encoderConnected, setEncoderConnected] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
+  const [shareStatus, setShareStatus] = useState("");
+  const [showShare, setShowShare] = useState(false);
   const [settings, setSettings] = useState(EMPTY_SETTINGS);
+
+  const publicWatchUrl = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    const safeRoom = encodeURIComponent(String(roomCode || "live").trim());
+    return `${window.location.origin}/watch/${safeRoom}`;
+  }, [roomCode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -157,6 +167,50 @@ export default function BroadcastPanel({ roomCode = "SP-4827" }) {
     }
   }
 
+  async function copyWatchLink() {
+    if (!publicWatchUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(publicWatchUrl);
+      setShareStatus("WATCH LINK COPIED");
+    } catch (_) {
+      setShareStatus("COPY BLOCKED — USE SHARE");
+    }
+  }
+
+  async function shareBroadcast() {
+    if (!publicWatchUrl) return;
+
+    const payload = {
+      title: "Watch my live production",
+      text: "I'm live now — watch here:",
+      url: publicWatchUrl
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(payload);
+        setShareStatus("SHARE SHEET OPENED");
+      } else {
+        await copyWatchLink();
+      }
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        setShareStatus("SHARE FAILED");
+      }
+    }
+  }
+
+  function shareToFacebook() {
+    const url = encodeURIComponent(publicWatchUrl);
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, "_blank", "noopener,noreferrer");
+  }
+
+  function shareToInstagram() {
+    setShareStatus("INSTAGRAM: USE SHARE TO SEND THE WATCH LINK");
+    shareBroadcast();
+  }
+
   async function toggleBroadcast() {
     setStatus("");
 
@@ -183,6 +237,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827" }) {
         });
 
         setBroadcasting(true);
+        setShowShare(true);
         setStatus(data.status ? `Encoder: ${data.status}` : "Broadcast start accepted.");
       } else {
         const data = await api("/api/broadcast/stop", {
@@ -370,6 +425,48 @@ export default function BroadcastPanel({ roomCode = "SP-4827" }) {
       </div>
 
       {status && <div className="broadcast-status-message">{status}</div>}
+
+      {showShare && (
+        <section className="broadcast-share-panel">
+          <div className="broadcast-share-copy">
+            <span className="panel-label">PUBLIC WATCH ACCESS</span>
+            <strong>SHARE YOUR LIVE BROADCAST</strong>
+            <small>Send the QR code or watch link. Viewers open the link in their browser.</small>
+
+            <div className="broadcast-watch-link">
+              <input value={publicWatchUrl} readOnly aria-label="Public watch link"/>
+              <button type="button" onClick={copyWatchLink}><Copy size={14}/> COPY</button>
+            </div>
+
+            <div className="broadcast-share-actions">
+              <button type="button" onClick={shareBroadcast}><Share2 size={14}/> SHARE</button>
+              <button type="button" onClick={shareToFacebook}><ExternalLink size={14}/> FACEBOOK</button>
+              <button type="button" onClick={shareToInstagram}><ExternalLink size={14}/> INSTAGRAM</button>
+              <button type="button" onClick={() => setShowShare(false)}><QrCode size={14}/> HIDE QR</button>
+            </div>
+
+            {shareStatus && <div className="broadcast-share-status">{shareStatus}</div>}
+          </div>
+
+          <div className="broadcast-qr-card">
+            <QRCodeSVG
+              value={publicWatchUrl || "https://example.com"}
+              size={152}
+              level="M"
+              marginSize={2}
+              title="ScenePilot public watch QR code"
+            />
+            <strong>SCAN TO WATCH</strong>
+            <small>{roomCode}</small>
+          </div>
+        </section>
+      )}
+
+      {!showShare && (
+        <button type="button" className="broadcast-open-share" onClick={() => setShowShare(true)}>
+          <QrCode size={14}/> WATCH LINK / QR CODE
+        </button>
+      )}
 
       <div className="broadcast-future-note">
         <strong>HOW THIS IS WIRED:</strong>
