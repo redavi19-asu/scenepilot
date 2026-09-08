@@ -237,6 +237,30 @@ io.on("connection", socket => {
     });
   });
 
+  socket.on("camera:control", ({ room, target, command, action, direction }) => {
+    if (socket.data.role !== "director") return;
+
+    const targetRoom = room || socket.data.room;
+    if (!targetRoom || !target) return;
+
+    const targetSocket = io.sockets.sockets.get(target);
+    if (
+      !targetSocket ||
+      targetSocket.data.role !== "camera" ||
+      targetSocket.data.room !== targetRoom
+    ) {
+      return;
+    }
+
+    if (command !== "zoom") return;
+
+    targetSocket.emit("camera:control", {
+      command: "zoom",
+      action: action === "start" ? "start" : "stop",
+      direction: Number(direction) < 0 ? -1 : 1
+    });
+  });
+
   socket.on("intercom:ptt", ({ room, target, active }) => {
     const targetRoom = room || socket.data.room;
     if (!targetRoom) return;
