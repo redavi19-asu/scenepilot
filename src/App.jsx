@@ -91,6 +91,10 @@ function App() {
   const [transition, setTransition] = useState("DISSOLVE");
   const [duration, setDuration] = useState(500);
   const [recording, setRecording] = useState(false);
+  const [recordMode, setRecordMode] = useState("both");
+  const [recordStatus, setRecordStatus] = useState("READY");
+  const productionRecordersRef = useRef([]);
+  const productionChunksRef = useRef([]);
   const [showJoin, setShowJoin] = useState(false);
   const [showCamera, setShowCamera] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -740,6 +744,12 @@ function App() {
       try {
         replayRecorderRef.current?.stop?.();
       } catch (_) {}
+      productionRecordersRef.current.forEach(recorder => {
+        try {
+          if (recorder?.state !== "inactive") recorder.stop();
+        } catch (_) {}
+      });
+      productionRecordersRef.current = [];
     };
   }, [instantReplayUrl]);
 
@@ -854,6 +864,161 @@ function App() {
       }
     };
   }, [showCamera, programComposition.primary, wirelessCameras, remoteStreams, directorStream]);
+
+
+  function chooseRecordingMimeType() {
+    if (typeof MediaRecorder === "undefined") return "";
+    const candidates = [
+      "video/mp4",
+      "video/webm;codecs=vp9,opus",
+      "video/webm;codecs=vp8,opus",
+      "video/webm"
+    ];
+    return candidates.find(type => MediaRecorder.isTypeSupported?.(type)) || "";
+  }
+
+  function recordingExtension(mimeType = "") {
+    return mimeType.includes("mp4") ? "mp4" : "webm";
+  }
+
+  function safeRecordingName(value = "camera") {
+    return String(value)
+      .trim()
+      .replace(/[^a-z0-9-_]+/gi, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase() || "camera";
+  }
+
+  function currentProgramMediaStream() {
+    const primarySlot = programComposition.primary;
+    if (primarySlot === DIRECTOR_SOURCE) return directorStream || null;
+
+    const camera = wirelessCameras.find(item => item.slotId === primarySlot);
+    return camera ? remoteStreams[camera.socketId] || null : null;
+  }
+
+  function downloadRecordingBlob(blob, filename) {
+    if (!blob?.size) return;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 3000);
+  }
+
+  function createProductionRecorder(stream, label, kind) {
+    if (!stream || typeof MediaRecorder === "undefined") return null;
+
+    const mimeType = chooseRecordingMimeType();
+    let recorder;
+    try {
+      recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+    } catch (error) {
+      console.error("ScenePilot production recorder unavailable", label, error);
+      return null;
+    }
+
+    const chunks = [];
+    const startedAt = new Date();
+    recorder.ondataavailable = event => {
+      if (event.data?.size) chunks.push(event.data);
+    };
+    recorder.onerror = error => {
+      console.error("ScenePilot production recording error", label, error);
+      setRecordStatus("RECORDING ERROR");
+    };
+    recorder.onstop = () => {
+      if (!chunks.length) return;
+      const type = recorder.mimeType || mimeType || chunks[0]?.type || "video/webm";
+      const blob = new Blob(chunks, { type });
+      const timestamp = startedAt.toISOString().replace(/[:.]/g, "-");
+      const ext = recordingExtension(type);
+      downloadRecordingBlob(
+        blob,
+        `scenepilot-${safeRecordingName(roomCode)}-${kind}-${safeRecordingName(label)}-${timestamp}.${ext}`
+      );
+    };
+
+    recorder.start(1000);
+    productionChunksRef.current.push(chunks);
+    return recorder;
+  }
+
+  function startProductionRecording() {
+    if (recording) return;
+
+    if (typeof MediaRecorder === "undefined") {
+      setRecordStatus("RECORDING UNSUPPORTED");
+      return;
+    }
+
+    const recorders = [];
+
+    if (recordMode === "program" || recordMode === "both") {
+      const programStream = currentProgramMediaStream();
+      const recorder = createProductionRecorder(programStream, "program", "program");
+      if (recorder) recorders.push(recorder);
+    }
+
+    if (recordMode === "iso" || recordMode === "both") {
+      wirelessCameras.forEach(camera => {
+        const cameraStream = remoteStreams[camera.socketId];
+        const label = `cam-${String(camera.slotId || "x").padStart(2, "0")}-${displayNameForCamera(camera.slotId)}`;
+        const recorder = createProductionRecorder(cameraStream, label, "iso");
+        if (recorder) recorders.push(recorder);
+      });
+
+      if (directorStream) {
+        const recorder = createProductionRecorder(
+          directorStream,
+          "director-cam",
+          "iso"
+        );
+        if (recorder) recorders.push(recorder);
+      }
+    }
+
+    if (!recorders.length) {
+      setRecordStatus("NO LIVE STREAMS TO RECORD");
+      return;
+    }
+
+    productionRecordersRef.current = recorders;
+    setRecording(true);
+    setRecordStatus(
+      recordMode === "program"
+        ? "PROGRAM RECORDING"
+        : recordMode === "iso"
+          ? `ISO RECORDING • ${recorders.length} FILES`
+          : `PROGRAM + ISO • ${recorders.length} RECORDERS`
+    );
+  }
+
+  function stopProductionRecording() {
+    productionRecordersRef.current.forEach(recorder => {
+      try {
+        if (recorder?.state !== "inactive") recorder.stop();
+      } catch (error) {
+        console.warn("ScenePilot recorder stop failed", error);
+      }
+    });
+
+    productionRecordersRef.current = [];
+    productionChunksRef.current = [];
+    setRecording(false);
+    setRecordStatus("SAVED TO THIS DEVICE");
+  }
+
+  function toggleProductionRecording() {
+    if (recording) stopProductionRecording();
+    else startProductionRecording();
+  }
 
   function buildInstantReplay(seconds) {
     const cutoff = Date.now() - seconds * 1000;
@@ -2864,17 +3029,59 @@ async function enableCamera() {
           </div>
 
           <div className="record-panel">
-            <div className="panel-label">OUTPUT</div>
+            <div className="panel-label">LOCAL RECORDING</div>
+
+            <div className="record-mode-grid" role="group" aria-label="Recording mode">
+              <button
+                type="button"
+                className={recordMode === "program" ? "active" : ""}
+                disabled={recording}
+                onClick={() => setRecordMode("program")}
+              >
+                <strong>PROGRAM</strong>
+                <small>Finished live source</small>
+              </button>
+              <button
+                type="button"
+                className={recordMode === "iso" ? "active" : ""}
+                disabled={recording}
+                onClick={() => setRecordMode("iso")}
+              >
+                <strong>ALL CAMERAS / ISO</strong>
+                <small>Separate camera files</small>
+              </button>
+              <button
+                type="button"
+                className={recordMode === "both" ? "active" : ""}
+                disabled={recording}
+                onClick={() => setRecordMode("both")}
+              >
+                <strong>BOTH</strong>
+                <small>Program + every camera</small>
+              </button>
+            </div>
+
             <button
               className={`record-button ${recording ? "recording" : ""}`}
-              onClick={() => setRecording(!recording)}
+              onClick={toggleProductionRecording}
             >
               <Circle size={19} fill="currentColor"/>
-              {recording ? "STOP RECORDING" : "RECORD"}
+              {recording ? "STOP & SAVE RECORDING" : "START RECORDING"}
             </button>
-            <div className="output-data">
-              <span>1080p30</span><span>REC • LOCAL</span>
+
+            <div className="record-status-line">
+              <i className={recording ? "live" : ""}/>
+              <strong>{recordStatus}</strong>
             </div>
+
+            <div className="output-data">
+              <span>{recordMode === "program" ? "PROGRAM" : recordMode === "iso" ? "ISO TRACKS" : "PROGRAM + ISO"}</span>
+              <span>REC • LOCAL DEVICE</span>
+            </div>
+            <p className="record-help">
+              ISO files are recorded separately from each connected incoming camera stream on this director device.
+              Native mobile packaging can later move ISO capture onto each camera phone for full-quality originals.
+            </p>
           </div>
 
           <div className="instant-replay-panel">
