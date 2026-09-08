@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Upload, Film, Music2, Image, Type, Play, Pause, Scissors,
   Trash2, Copy, Undo2, Redo2, ZoomIn, ZoomOut, Download,
-  MonitorUp, Save, Plus, Volume2, Gauge, SlidersHorizontal
+  MonitorUp, Save, Plus, Volume2, Gauge, SlidersHorizontal,
+  Captions, Move, Palette, RotateCcw, FileDown
 } from "lucide-react";
 import "./ReplayStudio.css";
 
@@ -63,6 +64,8 @@ export default function ReplayStudio({ roomCode }) {
   const [playing, setPlaying] = useState(false);
   const [history, setHistory] = useState([]);
   const [future, setFuture] = useState([]);
+  const [aspectRatio, setAspectRatio] = useState("16:9");
+  const [projectStatus, setProjectStatus] = useState("");
   const previewRef = useRef(null);
   const objectUrls = useRef(new Set());
 
@@ -148,7 +151,16 @@ export default function ReplayStudio({ roomCode }) {
         outPoint: duration,
         speed: 1,
         volume: 1,
-        opacity: 1
+        opacity: 1,
+        scale: 1,
+        x: 0,
+        y: 0,
+        rotation: 0,
+        brightness: 1,
+        contrast: 1,
+        saturation: 1,
+        fadeIn: 0,
+        fadeOut: 0
       };
       nextClips.push(clip);
       if (trackId === "v1") cursor += duration;
@@ -181,7 +193,16 @@ export default function ReplayStudio({ roomCode }) {
       outPoint: asset.duration,
       speed: 1,
       volume: 1,
-      opacity: 1
+      opacity: 1,
+      scale: 1,
+      x: 0,
+      y: 0,
+      rotation: 0,
+      brightness: 1,
+      contrast: 1,
+      saturation: 1,
+      fadeIn: 0,
+      fadeOut: 0
     };
     snapshot([...clips, clip]);
     setSelectedClipId(clip.id);
@@ -199,12 +220,134 @@ export default function ReplayStudio({ roomCode }) {
       inPoint: 0,
       outPoint: 5,
       text: "Your title",
+      textStyle: "title",
       speed: 1,
       volume: 0,
-      opacity: 1
+      opacity: 1,
+      scale: 1,
+      x: 0,
+      y: 0,
+      rotation: 0
     };
     snapshot([...clips, clip]);
     setSelectedClipId(clip.id);
+  }
+
+  function addLowerThird() {
+    const clip = {
+      id: uid("lower-third"),
+      name: "LOWER THIRD",
+      kind: "text",
+      trackId: "text",
+      start: playhead,
+      duration: 6,
+      sourceDuration: 6,
+      inPoint: 0,
+      outPoint: 6,
+      text: "NAME • ROLE / LOCATION",
+      textStyle: "lower-third",
+      speed: 1,
+      volume: 0,
+      opacity: 1,
+      scale: 1,
+      x: 0,
+      y: 0,
+      rotation: 0
+    };
+    snapshot([...clips, clip]);
+    setSelectedClipId(clip.id);
+  }
+
+  function addCaption() {
+    const clip = {
+      id: uid("caption"),
+      name: "CAPTION",
+      kind: "text",
+      trackId: "text",
+      start: playhead,
+      duration: 4,
+      sourceDuration: 4,
+      inPoint: 0,
+      outPoint: 4,
+      text: "Type caption text",
+      textStyle: "caption",
+      speed: 1,
+      volume: 0,
+      opacity: 1,
+      scale: 1,
+      x: 0,
+      y: 0,
+      rotation: 0
+    };
+    snapshot([...clips, clip]);
+    setSelectedClipId(clip.id);
+  }
+
+  function resetVisuals() {
+    if (!selectedClip) return;
+    updateClip(selectedClip.id, {
+      scale: 1,
+      x: 0,
+      y: 0,
+      rotation: 0,
+      brightness: 1,
+      contrast: 1,
+      saturation: 1,
+      opacity: 1
+    });
+  }
+
+  function saveProject() {
+    const serializableAssets = assets.map(asset => ({
+      id: asset.id,
+      name: asset.name,
+      kind: asset.kind,
+      duration: asset.duration
+    }));
+    const payload = {
+      version: 1,
+      product: "ScenePilot Edit",
+      roomCode,
+      aspectRatio,
+      savedAt: new Date().toISOString(),
+      assets: serializableAssets,
+      clips: clips.map(({ file, ...clip }) => ({ ...clip, url: "" }))
+    };
+
+    window.localStorage.setItem(
+      `scenepilot:edit:${roomCode || "default"}`,
+      JSON.stringify(payload)
+    );
+    setProjectStatus("PROJECT EDIT SAVED LOCALLY");
+  }
+
+  function downloadProject() {
+    const payload = {
+      version: 1,
+      product: "ScenePilot Edit",
+      roomCode,
+      aspectRatio,
+      exportedAt: new Date().toISOString(),
+      clips: clips.map(clip => ({
+        ...clip,
+        url: undefined,
+        assetId: clip.assetId || null
+      })),
+      media: assets.map(asset => ({
+        id: asset.id,
+        name: asset.name,
+        kind: asset.kind,
+        duration: asset.duration
+      }))
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `scenepilot-${roomCode || "project"}-${Date.now()}.json`;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setProjectStatus("PROJECT FILE EXPORTED");
   }
 
   function updateClip(id, updates, pushHistory = true) {
@@ -307,6 +450,12 @@ export default function ReplayStudio({ roomCode }) {
     playhead <= clip.start + clip.duration
   );
 
+  const previewStyle = previewClip ? {
+    opacity: previewClip.opacity ?? 1,
+    transform: `translate(${previewClip.x || 0}%, ${previewClip.y || 0}%) scale(${previewClip.scale || 1}) rotate(${previewClip.rotation || 0}deg)`,
+    filter: `brightness(${previewClip.brightness ?? 1}) contrast(${previewClip.contrast ?? 1}) saturate(${previewClip.saturation ?? 1})`
+  } : undefined;
+
   return (
     <section className="replay-studio nle-studio">
       <div className="replay-head">
@@ -342,6 +491,12 @@ export default function ReplayStudio({ roomCode }) {
 
             <button className="nle-add-title" onClick={addTextClip}>
               <Type size={17}/> ADD TITLE
+            </button>
+            <button className="nle-add-title" onClick={addLowerThird}>
+              <MonitorUp size={17}/> LOWER THIRD
+            </button>
+            <button className="nle-add-title" onClick={addCaption}>
+              <Captions size={17}/> CAPTION
             </button>
 
             <div className="nle-bin">
@@ -382,7 +537,7 @@ export default function ReplayStudio({ roomCode }) {
 
           <div className="nle-main">
             <div className="nle-top">
-              <div className="nle-preview">
+              <div className={`nle-preview aspect-${aspectRatio.replace(":", "-")}`}>
                 {previewClip?.kind === "video" ? (
                   <video
                     key={previewClip.id}
@@ -390,6 +545,7 @@ export default function ReplayStudio({ roomCode }) {
                     src={previewClip.url}
                     playsInline
                     controls
+                    style={previewStyle}
                     onPlay={() => setPlaying(true)}
                     onPause={() => setPlaying(false)}
                     onTimeUpdate={event => {
@@ -399,7 +555,7 @@ export default function ReplayStudio({ roomCode }) {
                     }}
                   />
                 ) : previewClip?.kind === "image" ? (
-                  <img src={previewClip.url} alt="" />
+                  <img src={previewClip.url} alt="" style={previewStyle} />
                 ) : (
                   <div className="editor-preview-placeholder">
                     <Play size={42}/>
@@ -410,8 +566,11 @@ export default function ReplayStudio({ roomCode }) {
 
                 {activeText && (
                   <div
-                    className="nle-text-overlay"
-                    style={{ opacity: activeText.opacity }}
+                    className={`nle-text-overlay ${activeText.textStyle || "title"}`}
+                    style={{
+                      opacity: activeText.opacity,
+                      transform: `translate(calc(-50% + ${activeText.x || 0}px), ${activeText.y || 0}px) scale(${activeText.scale || 1}) rotate(${activeText.rotation || 0}deg)`
+                    }}
                   >
                     {activeText.text}
                   </div>
@@ -472,6 +631,42 @@ export default function ReplayStudio({ roomCode }) {
                     {selectedClip.kind !== "text" && (
                       <>
                         <label>
+                          IN POINT
+                          <input
+                            type="number"
+                            min="0"
+                            max={selectedClip.sourceDuration}
+                            step="0.1"
+                            value={(selectedClip.inPoint || 0).toFixed(1)}
+                            onChange={event => {
+                              const nextIn = Math.max(0, Math.min(Number(event.target.value) || 0, selectedClip.outPoint - .1));
+                              updateClip(selectedClip.id, {
+                                inPoint: nextIn,
+                                duration: Math.max(.1, (selectedClip.outPoint - nextIn) / selectedClip.speed)
+                              }, false);
+                            }}
+                          />
+                        </label>
+
+                        <label>
+                          OUT POINT
+                          <input
+                            type="number"
+                            min="0.1"
+                            max={selectedClip.sourceDuration}
+                            step="0.1"
+                            value={(selectedClip.outPoint || selectedClip.sourceDuration).toFixed(1)}
+                            onChange={event => {
+                              const nextOut = Math.min(selectedClip.sourceDuration, Math.max(Number(event.target.value) || .1, selectedClip.inPoint + .1));
+                              updateClip(selectedClip.id, {
+                                outPoint: nextOut,
+                                duration: Math.max(.1, (nextOut - selectedClip.inPoint) / selectedClip.speed)
+                              }, false);
+                            }}
+                          />
+                        </label>
+
+                        <label>
                           SPEED
                           <select
                             value={selectedClip.speed}
@@ -490,13 +685,13 @@ export default function ReplayStudio({ roomCode }) {
                         </label>
 
                         <label>
-                          OPACITY {Math.round(selectedClip.opacity * 100)}%
+                          OPACITY {Math.round((selectedClip.opacity ?? 1) * 100)}%
                           <input
                             type="range"
                             min="0"
                             max="1"
                             step="0.05"
-                            value={selectedClip.opacity}
+                            value={selectedClip.opacity ?? 1}
                             onChange={event =>
                               updateClip(selectedClip.id, {
                                 opacity: Number(event.target.value)
@@ -504,25 +699,126 @@ export default function ReplayStudio({ roomCode }) {
                             }
                           />
                         </label>
+
+                        <div className="inspector-section"><Move size={12}/> TRANSFORM</div>
+                        <label>
+                          SCALE {Math.round((selectedClip.scale ?? 1) * 100)}%
+                          <input type="range" min=".25" max="3" step=".05"
+                            value={selectedClip.scale ?? 1}
+                            onChange={event => updateClip(selectedClip.id, { scale: Number(event.target.value) }, false)}
+                          />
+                        </label>
+                        <label>
+                          X POSITION
+                          <input type="range" min="-100" max="100" step="1"
+                            value={selectedClip.x ?? 0}
+                            onChange={event => updateClip(selectedClip.id, { x: Number(event.target.value) }, false)}
+                          />
+                        </label>
+                        <label>
+                          Y POSITION
+                          <input type="range" min="-100" max="100" step="1"
+                            value={selectedClip.y ?? 0}
+                            onChange={event => updateClip(selectedClip.id, { y: Number(event.target.value) }, false)}
+                          />
+                        </label>
+                        <label>
+                          ROTATION {Math.round(selectedClip.rotation ?? 0)}°
+                          <input type="range" min="-180" max="180" step="1"
+                            value={selectedClip.rotation ?? 0}
+                            onChange={event => updateClip(selectedClip.id, { rotation: Number(event.target.value) }, false)}
+                          />
+                        </label>
+
+                        {selectedClip.kind !== "audio" && (
+                          <>
+                            <div className="inspector-section"><Palette size={12}/> COLOR</div>
+                            <label>
+                              BRIGHTNESS {Math.round((selectedClip.brightness ?? 1) * 100)}%
+                              <input type="range" min=".25" max="2" step=".05"
+                                value={selectedClip.brightness ?? 1}
+                                onChange={event => updateClip(selectedClip.id, { brightness: Number(event.target.value) }, false)}
+                              />
+                            </label>
+                            <label>
+                              CONTRAST {Math.round((selectedClip.contrast ?? 1) * 100)}%
+                              <input type="range" min=".25" max="2" step=".05"
+                                value={selectedClip.contrast ?? 1}
+                                onChange={event => updateClip(selectedClip.id, { contrast: Number(event.target.value) }, false)}
+                              />
+                            </label>
+                            <label>
+                              SATURATION {Math.round((selectedClip.saturation ?? 1) * 100)}%
+                              <input type="range" min="0" max="2" step=".05"
+                                value={selectedClip.saturation ?? 1}
+                                onChange={event => updateClip(selectedClip.id, { saturation: Number(event.target.value) }, false)}
+                              />
+                            </label>
+                          </>
+                        )}
+
+                        <button className="inspector-reset" type="button" onClick={resetVisuals}>
+                          <RotateCcw size={12}/> RESET VISUALS
+                        </button>
                       </>
                     )}
 
-                    {selectedClip.kind === "audio" && (
-                      <label>
-                        VOLUME {Math.round(selectedClip.volume * 100)}%
-                        <input
-                          type="range"
-                          min="0"
-                          max="2"
-                          step="0.05"
-                          value={selectedClip.volume}
-                          onChange={event =>
-                            updateClip(selectedClip.id, {
-                              volume: Number(event.target.value)
-                            }, false)
-                          }
-                        />
-                      </label>
+                    {(selectedClip.kind === "audio" || selectedClip.kind === "video") && (
+                      <>
+                        <div className="inspector-section"><Volume2 size={12}/> AUDIO</div>
+                        <label>
+                          VOLUME {Math.round((selectedClip.volume ?? 1) * 100)}%
+                          <input
+                            type="range"
+                            min="0"
+                            max="2"
+                            step="0.05"
+                            value={selectedClip.volume ?? 1}
+                            onChange={event =>
+                              updateClip(selectedClip.id, {
+                                volume: Number(event.target.value)
+                              }, false)
+                            }
+                          />
+                        </label>
+                        <label>
+                          FADE IN {(selectedClip.fadeIn ?? 0).toFixed(1)}s
+                          <input type="range" min="0" max="5" step=".1"
+                            value={selectedClip.fadeIn ?? 0}
+                            onChange={event => updateClip(selectedClip.id, { fadeIn: Number(event.target.value) }, false)}
+                          />
+                        </label>
+                        <label>
+                          FADE OUT {(selectedClip.fadeOut ?? 0).toFixed(1)}s
+                          <input type="range" min="0" max="5" step=".1"
+                            value={selectedClip.fadeOut ?? 0}
+                            onChange={event => updateClip(selectedClip.id, { fadeOut: Number(event.target.value) }, false)}
+                          />
+                        </label>
+                      </>
+                    )}
+
+                    {selectedClip.kind === "text" && (
+                      <>
+                        <label>
+                          STYLE
+                          <select
+                            value={selectedClip.textStyle || "title"}
+                            onChange={event => updateClip(selectedClip.id, { textStyle: event.target.value })}
+                          >
+                            <option value="title">TITLE</option>
+                            <option value="lower-third">LOWER THIRD</option>
+                            <option value="caption">CAPTION</option>
+                          </select>
+                        </label>
+                        <label>
+                          SCALE {Math.round((selectedClip.scale ?? 1) * 100)}%
+                          <input type="range" min=".5" max="2" step=".05"
+                            value={selectedClip.scale ?? 1}
+                            onChange={event => updateClip(selectedClip.id, { scale: Number(event.target.value) }, false)}
+                          />
+                        </label>
+                      </>
                     )}
                   </>
                 ) : (
@@ -543,9 +839,22 @@ export default function ReplayStudio({ roomCode }) {
               <button onClick={() => setZoom(value => Math.max(.5, value - .25))}><ZoomOut size={16}/></button>
               <span className="nle-zoom-readout">{Math.round(zoom * 100)}%</span>
               <button onClick={() => setZoom(value => Math.min(3, value + .25))}><ZoomIn size={16}/></button>
-              <button disabled><Save size={16}/> SAVE PROJECT</button>
-              <button disabled><MonitorUp size={16}/> SEND TO PREVIEW</button>
-              <button disabled><Download size={16}/> EXPORT</button>
+              <select
+                className="nle-aspect-select"
+                value={aspectRatio}
+                onChange={event => setAspectRatio(event.target.value)}
+                title="Project aspect ratio"
+              >
+                <option value="16:9">16:9 LANDSCAPE</option>
+                <option value="9:16">9:16 VERTICAL</option>
+                <option value="1:1">1:1 SQUARE</option>
+                <option value="4:5">4:5 SOCIAL</option>
+              </select>
+              <button onClick={saveProject}><Save size={16}/> SAVE PROJECT</button>
+              <button onClick={() => setPlayhead(selectedClip?.start || playhead)} disabled={!selectedClip}>
+                <MonitorUp size={16}/> PREVIEW CLIP
+              </button>
+              <button onClick={downloadProject}><FileDown size={16}/> EXPORT PROJECT</button>
             </div>
 
             <div className="nle-timeline-wrap">
@@ -612,11 +921,13 @@ export default function ReplayStudio({ roomCode }) {
               </div>
             </div>
 
+            {projectStatus && <div className="nle-project-status">{projectStatus}</div>}
+
             <div className="editor-note">
-              <strong>EDITOR FOUNDATION ACTIVE:</strong>
-              Import multiple files, arrange clips on five tracks, move clips, split,
-              duplicate, delete, adjust speed/opacity/volume, add titles and use undo/redo.
-              Server recording and final rendered export will connect to this editor later.
+              <strong>SCENEPILOT EDIT ACTIVE:</strong>
+              Multi-track editing, trim/split, speed, transform, color, opacity, audio levels/fades,
+              titles, lower thirds, captions, aspect presets, local project save and project export are active.
+              Final rendered movie export will connect to the native iOS/Android/Desktop media layer.
             </div>
           </div>
         </div>
