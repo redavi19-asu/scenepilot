@@ -2227,3 +2227,214 @@ footer span:last-child{margin-left:auto}
     height:68px !important;
   }
 }
+
+
+/* Compact production switcher strip — preserves every control */
+@media (min-width:901px){
+  .control-deck{
+    grid-template-columns:1.25fr 1.05fr .95fr 1.05fr .82fr 1.05fr !important;
+    gap:6px !important;
+    margin-top:8px !important;
+    align-items:stretch !important;
+  }
+
+  .control-deck>div,
+  .instant-replay-panel{
+    min-height:0 !important;
+    padding:7px !important;
+  }
+
+  .control-deck .panel-label{
+    margin-bottom:6px !important;
+    font-size:7px !important;
+    letter-spacing:1.1px !important;
+  }
+
+  .control-deck .transition-types,
+  .control-deck .duration{
+    gap:3px !important;
+  }
+
+  .control-deck .transition-types button,
+  .control-deck .duration button{
+    padding:5px 3px !important;
+    min-height:27px !important;
+    font-size:7px !important;
+  }
+
+  .control-deck .duration{
+    margin-top:4px !important;
+  }
+
+  .control-deck .duration>span{
+    font-size:6px !important;
+    margin-right:2px !important;
+  }
+
+  .control-deck .take-button{
+    height:34px !important;
+    margin-top:5px !important;
+    gap:6px !important;
+  }
+
+  .control-deck .take-button span{
+    font-size:11px !important;
+  }
+
+  .control-deck .take-button small{
+    font-size:6px !important;
+  }
+
+  .control-deck .audio-master-select{
+    margin-top:2px !important;
+    gap:3px !important;
+  }
+
+  .control-deck .audio-master-select span{
+    font-size:6px !important;
+  }
+
+  .control-deck .audio-master-select select{
+    padding:6px !important;
+    min-height:30px !important;
+    font-size:7px !important;
+  }
+
+  .control-deck .phone-mixer{
+    margin-top:5px !important;
+    max-height:88px !important;
+    gap:4px !important;
+  }
+
+  .control-deck .phone-mixer-channel{
+    padding:5px !important;
+  }
+
+  .control-deck .audio-footer{
+    margin-top:5px !important;
+    font-size:6px !important;
+  }
+
+  .control-deck .remote-camera-control-head{
+    margin:2px 0 5px !important;
+    gap:5px !important;
+  }
+
+  .control-deck .remote-camera-control-head strong{
+    font-size:8px !important;
+  }
+
+  .control-deck .remote-camera-control-head span{
+    font-size:5px !important;
+  }
+
+  .control-deck .remote-camera-control-grid{
+    gap:4px !important;
+    max-height:94px !important;
+    overflow:auto !important;
+  }
+
+  .control-deck .remote-camera-control-card{
+    padding:5px !important;
+  }
+
+  .control-deck .remote-camera-zoom-buttons{
+    gap:3px !important;
+  }
+
+  .control-deck .remote-camera-zoom-buttons button{
+    min-height:28px !important;
+    gap:3px !important;
+    font-size:5px !important;
+  }
+
+  .control-deck .remote-camera-control-empty{
+    padding:8px !important;
+    font-size:6px !important;
+  }
+
+  .control-deck .layout-mode-grid{
+    gap:3px !important;
+    grid-template-columns:repeat(2,1fr) !important;
+  }
+
+  .control-deck .layout-mode-grid button{
+    height:34px !important;
+    min-height:34px !important;
+    gap:3px !important;
+    font-size:6px !important;
+  }
+
+  .control-deck .record-button{
+    height:40px !important;
+    font-size:8px !important;
+    gap:5px !important;
+  }
+
+  .control-deck .output-data{
+    margin-top:6px !important;
+    font-size:6px !important;
+  }
+
+  .control-deck .instant-replay-status{
+    min-height:25px !important;
+    padding:5px 6px !important;
+    gap:5px !important;
+    font-size:6px !important;
+  }
+
+  .control-deck .instant-replay-status i{
+    width:6px !important;
+    height:6px !important;
+  }
+
+  .control-deck .instant-replay-presets{
+    gap:3px !important;
+    margin-top:4px !important;
+  }
+
+  .control-deck .instant-replay-presets button,
+  .control-deck .instant-replay-actions button{
+    min-height:27px !important;
+    font-size:6px !important;
+  }
+
+  .control-deck .instant-replay-actions{
+    gap:3px !important;
+    margin-top:3px !important;
+  }
+}
+
+/* Tablet portrait: keep the same tools compact without removing any */
+@media (min-width:701px) and (max-width:900px){
+  .control-deck{
+    grid-template-columns:repeat(3,1fr) !important;
+    gap:6px !important;
+    margin-top:8px !important;
+  }
+
+  .control-deck>div,
+  .instant-replay-panel{
+    min-height:0 !important;
+    padding:7px !important;
+  }
+
+  .control-deck .panel-label{
+    margin-bottom:6px !important;
+    font-size:7px !important;
+  }
+
+  .control-deck .take-button{
+    height:36px !important;
+    margin-top:5px !important;
+  }
+
+  .control-deck .record-button{
+    height:42px !important;
+  }
+
+  .control-deck .instant-replay-presets button,
+  .control-deck .instant-replay-actions button{
+    min-height:29px !important;
+  }
+}
