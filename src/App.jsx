@@ -93,6 +93,9 @@ function App() {
   const [recording, setRecording] = useState(false);
   const [recordMode, setRecordMode] = useState("both");
   const [recordStatus, setRecordStatus] = useState("READY");
+  const [standby, setStandby] = useState(false);
+  const standbyRef = useRef(false);
+  const programCompositeAudioTracksRef = useRef([]);
   const productionRecordersRef = useRef([]);
   const productionChunksRef = useRef([]);
   const programCanvasRef = useRef(null);
@@ -1008,6 +1011,60 @@ function App() {
     drawVideoCover(ctx, sourceVideoForSlot(primary), 0, 0, width, height);
   }
 
+  function drawStandbyScreen(ctx, width, height) {
+    const now = new Date();
+
+    ctx.save();
+
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, "#111814");
+    gradient.addColorStop(.52, "#18251e");
+    gradient.addColorStop(1, "#0b100d");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.strokeStyle = "rgba(220,179,75,.10)";
+    ctx.lineWidth = 1;
+    for (let x = -height; x < width + height; x += 78) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + height, height);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = "#d9ad48";
+    ctx.fillRect(width / 2 - 72, height / 2 - 112, 144, 4);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#f3efe6";
+    ctx.font = "900 18px Arial";
+    ctx.letterSpacing = "4px";
+    ctx.fillText("SCENEPILOT", width / 2, height / 2 - 67);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 58px Arial";
+    ctx.fillText("PLEASE STAND BY", width / 2, height / 2 + 4);
+
+    ctx.fillStyle = "#c4c9c2";
+    ctx.font = "500 22px Arial";
+    ctx.fillText("Live production will resume shortly", width / 2, height / 2 + 50);
+
+    ctx.fillStyle = "rgba(255,255,255,.62)";
+    ctx.font = "700 15px Arial";
+    ctx.fillText(
+      now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      width / 2,
+      height / 2 + 94
+    );
+
+    ctx.fillStyle = "#d9ad48";
+    ctx.beginPath();
+    ctx.arc(width / 2 - 74, height / 2 + 91, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   function drawGraphicsOverlay(ctx, width, height) {
     const state = graphicsStateRef.current || {};
     const graphics = state.graphics || {};
@@ -1121,8 +1178,17 @@ function App() {
 
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, width, height);
-      drawProgramLayout(ctx, width, height);
-      drawGraphicsOverlay(ctx, width, height);
+
+      if (standbyRef.current) {
+        drawStandbyScreen(ctx, width, height);
+      } else {
+        drawProgramLayout(ctx, width, height);
+        drawGraphicsOverlay(ctx, width, height);
+      }
+
+      programCompositeAudioTracksRef.current.forEach(track => {
+        track.enabled = !standbyRef.current;
+      });
 
       const tx = programTransitionStateRef.current;
       const elapsed = performance.now() - Number(tx.startedAt || 0);
@@ -1151,10 +1217,17 @@ function App() {
     const composite = canvas.captureStream(30);
 
     const sourceAudio = currentProgramMediaStream();
+    const compositeAudioTracks = [];
     sourceAudio?.getAudioTracks?.().forEach(track => {
-      try { composite.addTrack(track); } catch (_) {}
+      try {
+        const outputTrack = track.clone ? track.clone() : track;
+        outputTrack.enabled = !standbyRef.current;
+        composite.addTrack(outputTrack);
+        compositeAudioTracks.push(outputTrack);
+      } catch (_) {}
     });
 
+    programCompositeAudioTracksRef.current = compositeAudioTracks;
     programCompositeStreamRef.current = composite;
     return composite;
   }
@@ -1167,6 +1240,10 @@ function App() {
     programCompositeStreamRef.current?.getTracks?.().forEach(track => {
       if (track.kind === "video") track.stop?.();
     });
+    programCompositeAudioTracksRef.current.forEach(track => {
+      try { track.stop?.(); } catch (_) {}
+    });
+    programCompositeAudioTracksRef.current = [];
     programCompositeStreamRef.current = null;
     programCanvasRef.current = null;
     programLastFrameRef.current = null;
@@ -1320,6 +1397,12 @@ function App() {
     stopProgramCompositor();
     setRecording(false);
     setRecordStatus("SAVED TO THIS DEVICE");
+  }
+
+  function toggleStandby() {
+    const next = !standbyRef.current;
+    standbyRef.current = next;
+    setStandby(next);
   }
 
   function toggleProductionRecording() {
@@ -2742,7 +2825,17 @@ async function enableCamera() {
               className={`screen program-screen transition-${programTransition.type.toLowerCase()}`}
               style={{ "--transition-duration": `${programTransition.duration}ms` }}
             >
-              {instantReplayMode === "program" && instantReplayUrl ? (
+              {standby ? (
+                <div className="program-standby-screen" role="status" aria-label="Program is on standby">
+                  <div className="program-standby-grid"/>
+                  <div className="program-standby-content">
+                    <span className="program-standby-brand">SCENEPILOT</span>
+                    <i/>
+                    <strong>PLEASE STAND BY</strong>
+                    <small>Live production will resume shortly</small>
+                  </div>
+                </div>
+              ) : instantReplayMode === "program" && instantReplayUrl ? (
                 <video
                   ref={instantReplayVideoRef}
                   src={instantReplayUrl}
@@ -2796,9 +2889,11 @@ async function enableCamera() {
               ) : (
                 renderSource(programComposition.primary, "program")
               )}
-              <span className="live-badge"><i/> LIVE</span>
+              <span className={`live-badge ${standby ? "standby" : ""}`}><i/> {standby ? "STANDBY" : "LIVE"}</span>
               <span className="source-tag">
-                {instantReplayMode === "program"
+                {standby
+                  ? "HOLD SCREEN • PROGRAM PAUSED"
+                  : instantReplayMode === "program"
                   ? `INSTANT REPLAY ${instantReplaySeconds}S`
                   : programComposition.mode === "single"
                     ? displayNameForCamera(programComposition.primary)
@@ -3046,10 +3141,21 @@ async function enableCamera() {
               ))}
             </div>
 
-            <button className="take-button" onClick={take}>
-              <span>TAKE</span>
-              <small>{transition} • {duration}ms</small>
-            </button>
+            <div className="take-standby-row">
+              <button className="take-button" onClick={take}>
+                <span>TAKE</span>
+                <small>{transition} • {duration}ms</small>
+              </button>
+
+              <button
+                type="button"
+                className={`standby-button ${standby ? "active" : ""}`}
+                onClick={toggleStandby}
+              >
+                <span>{standby ? "RETURN TO PROGRAM" : "STANDBY / HOLD"}</span>
+                <small>{standby ? "Audience returns live" : "Keep stream live • mute program"}</small>
+              </button>
+            </div>
           </div>
 
           <div className="audio-panel">
@@ -3492,8 +3598,9 @@ async function enableCamera() {
               <p><strong>9. Master Audio:</strong> Camera names from SET NAMES also appear in the Master Audio source list and phone mixer so video and audio labels match.</p>
               <p><strong>10. Director Cam:</strong> Enable the Director device camera from the dedicated Director Cam panel. Use SWITCH CAMERA for front/rear, then drag it to Preview, tap PREVIEW, or use ADD AS PiP. It never consumes one of the nine remote camera slots.</p>
               <p><strong>11. Camera phones:</strong> Connected phones can use flip, press-and-hold smooth zoom, camera light/torch when the browser exposes it, Live Shield, telemetry, and camera communications. The Director can remotely hold zoom and toggle the camera light on supported devices.</p>
-              <p><strong>12. Instant Replay:</strong> ScenePilot keeps the Program source buffered for replay when browser MediaRecorder support is available. Replay returns to the live Program automatically when it ends.</p>
-              <p><strong>13. If a feed drops:</strong> Leave the camera page open while ScenePilot reconnects. The Multiview tile resumes from the same source slot when its WebRTC stream returns.</p>
+              <p><strong>12. Standby / Hold:</strong> Press STANDBY / HOLD to immediately replace Program with the built-in PLEASE STAND BY screen while the production stays connected. Program audio is muted on the composed output until RETURN TO PROGRAM is pressed.</p>
+              <p><strong>13. Instant Replay:</strong> ScenePilot keeps the Program source buffered for replay when browser MediaRecorder support is available. Replay returns to the live Program automatically when it ends.</p>
+              <p><strong>14. If a feed drops:</strong> Leave the camera page open while ScenePilot reconnects. The Multiview tile resumes from the same source slot when its WebRTC stream returns.</p>
             </div>
           </div>
         </div>
