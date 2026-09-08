@@ -282,3 +282,98 @@
 .broadcast-save-one:disabled,.broadcast-save-selected:disabled{opacity:.4;cursor:not-allowed}
 .broadcast-engine-status i.ready{background:#789d70;box-shadow:0 0 10px rgba(120,157,112,.35)}
 .broadcast-status-message{margin-top:8px;border:1px solid #4a4e47;background:#171a17;color:#b9beb5;padding:8px 10px;font-size:7px;line-height:1.45}
+
+
+.broadcast-share-panel{
+  margin-top:9px;
+  border:1px solid #4b5148;
+  background:#151a15;
+  padding:12px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 190px;
+  gap:14px;
+  align-items:center
+}
+.broadcast-share-copy{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:5px
+}
+.broadcast-share-copy>strong{
+  font-size:12px;
+  letter-spacing:.7px
+}
+.broadcast-share-copy>small{
+  color:#858b81;
+  font-size:7px
+}
+.broadcast-watch-link{
+  margin-top:5px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:6px
+}
+.broadcast-watch-link input{
+  min-width:0;
+  border:1px solid #41473e;
+  background:#0f120f;
+  color:#e8ebe5;
+  padding:9px 10px;
+  font-size:8px
+}
+.broadcast-watch-link button,
+.broadcast-share-actions button,
+.broadcast-open-share{
+  border:1px solid #52604e;
+  background:#243022;
+  color:#edf2e9;
+  min-height:34px;
+  padding:0 10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  font-size:7px;
+  font-weight:900;
+  cursor:pointer
+}
+.broadcast-share-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:2px
+}
+.broadcast-share-status{
+  color:#b8c9b1;
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.5px
+}
+.broadcast-qr-card{
+  border:1px solid #3e443b;
+  background:#f5f6f2;
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:5px;
+  color:#171917
+}
+.broadcast-qr-card strong{
+  font-size:8px;
+  letter-spacing:.7px
+}
+.broadcast-qr-card small{
+  font-size:7px;
+  color:#555b52
+}
+.broadcast-open-share{
+  margin-top:8px;
+  width:fit-content
+}
+@media(max-width:760px){
+  .broadcast-share-panel{grid-template-columns:1fr}
+  .broadcast-qr-card{justify-self:center;width:190px}
+  .broadcast-share-actions button{flex:1 1 120px}
+}
