@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Radio, LogIn, UserPlus, Download, LockKeyhole, MessageSquare,
   Send, ShieldCheck, Users, ArrowRight, LogOut, Crown, Mail,
-  X, Camera, RadioTower
+  X, Camera, RadioTower, Mic, Headphones
 } from "lucide-react";
 import App from "./App.jsx";
 import TurnstileWidget from "./TurnstileWidget.jsx";
@@ -275,6 +275,602 @@ function AccountBar({ user, onLogout }) {
       )}
       <button onClick={onLogout}><LogOut size={14}/> LOGOUT</button>
     </div>
+  );
+}
+
+function IntercomPanel({ mode }) {
+  const roomCode = new URLSearchParams(window.location.search).get("room") || "SP-4827";
+  const [open, setOpen] = useState(false);
+  const [targets, setTargets] = useState([]);
+  const [targetId, setTargetId] = useState("");
+  const [directorId, setDirectorId] = useState("");
+  const [enabled, setEnabled] = useState(mode === "director");
+  const [talking, setTalking] = useState(false);
+  const [incomingPtt, setIncomingPtt] = useState(null);
+  const [status, setStatus] = useState(mode === "director" ? "READY" : "INTERCOM OFF");
+  const peersRef = useRef({});
+  const pendingIceRef = useRef({});
+  const micStreamRef = useRef(null);
+  const audioElementsRef = useRef({});
+  const talkingTargetsRef = useRef([]);
+  const talkingSignalTargetRef = useRef(null);
+
+  const ensureMic = useCallback(async () => {
+    const existing = micStreamRef.current;
+    if (existing?.getAudioTracks?.().some(track => track.readyState === "live")) {
+      return existing;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Microphone access is not supported on this device.");
+    }
+
+    const media = await navigator.mediaDevices.getUserMedia({
+      video: false,
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
+
+    media.getAudioTracks().forEach(track => {
+      track.enabled = false;
+    });
+
+    micStreamRef.current = media;
+    return media;
+  }, []);
+
+  const attachRemoteAudio = useCallback((peerId, stream) => {
+    let element = audioElementsRef.current[peerId];
+
+    if (!element) {
+      element = new Audio();
+      element.autoplay = true;
+      element.playsInline = true;
+      audioElementsRef.current[peerId] = element;
+    }
+
+    if (element.srcObject !== stream) {
+      element.srcObject = stream;
+    }
+
+    element.volume = 1;
+    element.muted = false;
+    element.play?.().catch(() => {
+      setStatus("TAP INTERCOM TO ENABLE AUDIO");
+    });
+  }, []);
+
+  const flushIce = useCallback(async peerId => {
+    const peerState = peersRef.current[peerId];
+    const peer = peerState?.peer;
+    if (!peer?.remoteDescription) return;
+
+    const queued = pendingIceRef.current[peerId] || [];
+    delete pendingIceRef.current[peerId];
+
+    for (const candidate of queued) {
+      try {
+        await peer.addIceCandidate(candidate);
+      } catch (error) {
+        console.warn("ScenePilot intercom queued ICE error", error);
+      }
+    }
+  }, []);
+
+  const buildPeer = useCallback(peerId => {
+    const current = peersRef.current[peerId];
+    if (
+      current?.peer &&
+      !["closed", "failed"].includes(current.peer.connectionState)
+    ) {
+      return current;
+    }
+
+    try {
+      current?.peer?.close?.();
+    } catch (_) {}
+
+    const peer = new RTCPeerConnection({
+      iceServers: [
+        {
+          urls: [
+            "stun:stun.l.google.com:19302",
+            "stun:stun1.l.google.com:19302"
+          ]
+        }
+      ]
+    });
+
+    const transceiver = peer.addTransceiver("audio", {
+      direction: "sendrecv"
+    });
+
+    const peerState = {
+      peer,
+      sender: transceiver.sender,
+      sendTrack: null,
+      offered: false
+    };
+
+    peersRef.current[peerId] = peerState;
+
+    peer.onicecandidate = event => {
+      if (!event.candidate) return;
+      socket.emit("intercom:ice", {
+        target: peerId,
+        candidate: event.candidate
+      });
+    };
+
+    peer.ontrack = event => {
+      const incoming =
+        event.streams?.[0] ||
+        new MediaStream([event.track]);
+
+      attachRemoteAudio(peerId, incoming);
+    };
+
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === "connected") {
+        setStatus("INTERCOM CONNECTED");
+      } else if (peer.connectionState === "connecting") {
+        setStatus("INTERCOM CONNECTING");
+      } else if (peer.connectionState === "failed") {
+        setStatus("INTERCOM RETRY NEEDED");
+      }
+    };
+
+    return peerState;
+  }, [attachRemoteAudio]);
+
+  const attachMicToPeer = useCallback(async peerId => {
+    const media = await ensureMic();
+    const sourceTrack = media.getAudioTracks()[0];
+    if (!sourceTrack) throw new Error("No microphone track is available.");
+
+    const peerState = buildPeer(peerId);
+
+    if (!peerState.sendTrack || peerState.sendTrack.readyState === "ended") {
+      peerState.sendTrack = sourceTrack.clone();
+      peerState.sendTrack.enabled = false;
+      await peerState.sender.replaceTrack(peerState.sendTrack);
+    }
+
+    return peerState;
+  }, [buildPeer, ensureMic]);
+
+  const ensurePeer = useCallback(async (peerId, initiate = false) => {
+    if (!peerId) return null;
+
+    const peerState = buildPeer(peerId);
+
+    if (
+      initiate &&
+      !peerState.offered &&
+      peerState.peer.signalingState === "stable"
+    ) {
+      peerState.offered = true;
+
+      const offer = await peerState.peer.createOffer();
+      await peerState.peer.setLocalDescription(offer);
+
+      socket.emit("intercom:offer", {
+        target: peerId,
+        offer: peerState.peer.localDescription
+      });
+    }
+
+    return peerState;
+  }, [buildPeer]);
+
+  const enableCameraIntercom = useCallback(async () => {
+    if (mode !== "camera") return;
+
+    try {
+      setStatus("REQUESTING MICROPHONE");
+      await ensureMic();
+      setEnabled(true);
+      setStatus(directorId ? "INTERCOM READY" : "WAITING FOR DIRECTOR");
+
+      if (directorId) {
+        await ensurePeer(directorId, true);
+        await attachMicToPeer(directorId);
+      }
+    } catch (error) {
+      setStatus("MICROPHONE BLOCKED");
+      console.error("ScenePilot intercom microphone error", error);
+    }
+  }, [mode, ensureMic, directorId, ensurePeer, attachMicToPeer]);
+
+  const beginTalk = useCallback(async event => {
+    event?.preventDefault?.();
+    event?.currentTarget?.setPointerCapture?.(event.pointerId);
+
+    if (!socket.connected || talking) return;
+
+    try {
+      if (mode === "camera" && !enabled) {
+        await enableCameraIntercom();
+      }
+
+      const ids =
+        mode === "director"
+          ? (targetId ? [targetId] : targets.map(camera => camera.socketId))
+          : (directorId ? [directorId] : []);
+
+      if (!ids.length) {
+        setStatus(mode === "director" ? "NO CAMERAS CONNECTED" : "DIRECTOR OFFLINE");
+        return;
+      }
+
+      await ensureMic();
+
+      for (const id of ids) {
+        await ensurePeer(id, true);
+        const peerState = await attachMicToPeer(id);
+        peerState.sendTrack.enabled = true;
+      }
+
+      talkingTargetsRef.current = ids;
+      talkingSignalTargetRef.current =
+        mode === "director" ? (targetId || null) : directorId;
+
+      socket.emit("intercom:ptt", {
+        room: roomCode,
+        target: talkingSignalTargetRef.current,
+        active: true
+      });
+
+      setTalking(true);
+      setStatus("TRANSMITTING");
+    } catch (error) {
+      setTalking(false);
+      setStatus("INTERCOM ERROR");
+      console.error("ScenePilot intercom transmit error", error);
+    }
+  }, [
+    talking,
+    mode,
+    enabled,
+    enableCameraIntercom,
+    targetId,
+    targets,
+    directorId,
+    ensureMic,
+    ensurePeer,
+    attachMicToPeer,
+    roomCode
+  ]);
+
+  const endTalk = useCallback(event => {
+    event?.preventDefault?.();
+
+    talkingTargetsRef.current.forEach(id => {
+      const track = peersRef.current[id]?.sendTrack;
+      if (track) track.enabled = false;
+    });
+
+    if (talking || talkingTargetsRef.current.length) {
+      socket.emit("intercom:ptt", {
+        room: roomCode,
+        target: talkingSignalTargetRef.current,
+        active: false
+      });
+    }
+
+    talkingTargetsRef.current = [];
+    talkingSignalTargetRef.current = null;
+    setTalking(false);
+    setStatus(enabled ? "INTERCOM READY" : "INTERCOM OFF");
+  }, [talking, roomCode, enabled]);
+
+  useEffect(() => {
+    const handleRoomCameras = cameras => {
+      if (mode !== "director") return;
+
+      setTargets(cameras || []);
+      setTargetId(current => {
+        if (
+          current &&
+          (cameras || []).some(camera => camera.socketId === current)
+        ) {
+          return current;
+        }
+        return "";
+      });
+    };
+
+    const handleCameraJoined = camera => {
+      if (mode !== "director") return;
+
+      setTargets(current => {
+        const rest = current.filter(item => item.socketId !== camera.socketId);
+        return [...rest, camera];
+      });
+    };
+
+    const handleCameraLeft = ({ socketId }) => {
+      if (mode !== "director") return;
+
+      setTargets(current =>
+        current.filter(camera => camera.socketId !== socketId)
+      );
+      setTargetId(current => current === socketId ? "" : current);
+
+      const peerState = peersRef.current[socketId];
+      try {
+        peerState?.peer?.close?.();
+        peerState?.sendTrack?.stop?.();
+      } catch (_) {}
+      delete peersRef.current[socketId];
+    };
+
+    const handleDirector = ({ directorId: nextDirectorId } = {}) => {
+      if (mode !== "camera") return;
+
+      setDirectorId(nextDirectorId || "");
+      setStatus(
+        nextDirectorId
+          ? (enabled ? "INTERCOM READY" : "DIRECTOR AVAILABLE")
+          : "WAITING FOR DIRECTOR"
+      );
+    };
+
+    const handleOffer = async ({ from, offer }) => {
+      if (!from || !offer) return;
+
+      try {
+        const peerState = buildPeer(from);
+
+        if (peerState.peer.signalingState !== "stable") {
+          await peerState.peer.setLocalDescription({ type: "rollback" }).catch(() => {});
+        }
+
+        await peerState.peer.setRemoteDescription(offer);
+        await flushIce(from);
+
+        const answer = await peerState.peer.createAnswer();
+        await peerState.peer.setLocalDescription(answer);
+
+        socket.emit("intercom:answer", {
+          target: from,
+          answer: peerState.peer.localDescription
+        });
+
+        if (mode === "camera" && enabled) {
+          await attachMicToPeer(from);
+        }
+
+        setStatus("INTERCOM CONNECTING");
+      } catch (error) {
+        console.error("ScenePilot intercom offer error", error);
+        setStatus("INTERCOM ERROR");
+      }
+    };
+
+    const handleAnswer = async ({ from, answer }) => {
+      const peerState = peersRef.current[from];
+      if (!peerState?.peer || !answer) return;
+
+      try {
+        await peerState.peer.setRemoteDescription(answer);
+        await flushIce(from);
+        setStatus("INTERCOM CONNECTED");
+      } catch (error) {
+        console.error("ScenePilot intercom answer error", error);
+        setStatus("INTERCOM ERROR");
+      }
+    };
+
+    const handleIce = async ({ from, candidate }) => {
+      if (!from || !candidate) return;
+
+      const peerState = peersRef.current[from];
+
+      if (!peerState?.peer?.remoteDescription) {
+        if (!pendingIceRef.current[from]) pendingIceRef.current[from] = [];
+        pendingIceRef.current[from].push(candidate);
+        return;
+      }
+
+      try {
+        await peerState.peer.addIceCandidate(candidate);
+      } catch (error) {
+        console.warn("ScenePilot intercom ICE error", error);
+      }
+    };
+
+    const handlePtt = payload => {
+      if (!payload?.active) {
+        setIncomingPtt(null);
+        if (!talking) setStatus(enabled ? "INTERCOM READY" : "INTERCOM OFF");
+        return;
+      }
+
+      setIncomingPtt(payload);
+      setStatus(
+        payload.fromRole === "director"
+          ? "DIRECTOR TALKING"
+          : `CAM ${String(payload.slotId || "?").padStart(2, "0")} TALKING`
+      );
+    };
+
+    const handleConnect = () => {
+      if (mode === "director") {
+        socket.emit("director:focus", { room: roomCode });
+      }
+    };
+
+    socket.on("room:cameras", handleRoomCameras);
+    socket.on("camera:joined", handleCameraJoined);
+    socket.on("camera:left", handleCameraLeft);
+    socket.on("intercom:director", handleDirector);
+    socket.on("intercom:offer", handleOffer);
+    socket.on("intercom:answer", handleAnswer);
+    socket.on("intercom:ice", handleIce);
+    socket.on("intercom:ptt", handlePtt);
+    socket.on("connect", handleConnect);
+
+    if (mode === "director" && socket.connected) {
+      socket.emit("director:focus", { room: roomCode });
+    }
+
+    return () => {
+      socket.off("room:cameras", handleRoomCameras);
+      socket.off("camera:joined", handleCameraJoined);
+      socket.off("camera:left", handleCameraLeft);
+      socket.off("intercom:director", handleDirector);
+      socket.off("intercom:offer", handleOffer);
+      socket.off("intercom:answer", handleAnswer);
+      socket.off("intercom:ice", handleIce);
+      socket.off("intercom:ptt", handlePtt);
+      socket.off("connect", handleConnect);
+    };
+  }, [
+    mode,
+    roomCode,
+    enabled,
+    talking,
+    buildPeer,
+    flushIce,
+    attachMicToPeer
+  ]);
+
+  useEffect(() => {
+    const stop = () => endTalk();
+
+    window.addEventListener("blur", stop);
+    document.addEventListener("visibilitychange", stop);
+
+    return () => {
+      window.removeEventListener("blur", stop);
+      document.removeEventListener("visibilitychange", stop);
+    };
+  }, [endTalk]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(peersRef.current).forEach(peerState => {
+        try {
+          peerState?.sendTrack?.stop?.();
+          peerState?.peer?.close?.();
+        } catch (_) {}
+      });
+
+      Object.values(audioElementsRef.current).forEach(element => {
+        try {
+          element.pause?.();
+          element.srcObject = null;
+        } catch (_) {}
+      });
+
+      micStreamRef.current?.getTracks?.().forEach(track => track.stop());
+    };
+  }, []);
+
+  const targetLabel =
+    mode === "director"
+      ? (targetId
+          ? (() => {
+              const camera = targets.find(item => item.socketId === targetId);
+              return camera
+                ? `CAM ${String(camera.slotId || "?").padStart(2, "0")}`
+                : "SELECTED CAMERA";
+            })()
+          : "ALL CAMERAS")
+      : "DIRECTOR";
+
+  if (mode === "camera") {
+    return (
+      <div className={`sp-intercom-camera ${incomingPtt ? "receiving" : ""}`}>
+        <div className="sp-intercom-camera-status">
+          <Headphones size={14}/>
+          <span>{incomingPtt ? "DIRECTOR TALKING" : status}</span>
+        </div>
+
+        {!enabled ? (
+          <button type="button" onClick={enableCameraIntercom}>
+            <Mic size={13}/> ENABLE WALKIE-TALKIE
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={talking ? "talking" : ""}
+            onPointerDown={beginTalk}
+            onPointerUp={endTalk}
+            onPointerCancel={endTalk}
+            onPointerLeave={endTalk}
+            onContextMenu={event => event.preventDefault()}
+          >
+            <Mic size={13}/> {talking ? "TALKING..." : "HOLD TO REPLY"}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className={`sp-intercom-fab ${incomingPtt ? "receiving" : ""}`}
+        onClick={() => setOpen(value => !value)}
+      >
+        <RadioTower size={16}/>
+        WALKIE-TALKIE
+        {incomingPtt && <b>RX</b>}
+      </button>
+
+      {open && (
+        <section className="sp-intercom-panel">
+          <header>
+            <div>
+              <span>PRIVATE CREW AUDIO</span>
+              <strong>WALKIE-TALKIE</strong>
+            </div>
+            <button type="button" onClick={() => setOpen(false)}>
+              <X size={16}/>
+            </button>
+          </header>
+
+          <label>
+            TALK TO
+            <select value={targetId} onChange={event => setTargetId(event.target.value)}>
+              <option value="">ALL CAMERAS</option>
+              {targets.map(camera => (
+                <option key={camera.socketId} value={camera.socketId}>
+                  CAM {String(camera.slotId || "?").padStart(2, "0")} — {camera.name || "CAMERA"}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className={`sp-intercom-status ${incomingPtt ? "receiving" : ""}`}>
+            <i/>
+            <span>{incomingPtt ? status : `${targetLabel} • ${status}`}</span>
+          </div>
+
+          <button
+            type="button"
+            className={`sp-intercom-ptt ${talking ? "talking" : ""}`}
+            onPointerDown={beginTalk}
+            onPointerUp={endTalk}
+            onPointerCancel={endTalk}
+            onPointerLeave={endTalk}
+            onContextMenu={event => event.preventDefault()}
+          >
+            <Mic size={20}/>
+            <strong>{talking ? "TRANSMITTING" : "HOLD TO TALK"}</strong>
+            <small>{targetLabel}</small>
+          </button>
+
+          <p>Private intercom only — not sent to Program or Master Audio.</p>
+        </section>
+      )}
+    </>
   );
 }
 
@@ -688,6 +1284,7 @@ export default function ScenePilotPortal() {
     return (
       <>
         <App/>
+        <IntercomPanel mode="camera"/>
         <CommsPanel mode="camera"/>
       </>
     );
@@ -718,6 +1315,7 @@ export default function ScenePilotPortal() {
       <>
         <App/>
         <AccountBar user={user} onLogout={logout}/>
+        <IntercomPanel mode="director"/>
         <CommsPanel mode="director"/>
       </>
     );
