@@ -153,6 +153,7 @@ function App() {
   const [torchOn, setTorchOn] = useState(false);
   const [remoteTorchState, setRemoteTorchState] = useState({});
   const [operatorControlsCollapsed, setOperatorControlsCollapsed] = useState(false);
+  const [operatorCommsAlert, setOperatorCommsAlert] = useState(null);
   const [videoInputs, setVideoInputs] = useState([]);
   const [selectedVideoDevice, setSelectedVideoDevice] = useState("");
   const [showReplayEditor, setShowReplayEditor] = useState(true);
@@ -189,6 +190,28 @@ function App() {
       document.body.classList.remove("scenepilot-viewfinder-clean");
     };
   }, [showCamera, operatorControlsCollapsed]);
+
+  useEffect(() => {
+    const handleOperatorAlert = event => {
+      const detail = event.detail || {};
+      if (detail.active === false) {
+        setOperatorCommsAlert(current =>
+          current?.type === detail.type ? null : current
+        );
+        return;
+      }
+
+      setOperatorCommsAlert({
+        type: detail.type === "ptt" ? "ptt" : "message",
+        label: detail.label || (detail.type === "ptt" ? "DIRECTOR CALLING" : "NEW MESSAGE")
+      });
+    };
+
+    window.addEventListener("scenepilot:operator-alert", handleOperatorAlert);
+    return () => {
+      window.removeEventListener("scenepilot:operator-alert", handleOperatorAlert);
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -1682,13 +1705,30 @@ async function enableCamera() {
 
                 <button
                   type="button"
-                  className="operator-controls-toggle"
-                  onClick={() => setOperatorControlsCollapsed(value => !value)}
+                  className={`operator-controls-toggle ${operatorCommsAlert ? `has-alert alert-${operatorCommsAlert.type}` : ""}`}
+                  onClick={() => {
+                    setOperatorControlsCollapsed(value => !value);
+                    if (operatorControlsCollapsed) {
+                      setOperatorCommsAlert(null);
+                      window.dispatchEvent(new CustomEvent("scenepilot:operator-alert-cleared"));
+                    }
+                  }}
                   aria-pressed={operatorControlsCollapsed}
                   title={operatorControlsCollapsed ? "Show camera controls" : "Hide camera controls"}
                 >
                   {operatorControlsCollapsed ? <Maximize size={17}/> : <Minimize2 size={17}/>}
-                  <span>{operatorControlsCollapsed ? "SHOW CONTROLS" : "HIDE CONTROLS"}</span>
+                  <span>
+                    {operatorControlsCollapsed && operatorCommsAlert?.type === "ptt"
+                      ? "DIRECTOR CALLING"
+                      : operatorControlsCollapsed && operatorCommsAlert?.type === "message"
+                        ? "NEW MESSAGE"
+                        : operatorControlsCollapsed
+                          ? "SHOW CONTROLS"
+                          : "HIDE CONTROLS"}
+                  </span>
+                  {operatorControlsCollapsed && operatorCommsAlert && (
+                    <i className="operator-alert-dot" aria-hidden="true"/>
+                  )}
                 </button>
 
                 <div className="camera-live-controls">
