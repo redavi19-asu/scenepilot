@@ -4,7 +4,7 @@ import {
   Settings, Maximize2, MonitorUp, Users, QrCode,
   Type, Layers, PictureInPicture2, Video, Camera,
   Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut, PhoneOff, ShieldCheck, Flashlight,
-  Scissors, Play, Save, Download, SkipBack, Film, Upload
+  Scissors, Play, Save, Download, SkipBack, Film, Upload, Minimize2, Maximize
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
@@ -152,6 +152,7 @@ function App() {
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [remoteTorchState, setRemoteTorchState] = useState({});
+  const [operatorControlsCollapsed, setOperatorControlsCollapsed] = useState(false);
   const [videoInputs, setVideoInputs] = useState([]);
   const [selectedVideoDevice, setSelectedVideoDevice] = useState("");
   const [showReplayEditor, setShowReplayEditor] = useState(true);
@@ -177,6 +178,17 @@ function App() {
     const timer = window.setTimeout(() => setShowSplash(false), 1650);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle(
+      "scenepilot-viewfinder-clean",
+      Boolean(showCamera && operatorControlsCollapsed)
+    );
+
+    return () => {
+      document.body.classList.remove("scenepilot-viewfinder-clean");
+    };
+  }, [showCamera, operatorControlsCollapsed]);
 
   useEffect(() => {
     return () => {
@@ -1621,7 +1633,7 @@ async function enableCamera() {
 
   if (showCamera) {
     return (
-      <div className="operator-shell">
+      <div className={`operator-shell ${operatorControlsCollapsed ? "controls-collapsed" : ""}`}>
         <header className="operator-header">
           <div>
             <span className="eyebrow">SCENEPILOT CAMERA</span>
@@ -1667,6 +1679,17 @@ async function enableCamera() {
                     </>
                   )}
                 </div>
+
+                <button
+                  type="button"
+                  className="operator-controls-toggle"
+                  onClick={() => setOperatorControlsCollapsed(value => !value)}
+                  aria-pressed={operatorControlsCollapsed}
+                  title={operatorControlsCollapsed ? "Show camera controls" : "Hide camera controls"}
+                >
+                  {operatorControlsCollapsed ? <Maximize size={17}/> : <Minimize2 size={17}/>}
+                  <span>{operatorControlsCollapsed ? "SHOW CONTROLS" : "HIDE CONTROLS"}</span>
+                </button>
 
                 <div className="camera-live-controls">
                   <button
