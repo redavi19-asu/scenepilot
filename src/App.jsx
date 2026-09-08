@@ -12,6 +12,7 @@ import { socket } from "./socket";
 import { createPeerConnection } from "./webrtc";
 import ReplayStudio from "./ReplayStudio";
 import BroadcastPanel from "./BroadcastPanel";
+import BroadcastGraphics from "./BroadcastGraphics";
 
 const qualityProfiles = {
   "1080p": { width: 1920, height: 1080, fps: 30, label: "1080P" },
@@ -2658,6 +2659,7 @@ async function enableCamera() {
           </div>
         </section>
 
+        <BroadcastGraphics />
         <BroadcastPanel roomCode={roomCode} />
         <ReplayStudio roomCode={roomCode} />
       </main>
