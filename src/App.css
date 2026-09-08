@@ -2542,3 +2542,47 @@ body.scenepilot-viewfinder-clean .sp-comms-fab.camera{
     max-height:40vh!important;
   }
 }
+
+
+/* Hidden-view communication alert on restore-controls button */
+.operator-controls-toggle.has-alert{
+  border-color:#d9a62f!important;
+  box-shadow:
+    0 0 0 1px rgba(217,166,47,.24),
+    0 0 18px rgba(217,166,47,.34),
+    0 8px 24px rgba(0,0,0,.45)!important;
+}
+
+.operator-controls-toggle.alert-ptt{
+  border-color:#f05a3f!important;
+  color:#fff0e8!important;
+  box-shadow:
+    0 0 0 1px rgba(240,90,63,.25),
+    0 0 22px rgba(240,90,63,.48),
+    0 8px 24px rgba(0,0,0,.45)!important;
+}
+
+.operator-alert-dot{
+  width:9px;
+  height:9px;
+  flex:0 0 9px;
+  border-radius:50%;
+  background:#ffc338;
+  box-shadow:0 0 0 0 rgba(255,195,56,.7);
+  animation:operatorAlertPulse 1s ease-out infinite;
+}
+
+.operator-controls-toggle.alert-ptt .operator-alert-dot{
+  background:#ff5a3d;
+  box-shadow:0 0 0 0 rgba(255,90,61,.72);
+}
+
+@keyframes operatorAlertPulse{
+  0%{box-shadow:0 0 0 0 currentColor;transform:scale(.95)}
+  55%{box-shadow:0 0 0 8px rgba(255,195,56,0);transform:scale(1.08)}
+  100%{box-shadow:0 0 0 0 rgba(255,195,56,0);transform:scale(.95)}
+}
+
+body.scenepilot-viewfinder-clean .sp-comms-alert{
+  display:none!important;
+}
