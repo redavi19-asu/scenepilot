@@ -237,7 +237,7 @@ io.on("connection", socket => {
     });
   });
 
-  socket.on("camera:control", ({ room, target, command, action, direction }) => {
+  socket.on("camera:control", ({ room, target, command, action, direction, enabled }) => {
     if (socket.data.role !== "director") return;
 
     const targetRoom = room || socket.data.room;
@@ -265,7 +265,7 @@ io.on("connection", socket => {
 
     targetSocket.emit("camera:control", {
       command: "torch",
-      enabled: Boolean(arguments[0]?.enabled)
+      enabled: Boolean(enabled)
     });
   });
 
