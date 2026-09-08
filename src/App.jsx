@@ -147,6 +147,8 @@ function App() {
   const [facingMode, setFacingMode] = useState("environment");
   const [zoomRange, setZoomRange] = useState(null);
   const [zoomValue, setZoomValue] = useState(1);
+  const zoomValueRef = useRef(1);
+  const zoomHoldTimer = useRef(null);
   const [videoInputs, setVideoInputs] = useState([]);
   const [selectedVideoDevice, setSelectedVideoDevice] = useState("");
   const [showReplayEditor, setShowReplayEditor] = useState(true);
@@ -878,34 +880,66 @@ function App() {
         max: zoom.max,
         step: zoom.step || 0.1
       });
+      zoomValueRef.current = value;
       setZoomValue(value);
     } else {
       setZoomRange(null);
+      zoomValueRef.current = 1;
       setZoomValue(1);
     }
   }
 
-  async function changeZoom(direction) {
-    const videoTrack = stream?.getVideoTracks?.()[0];
+  async function changeZoom(direction, mediaStream = stream) {
+    const videoTrack = mediaStream?.getVideoTracks?.()[0];
     if (!videoTrack || !zoomRange) return;
 
+    const settings = videoTrack.getSettings?.() || {};
+    const current = Number.isFinite(settings.zoom)
+      ? settings.zoom
+      : zoomValueRef.current;
     const step = Math.max(zoomRange.step || 0.1, 0.1);
     const next = Math.min(
       zoomRange.max,
-      Math.max(
-        zoomRange.min,
-        zoomValue + (direction * step)
-      )
+      Math.max(zoomRange.min, current + (direction * step))
     );
+
+    if (Math.abs(next - current) < 0.0001) return;
 
     try {
       await videoTrack.applyConstraints({
         advanced: [{ zoom: next }]
       });
+      zoomValueRef.current = next;
       setZoomValue(next);
     } catch (error) {
       console.warn("ScenePilot zoom unavailable", error);
     }
+  }
+
+  function stopZoomHold() {
+    if (zoomHoldTimer.current) {
+      window.clearInterval(zoomHoldTimer.current);
+      zoomHoldTimer.current = null;
+    }
+  }
+
+  function startZoomHold(direction, mediaStream = stream) {
+    stopZoomHold();
+    changeZoom(direction, mediaStream);
+    zoomHoldTimer.current = window.setInterval(() => {
+      changeZoom(direction, mediaStream);
+    }, 90);
+  }
+
+  function sendDirectorZoom(camera, action, direction = 0) {
+    if (!camera?.socketId) return;
+    socket.emit("camera:control", {
+      room: roomCode,
+      target: camera.socketId,
+      command: "zoom",
+      action,
+      direction
+    });
   }
 
   async function flipCamera() {
@@ -1176,6 +1210,16 @@ async function enableCamera() {
         );
       };
 
+      const handleCameraControl = payload => {
+        if (payload?.command !== "zoom") return;
+        if (payload.action === "start") {
+          const direction = Number(payload.direction) < 0 ? -1 : 1;
+          startZoomHold(direction, media);
+        } else if (payload.action === "stop") {
+          stopZoomHold();
+        }
+      };
+
       const handleConnect = () => {
         setSignalStatus("SIGNAL CONNECTED");
 
@@ -1196,6 +1240,7 @@ async function enableCamera() {
       socket.off("webrtc:ice");
       socket.off("camera:registered");
       socket.off("program:status");
+      socket.off("camera:control");
 
       socket.on("connect", handleConnect);
       socket.on("disconnect", handleDisconnect);
@@ -1203,6 +1248,7 @@ async function enableCamera() {
       socket.on("webrtc:ice", handleIce);
       socket.on("camera:registered", handleRegistered);
       socket.on("program:status", handleProgramStatus);
+      socket.on("camera:control", handleCameraControl);
 
       socket.setNetwork(networkId, cameraJoinToken);
       socket.setRoom(roomCode);
@@ -1579,9 +1625,22 @@ async function enableCamera() {
                   <button
                     type="button"
                     className="camera-control-button"
-                    onClick={() => changeZoom(-1)}
+                    onPointerDown={event => {
+                      event.preventDefault();
+                      event.currentTarget.setPointerCapture?.(event.pointerId);
+                      startZoomHold(-1);
+                    }}
+                    onPointerUp={stopZoomHold}
+                    onPointerCancel={stopZoomHold}
+                    onPointerLeave={stopZoomHold}
+                    onKeyDown={event => {
+                      if ((event.key === "Enter" || event.key === " ") && !event.repeat) startZoomHold(-1);
+                    }}
+                    onKeyUp={event => {
+                      if (event.key === "Enter" || event.key === " ") stopZoomHold();
+                    }}
                     disabled={!zoomRange || zoomValue <= zoomRange.min}
-                    title={zoomRange ? "Zoom out" : "Optical zoom is unavailable on this camera"}
+                    title={zoomRange ? "Press and hold to zoom out" : "Optical zoom is unavailable on this camera"}
                   >
                     <ZoomOut size={24}/>
                     <span>ZOOM OUT</span>
@@ -1594,9 +1653,22 @@ async function enableCamera() {
                   <button
                     type="button"
                     className="camera-control-button"
-                    onClick={() => changeZoom(1)}
+                    onPointerDown={event => {
+                      event.preventDefault();
+                      event.currentTarget.setPointerCapture?.(event.pointerId);
+                      startZoomHold(1);
+                    }}
+                    onPointerUp={stopZoomHold}
+                    onPointerCancel={stopZoomHold}
+                    onPointerLeave={stopZoomHold}
+                    onKeyDown={event => {
+                      if ((event.key === "Enter" || event.key === " ") && !event.repeat) startZoomHold(1);
+                    }}
+                    onKeyUp={event => {
+                      if (event.key === "Enter" || event.key === " ") stopZoomHold();
+                    }}
                     disabled={!zoomRange || zoomValue >= zoomRange.max}
-                    title={zoomRange ? "Zoom in" : "Optical zoom is unavailable on this camera"}
+                    title={zoomRange ? "Press and hold to zoom in" : "Optical zoom is unavailable on this camera"}
                   >
                     <ZoomIn size={24}/>
                     <span>ZOOM IN</span>
@@ -2548,6 +2620,59 @@ async function enableCamera() {
             </div>
           </div>
 
+          <div className="remote-camera-control-panel">
+            <div className="panel-label">REMOTE CAMERA CONTROL</div>
+            <div className="remote-camera-control-head">
+              <strong>DIRECTOR ZOOM</strong>
+              <span>PRESS + HOLD • HARDWARE ZOOM WHEN SUPPORTED</span>
+            </div>
+
+            <div className="remote-camera-control-grid">
+              {wirelessCameras.length ? wirelessCameras.map(camera => (
+                <div className="remote-camera-control-card" key={camera.socketId}>
+                  <div>
+                    <strong>{displayNameForCamera(camera.slotId)}</strong>
+                    <span>CAM {String(camera.slotId || "?").padStart(2, "0")}</span>
+                  </div>
+                  <div className="remote-camera-zoom-buttons">
+                    <button
+                      type="button"
+                      onPointerDown={event => {
+                        event.preventDefault();
+                        event.currentTarget.setPointerCapture?.(event.pointerId);
+                        sendDirectorZoom(camera, "start", -1);
+                      }}
+                      onPointerUp={() => sendDirectorZoom(camera, "stop")}
+                      onPointerCancel={() => sendDirectorZoom(camera, "stop")}
+                      onPointerLeave={() => sendDirectorZoom(camera, "stop")}
+                      title="Press and hold to remotely zoom out"
+                    >
+                      <ZoomOut size={16}/> ZOOM OUT
+                    </button>
+                    <button
+                      type="button"
+                      onPointerDown={event => {
+                        event.preventDefault();
+                        event.currentTarget.setPointerCapture?.(event.pointerId);
+                        sendDirectorZoom(camera, "start", 1);
+                      }}
+                      onPointerUp={() => sendDirectorZoom(camera, "stop")}
+                      onPointerCancel={() => sendDirectorZoom(camera, "stop")}
+                      onPointerLeave={() => sendDirectorZoom(camera, "stop")}
+                      title="Press and hold to remotely zoom in"
+                    >
+                      <ZoomIn size={16}/> ZOOM IN
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="remote-camera-control-empty">
+                  Connect a wireless camera to expose director zoom controls.
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="production-tools">
             <div className="panel-label">LIVE LAYOUT</div>
 
@@ -2721,7 +2846,7 @@ async function enableCamera() {
               <p><strong>8. Layouts:</strong> SINGLE, SPLIT, PiP, and 9-CAM are prepared in Preview first. TAKE sends the prepared layout to Program; another TAKE with no new selection returns to Main Cam.</p>
               <p><strong>9. Master Audio:</strong> Camera names from SET NAMES also appear in the Master Audio source list and phone mixer so video and audio labels match.</p>
               <p><strong>10. Director Cam:</strong> Enable the Director device camera from the dedicated Director Cam panel. Use SWITCH CAMERA for front/rear, then drag it to Preview, tap PREVIEW, or use ADD AS PiP. It never consumes one of the nine remote camera slots.</p>
-              <p><strong>11. Camera phones:</strong> Connected phones can keep using flip, zoom, Live Shield, telemetry, and camera communications while their live feed remains available to all Director monitors.</p>
+              <p><strong>11. Camera phones:</strong> Connected phones can keep using flip, press-and-hold smooth zoom, Live Shield, telemetry, and camera communications while their live feed remains available to all Director monitors. The Director can also press and hold remote zoom controls for supported phone cameras.</p>
               <p><strong>12. Instant Replay:</strong> ScenePilot keeps the Program source buffered for replay when browser MediaRecorder support is available. Replay returns to the live Program automatically when it ends.</p>
               <p><strong>13. If a feed drops:</strong> Leave the camera page open while ScenePilot reconnects. The Multiview tile resumes from the same source slot when its WebRTC stream returns.</p>
             </div>
