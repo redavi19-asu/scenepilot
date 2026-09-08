@@ -51,3 +51,80 @@
 .nle-studio .editor-note{margin-top:8px}
 @media(max-width:1000px){.nle-shell{grid-template-columns:1fr}.nle-sidebar{min-height:260px}.nle-bin{max-height:220px;grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.nle-top{grid-template-columns:1fr}.nle-preview{height:auto;aspect-ratio:16/9}.nle-inspector{max-height:260px}.nle-toolbar button{min-height:40px}.nle-track-row{grid-template-columns:72px 1fr}.nle-track-label{font-size:6px;padding-left:6px}.nle-ruler{left:72px}.nle-playhead{margin-left:-20px}}
+
+
+.nle-add-title + .nle-add-title{margin-top:5px}
+.nle-preview.aspect-16-9{aspect-ratio:16/9;height:auto;min-height:260px}
+.nle-preview.aspect-9-16{aspect-ratio:9/16;height:420px;max-width:280px;margin-inline:auto}
+.nle-preview.aspect-1-1{aspect-ratio:1/1;height:360px;max-width:520px;margin-inline:auto}
+.nle-preview.aspect-4-5{aspect-ratio:4/5;height:400px;max-width:380px;margin-inline:auto}
+.nle-preview video,.nle-preview img{transition:transform .12s ease,filter .12s ease,opacity .12s ease}
+.nle-text-overlay.lower-third{
+  left:7%;
+  bottom:9%;
+  transform:none;
+  max-width:72%;
+  text-align:left;
+  font-size:clamp(16px,2.2vw,30px);
+  border-left:4px solid currentColor;
+  padding:9px 14px
+}
+.nle-text-overlay.caption{
+  bottom:5%;
+  max-width:88%;
+  font-size:clamp(15px,2vw,26px);
+  padding:7px 11px
+}
+.inspector-section{
+  margin-top:13px;
+  padding-top:9px;
+  border-top:1px solid #30342e;
+  color:#aeb3aa;
+  font-size:7px;
+  font-weight:950;
+  letter-spacing:.7px;
+  display:flex;
+  align-items:center;
+  gap:5px
+}
+.inspector-reset{
+  width:100%;
+  min-height:31px;
+  margin-top:9px;
+  border:1px solid #4b5048;
+  background:#20231f;
+  color:#d8dbd4;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  font-size:7px;
+  font-weight:900
+}
+.nle-aspect-select{
+  flex:0 0 auto;
+  min-height:36px;
+  border:1px solid #444840;
+  background:#20231f;
+  color:#d1d4ce;
+  padding:0 8px;
+  font-size:7px;
+  font-weight:900
+}
+.nle-project-status{
+  margin-top:8px;
+  border:1px solid #50604c;
+  background:#1d291c;
+  color:#c8dbc2;
+  padding:8px 10px;
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.6px
+}
+@media(max-width:760px){
+  .nle-preview.aspect-9-16,.nle-preview.aspect-1-1,.nle-preview.aspect-4-5{
+    height:auto;
+    max-width:100%
+  }
+  .nle-aspect-select{min-height:40px}
+}
