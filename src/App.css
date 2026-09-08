@@ -2505,3 +2505,31 @@ body.scenepilot-viewfinder-clean .sp-comms-fab.camera{
     top:calc(env(safe-area-inset-top,0px) + 104px);
   }
 }
+
+
+/* Keep the restore button visible when camera controls are collapsed */
+.operator-shell.controls-collapsed .operator-controls-toggle{
+  display:flex!important;
+  position:fixed!important;
+  z-index:99999!important;
+  top:calc(env(safe-area-inset-top,0px) + 92px)!important;
+  right:10px!important;
+  bottom:auto!important;
+  left:auto!important;
+  opacity:1!important;
+  visibility:visible!important;
+  pointer-events:auto!important;
+  min-height:38px!important;
+  padding:0 11px!important;
+  background:rgba(8,12,8,.92)!important;
+  border:1px solid #86a97c!important;
+  color:#f3fff0!important;
+  box-shadow:0 8px 24px rgba(0,0,0,.45)!important;
+}
+
+@media(max-width:700px){
+  .operator-shell.controls-collapsed .operator-controls-toggle{
+    top:calc(env(safe-area-inset-top,0px) + 76px)!important;
+    right:8px!important;
+  }
+}
