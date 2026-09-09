@@ -141,10 +141,49 @@ function WatchPage({ roomCode }) {
   }
 
   async function openFullscreen() {
-    const target = videoRef.current?.closest(".sp-watch-video");
+    const video = videoRef.current;
+    const container = video?.closest(".sp-watch-video");
+    if (!video) return;
+
     try {
-      await target?.requestFullscreen?.();
-    } catch (_) {}
+      if (typeof video.requestFullscreen === "function") {
+        await video.requestFullscreen();
+        return;
+      }
+
+      if (typeof video.webkitEnterFullscreen === "function") {
+        video.webkitEnterFullscreen();
+        return;
+      }
+
+      if (typeof video.webkitRequestFullscreen === "function") {
+        video.webkitRequestFullscreen();
+        return;
+      }
+
+      if (typeof container?.requestFullscreen === "function") {
+        await container.requestFullscreen();
+        return;
+      }
+
+      if (typeof container?.webkitRequestFullscreen === "function") {
+        container.webkitRequestFullscreen();
+        return;
+      }
+
+      setTvStatus("FULLSCREEN IS NOT AVAILABLE IN THIS BROWSER");
+    } catch (error) {
+      console.warn("ScenePilot fullscreen unavailable", error);
+
+      try {
+        if (typeof video.webkitEnterFullscreen === "function") {
+          video.webkitEnterFullscreen();
+          return;
+        }
+      } catch (_) {}
+
+      setTvStatus("FULLSCREEN COULD NOT START");
+    }
   }
 
   return (
