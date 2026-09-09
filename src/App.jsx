@@ -190,6 +190,7 @@ function App() {
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [remoteTorchState, setRemoteTorchState] = useState({});
+  const [selectedRemoteCameraId, setSelectedRemoteCameraId] = useState(null);
   const [operatorControlsCollapsed, setOperatorControlsCollapsed] = useState(false);
   const [operatorCommsAlert, setOperatorCommsAlert] = useState(null);
   const [videoInputs, setVideoInputs] = useState([]);
@@ -3635,62 +3636,119 @@ async function enableCamera() {
           <div className="remote-camera-control-panel">
             <div className="panel-label">REMOTE CAMERA CONTROL</div>
             <div className="remote-camera-control-head">
-              <strong>DIRECTOR ZOOM</strong>
-              <span>PRESS + HOLD • HARDWARE ZOOM WHEN SUPPORTED</span>
+              <strong>SELECT CAMERA</strong>
+              <span>TAP A CAMERA FOR LARGE CONTROLS</span>
             </div>
 
-            <div className="remote-camera-control-grid">
+            <div className="remote-camera-control-grid remote-camera-selector-grid">
               {wirelessCameras.length ? wirelessCameras.map(camera => (
-                <div className="remote-camera-control-card" key={camera.socketId}>
-                  <div>
+                <button
+                  type="button"
+                  className="remote-camera-select-card"
+                  key={camera.socketId}
+                  onClick={() => setSelectedRemoteCameraId(camera.socketId)}
+                >
+                  <span className="remote-camera-select-copy">
                     <strong>{displayNameForCamera(camera.slotId)}</strong>
-                    <span>CAM {String(camera.slotId || "?").padStart(2, "0")}</span>
-                  </div>
-                  <div className="remote-camera-zoom-buttons">
-                    <button
-                      type="button"
-                      onPointerDown={event => {
-                        event.preventDefault();
-                        event.currentTarget.setPointerCapture?.(event.pointerId);
-                        sendDirectorZoom(camera, "start", -1);
-                      }}
-                      onPointerUp={() => sendDirectorZoom(camera, "stop")}
-                      onPointerCancel={() => sendDirectorZoom(camera, "stop")}
-                      onPointerLeave={() => sendDirectorZoom(camera, "stop")}
-                      title="Press and hold to remotely zoom out"
-                    >
-                      <ZoomOut size={16}/> ZOOM OUT
-                    </button>
-                    <button
-                      type="button"
-                      onPointerDown={event => {
-                        event.preventDefault();
-                        event.currentTarget.setPointerCapture?.(event.pointerId);
-                        sendDirectorZoom(camera, "start", 1);
-                      }}
-                      onPointerUp={() => sendDirectorZoom(camera, "stop")}
-                      onPointerCancel={() => sendDirectorZoom(camera, "stop")}
-                      onPointerLeave={() => sendDirectorZoom(camera, "stop")}
-                      title="Press and hold to remotely zoom in"
-                    >
-                      <ZoomIn size={16}/> ZOOM IN
-                    </button>
-                    <button
-                      type="button"
-                      className={remoteTorchState[camera.socketId] ? "light-active" : ""}
-                      onClick={() => sendDirectorTorch(camera)}
-                      title="Toggle the remote camera light when supported by that device"
-                    >
-                      <Flashlight size={16}/> {remoteTorchState[camera.socketId] ? "LIGHT ON" : "LIGHT"}
-                    </button>
-                  </div>
-                </div>
+                    <small>CAM {String(camera.slotId || "?").padStart(2, "0")}</small>
+                  </span>
+                  <span className="remote-camera-select-action">OPEN CONTROLS</span>
+                </button>
               )) : (
                 <div className="remote-camera-control-empty">
-                  Connect a wireless camera to expose director zoom controls.
+                  Connect a wireless camera to expose director controls.
                 </div>
               )}
             </div>
+
+            {selectedRemoteCameraId && (() => {
+              const camera = wirelessCameras.find(
+                item => item.socketId === selectedRemoteCameraId
+              );
+
+              if (!camera) return null;
+
+              return (
+                <div
+                  className="remote-camera-control-overlay"
+                  role="presentation"
+                  onPointerDown={event => {
+                    if (event.target === event.currentTarget) {
+                      setSelectedRemoteCameraId(null);
+                    }
+                  }}
+                >
+                  <div
+                    className="remote-camera-control-popout"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={`Remote controls for ${displayNameForCamera(camera.slotId)}`}
+                  >
+                    <div className="remote-camera-popout-head">
+                      <div>
+                        <span>REMOTE CAMERA</span>
+                        <strong>{displayNameForCamera(camera.slotId)}</strong>
+                        <small>CAM {String(camera.slotId || "?").padStart(2, "0")}</small>
+                      </div>
+                      <button
+                        type="button"
+                        className="remote-camera-popout-close"
+                        onClick={() => setSelectedRemoteCameraId(null)}
+                        aria-label="Close remote camera controls"
+                      >
+                        <X size={22}/>
+                      </button>
+                    </div>
+
+                    <div className="remote-camera-popout-controls">
+                      <button
+                        type="button"
+                        onPointerDown={event => {
+                          event.preventDefault();
+                          event.currentTarget.setPointerCapture?.(event.pointerId);
+                          sendDirectorZoom(camera, "start", -1);
+                        }}
+                        onPointerUp={() => sendDirectorZoom(camera, "stop")}
+                        onPointerCancel={() => sendDirectorZoom(camera, "stop")}
+                        onPointerLeave={() => sendDirectorZoom(camera, "stop")}
+                      >
+                        <ZoomOut size={30}/>
+                        <strong>ZOOM OUT</strong>
+                        <span>PRESS + HOLD</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onPointerDown={event => {
+                          event.preventDefault();
+                          event.currentTarget.setPointerCapture?.(event.pointerId);
+                          sendDirectorZoom(camera, "start", 1);
+                        }}
+                        onPointerUp={() => sendDirectorZoom(camera, "stop")}
+                        onPointerCancel={() => sendDirectorZoom(camera, "stop")}
+                        onPointerLeave={() => sendDirectorZoom(camera, "stop")}
+                      >
+                        <ZoomIn size={30}/>
+                        <strong>ZOOM IN</strong>
+                        <span>PRESS + HOLD</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={remoteTorchState[camera.socketId] ? "light-active" : ""}
+                        onClick={() => sendDirectorTorch(camera)}
+                      >
+                        <Flashlight size={30}/>
+                        <strong>
+                          {remoteTorchState[camera.socketId] ? "LIGHT ON" : "FLASHLIGHT"}
+                        </strong>
+                        <span>TAP TO TOGGLE</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="production-tools">
