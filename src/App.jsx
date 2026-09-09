@@ -1646,21 +1646,36 @@ function App() {
     }
   }
 
-  async function changeZoom(direction, mediaStream = stream) {
+  async async function changeZoom(direction, mediaStream = stream) {
     const videoTrack = mediaStream?.getVideoTracks?.()[0];
-    if (!videoTrack || !zoomRange) return;
+    if (!videoTrack) return false;
 
+    const capabilities = videoTrack.getCapabilities?.() || {};
     const settings = videoTrack.getSettings?.() || {};
-    const current = Number.isFinite(settings.zoom)
-      ? settings.zoom
-      : zoomValueRef.current;
-    const step = Math.max(zoomRange.step || 0.1, 0.1);
-    const next = Math.min(
-      zoomRange.max,
-      Math.max(zoomRange.min, current + (direction * step))
+    const liveZoomRange = capabilities.zoom;
+
+    if (!liveZoomRange) {
+      console.warn("ScenePilot zoom is not exposed by this camera/browser");
+      return false;
+    }
+
+    const min = Number.isFinite(liveZoomRange.min) ? liveZoomRange.min : 1;
+    const max = Number.isFinite(liveZoomRange.max) ? liveZoomRange.max : min;
+    const step = Math.max(
+      Number.isFinite(liveZoomRange.step) ? liveZoomRange.step : 0.1,
+      0.1
     );
 
-    if (Math.abs(next - current) < 0.0001) return;
+    const current = Number.isFinite(settings.zoom)
+      ? settings.zoom
+      : Math.min(max, Math.max(min, zoomValueRef.current || min));
+
+    const next = Math.min(
+      max,
+      Math.max(min, current + (direction * step))
+    );
+
+    if (Math.abs(next - current) < 0.0001) return true;
 
     try {
       await videoTrack.applyConstraints({
@@ -1668,8 +1683,15 @@ function App() {
       });
       zoomValueRef.current = next;
       setZoomValue(next);
+      setZoomRange({
+        min,
+        max,
+        step
+      });
+      return true;
     } catch (error) {
       console.warn("ScenePilot zoom unavailable", error);
+      return false;
     }
   }
 
