@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { readdir, stat, statfs, unlink } from "node:fs/promises";
+import { mkdir, readdir, rename, stat, statfs, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { WebSocketServer } from "ws";
 
@@ -22,6 +22,7 @@ const RECORDING_RETENTION_HOURS = Math.max(
   1,
   Number(process.env.SCENEPILOT_RECORDING_RETENTION_HOURS || 72)
 );
+const OWNER_RECORDING_ROOT = join(RECORDING_ROOT, "owner");
 const STORAGE_WARNING_PERCENT = Math.min(
   99,
   Math.max(1, Number(process.env.SCENEPILOT_STORAGE_WARNING_PERCENT || 80))
@@ -30,6 +31,59 @@ const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const RECORDING_EXTENSIONS = new Set([".flv", ".mkv", ".mov", ".mp4", ".webm"]);
 
 const jobs = new Map();
+
+async function archiveOwnerRecordings(job) {
+  if (!job || job.retentionClass !== "owner") return { movedFiles: 0, movedBytes: 0 };
+
+  let movedFiles = 0;
+  let movedBytes = 0;
+
+  for (const kind of ["program", "iso"]) {
+    const sourceDir = join(RECORDING_ROOT, kind);
+    const targetDir = join(OWNER_RECORDING_ROOT, kind);
+    await mkdir(targetDir, { recursive: true });
+
+    let entries = [];
+    try {
+      entries = await readdir(sourceDir, { withFileTypes: true });
+    } catch (error) {
+      console.error(`[owner-retention] Cannot scan ${sourceDir}: ${error.message}`);
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      if (!entry.name.includes(job.room)) continue;
+
+      const extension = entry.name.slice(entry.name.lastIndexOf(".")).toLowerCase();
+      if (!RECORDING_EXTENSIONS.has(extension)) continue;
+
+      const source = join(sourceDir, entry.name);
+      const destination = join(
+        targetDir,
+        `${job.networkId || "owner"}-${job.eventId}-${entry.name}`
+      );
+
+      try {
+        const details = await stat(source);
+        await rename(source, destination);
+        movedFiles += 1;
+        movedBytes += details.size;
+      } catch (error) {
+        console.error(`[owner-retention] Cannot archive ${source}: ${error.message}`);
+      }
+    }
+  }
+
+  if (movedFiles) {
+    console.log(
+      `[owner-retention] Archived ${movedFiles} owner recording(s), ` +
+      `${(movedBytes / 1024 / 1024).toFixed(1)} MiB, outside temporary cleanup.`
+    );
+  }
+
+  return { movedFiles, movedBytes };
+}
 
 async function cleanupRecordings() {
   const cutoff = Date.now() - RECORDING_RETENTION_HOURS * 60 * 60 * 1000;
@@ -203,7 +257,10 @@ const server = createServer(async (request, response) => {
       ok: true,
       service: "scenepilot-encoder",
       authenticated: Boolean(API_TOKEN),
-      activeJobs: jobs.size
+      activeJobs: jobs.size,
+      temporaryRetentionHours: RECORDING_RETENTION_HOURS,
+      ownerRetention: "permanent",
+      ownerRecordingRoot: OWNER_RECORDING_ROOT
     });
   }
 
@@ -245,6 +302,10 @@ const server = createServer(async (request, response) => {
         eventId,
         room,
         input,
+        networkId: String(body.networkId || ""),
+        ownerUserId: String(body.ownerUserId || ""),
+        ownerRole: String(body.ownerRole || "user"),
+        retentionClass: body.retentionClass === "owner" ? "owner" : "temporary",
         processes,
         accepted,
         ingestToken,
