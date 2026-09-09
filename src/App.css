@@ -3319,3 +3319,96 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
   transform:translateY(-1px);
   border-color:#555b52;
 }
+
+
+/* Compact anchored remote camera popover — keep previews visible */
+.remote-camera-control-overlay{
+  position:absolute !important;
+  inset:auto !important;
+  z-index:60 !important;
+  background:transparent !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+  display:block !important;
+  padding:0 !important;
+  width:auto !important;
+  height:auto !important;
+  pointer-events:none;
+}
+.remote-camera-control-panel{
+  position:relative;
+}
+.remote-camera-control-popout{
+  position:absolute;
+  top:48px;
+  right:8px;
+  width:min(360px,calc(100vw - 28px)) !important;
+  max-height:none !important;
+  overflow:visible !important;
+  padding:10px !important;
+  border-radius:12px !important;
+  box-shadow:0 14px 36px rgba(0,0,0,.42) !important;
+  pointer-events:auto;
+}
+.remote-camera-popout-head{
+  margin-bottom:8px !important;
+}
+.remote-camera-popout-head strong{
+  font-size:13px !important;
+}
+.remote-camera-popout-head span,
+.remote-camera-popout-head small{
+  font-size:7px !important;
+}
+.remote-camera-popout-close{
+  width:34px !important;
+  height:34px !important;
+}
+.remote-camera-popout-controls{
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  gap:7px !important;
+}
+.remote-camera-popout-controls button{
+  min-height:72px !important;
+  padding:8px 6px !important;
+  gap:5px !important;
+  border-radius:9px !important;
+}
+.remote-camera-popout-controls button svg{
+  width:34px !important;
+  height:34px !important;
+  padding:6px !important;
+}
+.remote-camera-popout-controls button strong{
+  font-size:9px !important;
+}
+.remote-camera-popout-controls button span{
+  font-size:6px !important;
+  letter-spacing:.6px !important;
+}
+
+@media(max-width:680px){
+  .remote-camera-control-popout{
+    top:44px;
+    right:4px;
+    width:min(330px,calc(100vw - 20px)) !important;
+    padding:9px !important;
+  }
+  .remote-camera-popout-controls{
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  }
+  .remote-camera-popout-controls button{
+    min-height:66px !important;
+  }
+}
+
+@media(orientation:landscape) and (max-height:620px){
+  .remote-camera-control-popout{
+    top:40px;
+    right:6px;
+    width:min(390px,48vw) !important;
+  }
+  .remote-camera-popout-controls button{
+    min-height:62px !important;
+  }
+}
