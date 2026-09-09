@@ -3704,81 +3704,68 @@ async function enableCamera() {
 
               return (
                 <div
-                  className="remote-camera-control-overlay"
-                  role="presentation"
-                  onPointerDown={event => {
-                    if (event.target === event.currentTarget) {
-                      setSelectedRemoteCameraId(null);
-                    }
-                  }}
+                  className="remote-camera-control-popout"
+                  role="dialog"
+                  aria-label={`Remote controls for ${displayNameForCamera(camera.slotId)}`}
                 >
-                  <div
-                    className="remote-camera-control-popout"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label={`Remote controls for ${displayNameForCamera(camera.slotId)}`}
-                  >
-                    <div className="remote-camera-popout-head">
-                      <div>
-                        <span>REMOTE CAMERA</span>
-                        <strong>{displayNameForCamera(camera.slotId)}</strong>
-                        <small>CAM {String(camera.slotId || "?").padStart(2, "0")}</small>
-                      </div>
-                      <button
-                        type="button"
-                        className="remote-camera-popout-close"
-                        onClick={() => setSelectedRemoteCameraId(null)}
-                        aria-label="Close remote camera controls"
-                      >
-                        <X size={22}/>
-                      </button>
+                  <div className="remote-camera-popout-head">
+                    <div>
+                      <span>REMOTE CAMERA</span>
+                      <strong>{displayNameForCamera(camera.slotId)}</strong>
+                      <small>CAM {String(camera.slotId || "?").padStart(2, "0")}</small>
                     </div>
+                    <button
+                      type="button"
+                      className="remote-camera-popout-close"
+                      onClick={() => setSelectedRemoteCameraId(null)}
+                      aria-label="Close remote camera controls"
+                    >
+                      <X size={20}/>
+                    </button>
+                  </div>
 
-                    <div className="remote-camera-popout-controls">
-                      <button
-                        type="button"
-                        onPointerDown={event => {
-                          event.preventDefault();
-                          event.currentTarget.setPointerCapture?.(event.pointerId);
-                          sendDirectorZoom(camera, "start", -1);
-                        }}
-                        onPointerUp={() => sendDirectorZoom(camera, "stop")}
-                        onPointerCancel={() => sendDirectorZoom(camera, "stop")}
-                        onPointerLeave={() => sendDirectorZoom(camera, "stop")}
-                      >
-                        <ZoomOut size={30}/>
-                        <strong>ZOOM OUT</strong>
-                        <span>PRESS + HOLD</span>
-                      </button>
+                  <div className="remote-camera-popout-controls">
+                    <button
+                      type="button"
+                      onPointerDown={event => {
+                        event.preventDefault();
+                        event.currentTarget.setPointerCapture?.(event.pointerId);
+                        sendDirectorZoom(camera, "start", -1);
+                      }}
+                      onPointerUp={() => sendDirectorZoom(camera, "stop")}
+                      onPointerCancel={() => sendDirectorZoom(camera, "stop")}
+                      onPointerLeave={() => sendDirectorZoom(camera, "stop")}
+                    >
+                      <ZoomOut size={24}/>
+                      <strong>ZOOM OUT</strong>
+                      <span>HOLD</span>
+                    </button>
 
-                      <button
-                        type="button"
-                        onPointerDown={event => {
-                          event.preventDefault();
-                          event.currentTarget.setPointerCapture?.(event.pointerId);
-                          sendDirectorZoom(camera, "start", 1);
-                        }}
-                        onPointerUp={() => sendDirectorZoom(camera, "stop")}
-                        onPointerCancel={() => sendDirectorZoom(camera, "stop")}
-                        onPointerLeave={() => sendDirectorZoom(camera, "stop")}
-                      >
-                        <ZoomIn size={30}/>
-                        <strong>ZOOM IN</strong>
-                        <span>PRESS + HOLD</span>
-                      </button>
+                    <button
+                      type="button"
+                      onPointerDown={event => {
+                        event.preventDefault();
+                        event.currentTarget.setPointerCapture?.(event.pointerId);
+                        sendDirectorZoom(camera, "start", 1);
+                      }}
+                      onPointerUp={() => sendDirectorZoom(camera, "stop")}
+                      onPointerCancel={() => sendDirectorZoom(camera, "stop")}
+                      onPointerLeave={() => sendDirectorZoom(camera, "stop")}
+                    >
+                      <ZoomIn size={24}/>
+                      <strong>ZOOM IN</strong>
+                      <span>HOLD</span>
+                    </button>
 
-                      <button
-                        type="button"
-                        className={remoteTorchState[camera.socketId] ? "light-active" : ""}
-                        onClick={() => sendDirectorTorch(camera)}
-                      >
-                        <Flashlight size={30}/>
-                        <strong>
-                          {remoteTorchState[camera.socketId] ? "LIGHT ON" : "FLASHLIGHT"}
-                        </strong>
-                        <span>TAP TO TOGGLE</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className={remoteTorchState[camera.socketId] ? "light-active" : ""}
+                      onClick={() => sendDirectorTorch(camera)}
+                    >
+                      <Flashlight size={24}/>
+                      <strong>{remoteTorchState[camera.socketId] ? "LIGHT ON" : "LIGHT"}</strong>
+                      <span>TOGGLE</span>
+                    </button>
                   </div>
                 </div>
               );
