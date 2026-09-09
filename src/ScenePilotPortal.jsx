@@ -64,9 +64,14 @@ function LandingPage() {
           </div>
         </div>
 
-        <button className="sp-nav-login" onClick={() => go("/app")}>
-          <LogIn size={17}/> LOGIN
-        </button>
+        <div className="sp-nav-account-actions">
+          <button className="sp-nav-create" onClick={() => go("/register")}>
+            <UserPlus size={17}/> CREATE ACCOUNT
+          </button>
+          <button className="sp-nav-login" onClick={() => go("/app")}>
+            <LogIn size={17}/> LOGIN
+          </button>
+        </div>
       </header>
 
       <main>
@@ -84,6 +89,9 @@ function LandingPage() {
               <button className="sp-primary" onClick={() => go("/app")}>
                 <LogIn size={18}/> LOGIN
               </button>
+              <button className="sp-secondary" onClick={() => go("/register")}>
+                <UserPlus size={18}/> CREATE ACCOUNT
+              </button>
               <button className="sp-secondary" disabled title="Desktop download will unlock after release packaging is complete.">
                 <Download size={18}/> DOWNLOAD — COMING SOON
               </button>
@@ -91,7 +99,7 @@ function LandingPage() {
 
             <div className="sp-beta-note">
               <ShieldCheck size={17}/>
-              <span>Private beta access is currently invite-only.</span>
+              <span>Create an account to request beta access. Director access is granted separately by the ScenePilot administrator.</span>
             </div>
           </div>
 
@@ -151,8 +159,8 @@ function LandingPage() {
   );
 }
 
-function AuthPanel({ onAuthenticated }) {
-  const mode = "login";
+function AuthPanel({ onAuthenticated, initialMode = "login" }) {
+  const [mode, setMode] = useState(initialMode);
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -201,6 +209,15 @@ function AuthPanel({ onAuthenticated }) {
         }
       );
 
+      if (mode === "register" && data.pendingApproval) {
+        setStatus("ACCOUNT CREATED — WAITING FOR BETA APPROVAL. You can log in after the ScenePilot administrator activates your access.");
+        setMode("login");
+        setPassword("");
+        setTurnstileToken("");
+        setTurnstileResetKey(value => value + 1);
+        return;
+      }
+
       onAuthenticated(data.user);
     } catch (error) {
       setStatus(error.message);
@@ -217,10 +234,36 @@ function AuthPanel({ onAuthenticated }) {
       <div className="sp-auth-card">
         <div className="sp-auth-logo"><Radio size={26}/></div>
         <span className="sp-kicker">ICA SOFTWARE ACCOUNT</span>
-        <h1>Welcome back.</h1>
-        <p>Sign in to open the Director console. New accounts are currently invite-only.</p>
+        <h1>{mode === "register" ? "Create your account." : "Welcome back."}</h1>
+        <p>
+          {mode === "register"
+            ? "Create your ICA Software account to request ScenePilot beta access. Registration does not unlock the Director console until an administrator approves you."
+            : "Sign in to open the Director console after your ScenePilot access has been activated."}
+        </p>
+
+        <div className="sp-auth-mode-switch">
+          <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setStatus(""); setTurnstileToken(""); setTurnstileResetKey(value => value + 1); }}>
+            LOGIN
+          </button>
+          <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setStatus(""); setTurnstileToken(""); setTurnstileResetKey(value => value + 1); }}>
+            CREATE ACCOUNT
+          </button>
+        </div>
 
         <form onSubmit={submit}>
+          {mode === "register" && (
+            <label>
+              NAME
+              <input
+                type="text"
+                value={displayName}
+                onChange={event => setDisplayName(event.target.value)}
+                autoComplete="name"
+                required
+              />
+            </label>
+          )}
+
           <label>
             EMAIL
             <input
@@ -238,14 +281,25 @@ function AuthPanel({ onAuthenticated }) {
               type="password"
               value={password}
               onChange={event => setPassword(event.target.value)}
-              autoComplete="current-password"
+              autoComplete={mode === "register" ? "new-password" : "current-password"}
               minLength={8}
               required
             />
           </label>
 
+          {mode === "register" && (
+            <label className="sp-marketing-opt">
+              <input
+                type="checkbox"
+                checked={marketing}
+                onChange={event => setMarketing(event.target.checked)}
+              />
+              <span>Send me ScenePilot beta and product updates.</span>
+            </label>
+          )}
+
           <TurnstileWidget
-            action="login"
+            action={mode === "register" ? "register" : "login"}
             onToken={handleTurnstileToken}
             resetKey={turnstileResetKey}
           />
@@ -253,8 +307,8 @@ function AuthPanel({ onAuthenticated }) {
           {status && <div className="sp-auth-error">{status}</div>}
 
           <button className="sp-auth-submit" disabled={busy || !turnstileToken}>
-            <LogIn size={17}/>
-            {busy ? "PLEASE WAIT..." : "LOGIN"}
+            {mode === "register" ? <UserPlus size={17}/> : <LogIn size={17}/>}
+            {busy ? "PLEASE WAIT..." : mode === "register" ? "CREATE ACCOUNT" : "LOGIN"}
           </button>
         </form>
       </div>
@@ -1354,6 +1408,12 @@ export default function ScenePilotPortal() {
       );
     }
     return <AdminPage user={user} onLogout={logout}/>;
+  }
+
+  if (cleanPath === "/register") {
+    if (loading) return <div className="sp-portal-loading"><Radio size={28}/> LOADING ICA ACCOUNT...</div>;
+    if (user) return <AuthPanel onAuthenticated={setUser} initialMode="register"/>;
+    return <AuthPanel onAuthenticated={setUser} initialMode="register"/>;
   }
 
   if (cleanPath === "/app") {
