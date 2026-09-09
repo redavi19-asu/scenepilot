@@ -1543,3 +1543,47 @@
     font-size:7px;
   }
 }
+
+
+/* Keep Director comms clear of collapsed editor / replay controls */
+.sp-comms-fab:not(.camera){
+  right:18px !important;
+  bottom:126px !important;
+}
+.sp-intercom-fab{
+  right:18px !important;
+  bottom:176px !important;
+}
+.sp-intercom-panel{
+  right:18px !important;
+  bottom:222px !important;
+}
+
+@media(max-width:900px){
+  .sp-comms-fab:not(.camera){
+    right:10px !important;
+    bottom:112px !important;
+  }
+  .sp-intercom-fab{
+    right:10px !important;
+    bottom:158px !important;
+  }
+  .sp-intercom-panel{
+    right:10px !important;
+    bottom:202px !important;
+  }
+}
+
+@media(max-width:700px){
+  .sp-comms-fab:not(.camera){
+    bottom:104px !important;
+  }
+  .sp-intercom-fab{
+    bottom:148px !important;
+  }
+  .sp-intercom-panel{
+    bottom:192px !important;
+    max-height:calc(100vh - 210px);
+    overflow:auto;
+  }
+}
