@@ -3038,3 +3038,187 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
     font-size:9px;
   }
 }
+
+
+/* Focused remote-camera popout controls */
+.remote-camera-selector-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+.remote-camera-select-card{
+  width:100%;
+  min-height:64px;
+  border:1px solid #3f433d;
+  background:#181b17;
+  color:#d9ddd5;
+  padding:10px 12px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  text-align:left;
+  cursor:pointer;
+}
+.remote-camera-select-card:active{
+  border-color:#d39a26;
+  background:#2c2417;
+}
+.remote-camera-select-copy{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  min-width:0;
+}
+.remote-camera-select-copy strong{
+  font-size:10px;
+  letter-spacing:.5px;
+}
+.remote-camera-select-copy small{
+  color:#8e938b;
+  font-size:7px;
+  font-weight:900;
+}
+.remote-camera-select-action{
+  color:#d6a13a;
+  font-size:7px;
+  font-weight:950;
+  letter-spacing:.7px;
+  white-space:nowrap;
+}
+
+.remote-camera-control-overlay{
+  position:fixed;
+  inset:0;
+  z-index:1200;
+  background:rgba(0,0,0,.72);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+}
+.remote-camera-control-popout{
+  width:min(720px,94vw);
+  border:1px solid #54594f;
+  background:#111310;
+  box-shadow:0 24px 80px rgba(0,0,0,.55);
+  padding:16px;
+}
+.remote-camera-popout-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:14px;
+}
+.remote-camera-popout-head>div{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.remote-camera-popout-head span{
+  color:#d39a26;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:1px;
+}
+.remote-camera-popout-head strong{
+  font-size:18px;
+  letter-spacing:.5px;
+}
+.remote-camera-popout-head small{
+  color:#8b9088;
+  font-size:8px;
+  font-weight:900;
+}
+.remote-camera-popout-close{
+  width:44px;
+  height:44px;
+  border:1px solid #484c45;
+  background:#1b1e19;
+  color:#d9ddd5;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+.remote-camera-popout-controls{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+}
+.remote-camera-popout-controls button{
+  min-height:150px;
+  border:1px solid #4b5048;
+  background:#20241e;
+  color:#eef1eb;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+}
+.remote-camera-popout-controls button strong{
+  font-size:14px;
+  letter-spacing:.5px;
+}
+.remote-camera-popout-controls button span{
+  color:#979c94;
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.8px;
+}
+.remote-camera-popout-controls button:active{
+  border-color:#d39a26;
+  background:#3a2d16;
+  color:#ffe0a0;
+}
+.remote-camera-popout-controls button.light-active{
+  border-color:#d8a52a;
+  background:#443515;
+  color:#ffe7a4;
+  box-shadow:0 0 24px rgba(216,165,42,.24);
+}
+
+@media(max-width:680px){
+  .remote-camera-selector-grid{
+    grid-template-columns:1fr;
+  }
+  .remote-camera-control-overlay{
+    padding:12px;
+    align-items:center;
+  }
+  .remote-camera-control-popout{
+    width:100%;
+    max-height:92vh;
+    overflow:auto;
+    padding:14px;
+  }
+  .remote-camera-popout-controls{
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .remote-camera-popout-controls button{
+    min-height:96px;
+  }
+}
+
+@media(orientation:landscape) and (max-height:620px){
+  .remote-camera-control-overlay{
+    padding:10px;
+  }
+  .remote-camera-control-popout{
+    width:min(820px,96vw);
+    max-height:94vh;
+    overflow:auto;
+  }
+  .remote-camera-popout-controls{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+  .remote-camera-popout-controls button{
+    min-height:112px;
+  }
+}
