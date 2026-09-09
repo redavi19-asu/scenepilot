@@ -143,9 +143,9 @@ function App() {
   const [signalStatus, setSignalStatus] = useState("OFFLINE");
   const [directorLockMessage, setDirectorLockMessage] = useState("");
   const [isOnAir, setIsOnAir] = useState(false);
-  const [assignedSlot, setAssignedSlot] = useState(7);
-  const assignedSlotRef = useRef(7);
-  const [cameraName, setCameraName] = useState("ROAMING 1");
+  const [assignedSlot, setAssignedSlot] = useState(1);
+  const assignedSlotRef = useRef(1);
+  const [cameraName, setCameraName] = useState("USER");
   const [qualityProfile, setQualityProfile] = useState("auto");
   const [showTips, setShowTips] = useState(false);
   const [showCallShield, setShowCallShield] = useState(false);
@@ -304,27 +304,20 @@ function App() {
   useEffect(() => {
     if (showCamera) return;
 
+    // A fresh Director page is a fresh production session.
+    // Do not carry camera labels or main-camera choices across sessions.
+    setCameraNames({});
+    setDraftCameraNames({});
+    setMainCamera(1);
+    setPreview(1);
+    setProgram(1);
+    setSecondaryPreview(2);
+
     try {
-      const savedNames = JSON.parse(
-        window.localStorage.getItem(`scenepilot:cameraNames:${roomCode}`) || "{}"
-      );
-      if (savedNames && typeof savedNames === "object") {
-        setCameraNames(savedNames);
-      }
-
-      const savedMainRaw =
-        window.localStorage.getItem(`scenepilot:mainCamera:${roomCode}`);
-
-      if (savedMainRaw === DIRECTOR_SOURCE) {
-        setMainCamera(DIRECTOR_SOURCE);
-      } else {
-        const savedMain = Number(savedMainRaw);
-        if (savedMain >= 1 && savedMain <= 9) {
-          setMainCamera(savedMain);
-        }
-      }
+      window.localStorage.removeItem(`scenepilot:cameraNames:${roomCode}`);
+      window.localStorage.removeItem(`scenepilot:mainCamera:${roomCode}`);
     } catch (error) {
-      console.warn("ScenePilot saved camera setup unavailable", error);
+      console.warn("ScenePilot session reset could not clear saved camera setup", error);
     }
   }, [showCamera, roomCode]);
 
@@ -2158,8 +2151,7 @@ async function enableCamera() {
 
         socket.emit("camera:join", {
           room: roomCode,
-          name: cameraName.trim() || "WIRELESS CAMERA",
-          slotId: assignedSlot
+          name: cameraName.trim() || "USER"
         });
       };
 
@@ -2926,10 +2918,7 @@ async function enableCamera() {
     const savedName = cameraNames[String(slotId)] || cameraNames[slotId];
     if (savedName) return savedName;
 
-    const liveCamera = cameraForSlot(slotId);
-    if (liveCamera?.name) return liveCamera.name;
-
-    return cameras.find(camera => camera.id === slotId)?.name || `CAM ${String(slotId).padStart(2, "0")}`;
+    return `USER ${String(slotId).padStart(2, "0")}`;
   };
 
   const openSetNames = () => {
@@ -2952,15 +2941,6 @@ async function enableCamera() {
 
     setCameraNames(next);
 
-    try {
-      window.localStorage.setItem(
-        `scenepilot:cameraNames:${roomCode}`,
-        JSON.stringify(next)
-      );
-    } catch (error) {
-      console.warn("ScenePilot camera names could not be saved locally", error);
-    }
-
     window.dispatchEvent(
       new CustomEvent("scenepilot:camera-names", {
         detail: { roomCode, names: next }
@@ -2982,14 +2962,6 @@ async function enableCamera() {
 
     setMainCamera(next);
 
-    try {
-      window.localStorage.setItem(
-        `scenepilot:mainCamera:${roomCode}`,
-        String(next)
-      );
-    } catch (error) {
-      console.warn("ScenePilot Main Cam assignment could not be saved", error);
-    }
   };
 
   const streamForSlot = slotId => {
