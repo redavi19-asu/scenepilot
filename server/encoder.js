@@ -211,17 +211,23 @@ function equalSecret(left, right) {
 function startIngest(input, room) {
   return spawn("/usr/bin/ffmpeg", [
     "-hide_banner", "-loglevel", "warning",
-    "-fflags", "+genpts+discardcorrupt",
+    "-fflags", "+genpts+discardcorrupt+nobuffer",
+    "-flags", "low_delay",
+    "-avioflags", "direct",
     "-i", "pipe:0",
     "-c:v", "libx264",
     "-preset", "veryfast",
     "-tune", "zerolatency",
     "-pix_fmt", "yuv420p",
-    "-g", "60",
-    "-keyint_min", "60",
+    "-g", "30",
+    "-keyint_min", "30",
+    "-sc_threshold", "0",
     "-c:a", "aac",
     "-ar", "48000",
     "-b:a", "128k",
+    "-flush_packets", "1",
+    "-muxdelay", "0",
+    "-muxpreload", "0",
     "-f", "flv",
     `${input}/${room}`
   ], {
