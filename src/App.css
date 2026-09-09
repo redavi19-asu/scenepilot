@@ -3703,3 +3703,58 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
     filter:brightness(1.28);
   }
 }
+
+.program-master-policy{
+  margin-top:12px;
+  border:1px solid #3c2f20;
+  background:#17120c;
+  padding:12px;
+  display:grid;
+  gap:10px;
+}
+.program-master-policy strong{
+  display:block;
+  color:#f2d9a4;
+  font-size:11px;
+  letter-spacing:.08em;
+}
+.program-master-policy small{
+  display:block;
+  margin-top:5px;
+  color:#a99c89;
+  font-size:9px;
+  line-height:1.5;
+}
+.program-master-actions{
+  display:grid;
+  grid-template-columns:1fr 1.3fr;
+  gap:8px;
+}
+.program-master-actions button{
+  min-height:36px;
+  border:1px solid #49413a;
+  background:#1c1a17;
+  color:#ece7df;
+  font:inherit;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.06em;
+  cursor:pointer;
+}
+.program-master-actions .program-delete{
+  border-color:#6e342f;
+  background:#2a1513;
+  color:#ffb1aa;
+}
+.program-master-actions .program-publish{
+  border-color:#42664b;
+  background:#15251a;
+  color:#b9e4c1;
+}
+.program-master-actions button:disabled{
+  opacity:.55;
+  cursor:default;
+}
+@media(max-width:760px){
+  .program-master-actions{grid-template-columns:1fr}
+}
