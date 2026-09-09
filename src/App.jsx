@@ -151,7 +151,6 @@ function App({ user = null, onLogout = null }) {
   const [qualityProfile, setQualityProfile] = useState("auto");
   const [showTips, setShowTips] = useState(false);
   const [directorMenuOpen, setDirectorMenuOpen] = useState(false);
-  const [directorCameraPanelOpen, setDirectorCameraPanelOpen] = useState(false);
   const [secondaryToolAlert, setSecondaryToolAlert] = useState(null);
   const [showCallShield, setShowCallShield] = useState(false);
   const [liveShieldEnabled, setLiveShieldEnabled] = useState(false);
@@ -3321,13 +3320,6 @@ async function enableCamera() {
                 <MessageSquare size={17}/> CAMERA COMMS
                 {secondaryToolAlert?.type === "comms" && <b>!</b>}
               </button>
-              <button type="button" onClick={() => {
-                setDirectorCameraPanelOpen(value => !value);
-                setDirectorMenuOpen(false);
-              }}>
-                <Camera size={17}/> {directorCameraPanelOpen ? "HIDE DIRECTOR CAM" : "DIRECTOR CAM"}
-                <small>{directorStream ? "ON" : "OFF"}</small>
-              </button>
             </div>
 
             <div className="director-menu-group">
@@ -3635,7 +3627,6 @@ async function enableCamera() {
           </div>
 
           <div className="source-feature-row">
-          {directorCameraPanelOpen && (
           <div className="director-camera-panel">
             <div className="director-camera-copy">
               <span>LOCAL SOURCE</span>
@@ -3712,7 +3703,6 @@ async function enableCamera() {
               )}
             </div>
           </div>
-          )}
 
           <div
             className={`main-camera-home ${draggingCamera ? "drag-active" : ""}`}
