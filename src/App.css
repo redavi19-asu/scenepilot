@@ -3478,3 +3478,80 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
     max-width:220px !important;
   }
 }
+
+
+/* Tiny inline remote camera bubble — final tablet/phone sizing */
+.remote-camera-control-popout{
+  top:30px !important;
+  right:4px !important;
+  width:172px !important;
+  max-width:172px !important;
+  padding:5px !important;
+  border-radius:8px !important;
+  box-shadow:0 8px 22px rgba(0,0,0,.34) !important;
+}
+.remote-camera-popout-head{
+  margin-bottom:4px !important;
+  gap:5px !important;
+  align-items:center !important;
+}
+.remote-camera-popout-head>div{
+  gap:1px !important;
+}
+.remote-camera-popout-head span{
+  display:none !important;
+}
+.remote-camera-popout-head strong{
+  font-size:8px !important;
+  line-height:1 !important;
+}
+.remote-camera-popout-head small{
+  font-size:5px !important;
+  line-height:1 !important;
+}
+.remote-camera-popout-close{
+  width:20px !important;
+  height:20px !important;
+  border-radius:6px !important;
+  padding:0 !important;
+}
+.remote-camera-popout-controls{
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  gap:3px !important;
+}
+.remote-camera-popout-controls button{
+  min-height:42px !important;
+  padding:3px 2px !important;
+  gap:2px !important;
+  border-radius:6px !important;
+}
+.remote-camera-popout-controls button svg{
+  width:19px !important;
+  height:19px !important;
+  padding:3px !important;
+}
+.remote-camera-popout-controls button strong{
+  font-size:5px !important;
+  line-height:1.05 !important;
+  letter-spacing:0 !important;
+}
+.remote-camera-popout-controls button span{
+  display:none !important;
+}
+
+@media(max-width:680px){
+  .remote-camera-control-popout{
+    width:164px !important;
+    max-width:164px !important;
+    top:28px !important;
+    right:2px !important;
+  }
+}
+
+@media(orientation:landscape) and (max-height:620px){
+  .remote-camera-control-popout{
+    width:168px !important;
+    max-width:168px !important;
+    top:26px !important;
+  }
+}
