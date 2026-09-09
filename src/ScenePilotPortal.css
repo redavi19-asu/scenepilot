@@ -1591,11 +1591,11 @@
   min-height:100vh;
   display:grid;
   place-items:center;
-  padding:24px;
+  padding:12px;
   color:#f7f8fb;
   background:radial-gradient(circle at top,#202a3d 0,#090c12 52%,#050609 100%);
 }
-.sp-watch-card{width:min(1100px,100%)}
+.sp-watch-card{width:min(1600px,96vw)}
 .sp-watch-brand{
   display:flex;
   align-items:center;
@@ -1608,12 +1608,14 @@
 .sp-watch-video{
   overflow:hidden;
   aspect-ratio:16/9;
+  position:relative;
+  max-height:86vh;
   border:1px solid #344052;
   border-radius:14px;
   background:#000;
   box-shadow:0 24px 70px #000a;
 }
-.sp-watch-video video{display:block;width:100%;height:100%;background:#000}
+.sp-watch-video video{display:block;width:100%;height:100%;background:#000;object-fit:contain}
 .sp-watch-status{
   display:flex;
   align-items:center;
@@ -1630,3 +1632,52 @@
 }
 .sp-watch-status i.live{background:#ff3b30;box-shadow:0 0 12px #ff3b30}
 .sp-watch-status span{margin-left:auto;color:#9da7b8}
+
+.sp-watch-video-actions{
+  position:absolute;
+  top:12px;
+  right:12px;
+  z-index:4;
+  display:flex;
+  gap:7px;
+}
+.sp-watch-video-actions button{
+  min-height:38px;
+  padding:0 11px;
+  border:1px solid rgba(255,255,255,.28);
+  border-radius:9px;
+  background:rgba(6,8,12,.72);
+  color:#fff;
+  backdrop-filter:blur(10px);
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font:900 9px Inter,system-ui,sans-serif;
+  letter-spacing:.08em;
+  cursor:pointer;
+}
+.sp-watch-video-actions button:hover{
+  background:rgba(24,29,39,.9);
+  border-color:rgba(255,255,255,.48);
+}
+.sp-watch-status{
+  flex-wrap:wrap;
+}
+.sp-watch-status small{
+  color:#ffba78;
+  font-size:9px;
+  letter-spacing:.06em;
+}
+@media(max-width:760px){
+  .sp-watch-shell{padding:6px}
+  .sp-watch-card{width:100%}
+  .sp-watch-brand{margin:8px 6px 10px}
+  .sp-watch-video{border-radius:8px}
+  .sp-watch-video-actions{top:7px;right:7px}
+  .sp-watch-video-actions button{
+    min-height:34px;
+    padding:0 9px;
+  }
+  .sp-watch-video-actions button span{display:none}
+  .sp-watch-status{padding:12px 6px}
+}
