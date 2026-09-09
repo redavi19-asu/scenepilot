@@ -83,7 +83,8 @@ function LiveStreamVideo({ stream, className = "", muted = true }) {
   );
 }
 
-function App() {
+function App({ user = null }) {
+  const isOwner = user?.role === "owner";
   const [showSplash, setShowSplash] = useState(true);
   const [cameras, setCameras] = useState(initialCameras);
   const [program, setProgram] = useState(1);
@@ -1482,6 +1483,23 @@ function App() {
         `scenepilot-${safeRecordingName(roomCode)}-${kind}-${safeRecordingName(label)}-${timestamp}.${ext}`;
 
       if (kind === "program") {
+        if (isOwner) {
+          downloadRecordingBlob(blob, filename);
+          setPendingProgramMaster(current => {
+            if (current?.url) URL.revokeObjectURL(current.url);
+            return {
+              blob,
+              filename,
+              url: URL.createObjectURL(blob),
+              createdAt: Date.now(),
+              size: blob.size,
+              status: "owner"
+            };
+          });
+          setRecordStatus("OWNER PROGRAM MASTER • DOWNLOADED + RETAINED");
+          return;
+        }
+
         setPendingProgramMaster(current => {
           if (current?.url) URL.revokeObjectURL(current.url);
           return {
@@ -1569,12 +1587,23 @@ function App() {
     stopProgramCompositor();
     setRecording(false);
     setRecordStatus(
-      recordMode === "program"
-        ? "PROGRAM MASTER READY • DC LIVE OR DELETE"
-        : recordMode === "both"
-          ? "RAW FILES SAVED • PROGRAM MASTER HELD"
-          : "RAW FILES SAVED TO THIS DEVICE"
+      isOwner && (recordMode === "program" || recordMode === "both")
+        ? "OWNER RECORDING SAVED • NO CUSTOMER RESTRICTIONS"
+        : recordMode === "program"
+          ? "PROGRAM MASTER READY • DC LIVE OR DELETE"
+          : recordMode === "both"
+            ? "RAW FILES SAVED • PROGRAM MASTER HELD"
+            : "RAW FILES SAVED TO THIS DEVICE"
     );
+  }
+
+  function downloadPendingProgramMaster() {
+    if (!isOwner || !pendingProgramMaster?.blob) return;
+    downloadRecordingBlob(
+      pendingProgramMaster.blob,
+      pendingProgramMaster.filename || `scenepilot-${safeRecordingName(roomCode)}-owner-program.mp4`
+    );
+    setRecordStatus("OWNER PROGRAM MASTER DOWNLOADED");
   }
 
   function deletePendingProgramMaster() {
@@ -3902,14 +3931,25 @@ async function enableCamera() {
             </div>
 
             {pendingProgramMaster && (
-              <div className="program-master-policy">
+              <div className={`program-master-policy ${isOwner ? "owner" : ""}`}>
                 <div>
-                  <strong>FINISHED PROGRAM MASTER</strong>
+                  <strong>{isOwner ? "ICA OWNER PROGRAM MASTER" : "FINISHED PROGRAM MASTER"}</strong>
                   <small>
-                    This composed production is not downloadable. Raw ISO camera files remain yours to download.
+                    {isOwner
+                      ? "Owner exemption active: download, keep, publish or delete this Program with no customer retention or monetization restriction."
+                      : "This composed production is not downloadable. Raw ISO camera files remain yours to download."}
                   </small>
                 </div>
                 <div className="program-master-actions">
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className="program-download"
+                      onClick={downloadPendingProgramMaster}
+                    >
+                      DOWNLOAD MASTER
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="program-delete"
@@ -3930,8 +3970,9 @@ async function enableCamera() {
             )}
 
             <p className="record-help">
-              Raw ISO camera files can be downloaded and kept by the creator. The finished Program master includes the composed production,
-              graphics, transitions and overlays, so it stays inside the ScenePilot / DC Live ecosystem: publish it to DC Live or delete it.
+              {isOwner
+                ? "ICA Owner mode has no customer recording restrictions: raw files and finished Program masters can be downloaded, retained, published, archived or deleted at your discretion."
+                : "Raw ISO camera files can be downloaded and kept by the creator. The finished Program master includes the composed production, graphics, transitions and overlays, so it stays inside the ScenePilot / DC Live ecosystem: publish it to DC Live or delete it."}
             </p>
           </div>
 
