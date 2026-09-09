@@ -420,6 +420,12 @@ function IntercomPanel({ mode }) {
   const talkingTargetsRef = useRef([]);
   const talkingSignalTargetRef = useRef(null);
 
+  useEffect(() => {
+    const openFromMenu = () => setOpen(true);
+    window.addEventListener("scenepilot:open-intercom", openFromMenu);
+    return () => window.removeEventListener("scenepilot:open-intercom", openFromMenu);
+  }, []);
+
   const ensureMic = useCallback(async () => {
     const existing = micStreamRef.current;
     if (existing?.getAudioTracks?.().some(track => track.readyState === "live")) {
@@ -669,6 +675,17 @@ function IntercomPanel({ mode }) {
     attachMicToPeer,
     roomCode
   ]);
+
+  useEffect(() => {
+    if (mode !== "director") return;
+    window.dispatchEvent(new CustomEvent("scenepilot:secondary-tool-alert", {
+      detail: {
+        type: "intercom",
+        active: Boolean(incomingPtt),
+        label: incomingPtt ? "WALKIE-TALKIE" : ""
+      }
+    }));
+  }, [incomingPtt, mode]);
 
   const endTalk = useCallback(event => {
     event?.preventDefault?.();
@@ -1049,6 +1066,12 @@ function CommsPanel({ mode }) {
   });
 
   useEffect(() => {
+    const openFromMenu = () => openPanel();
+    window.addEventListener("scenepilot:open-comms", openFromMenu);
+    return () => window.removeEventListener("scenepilot:open-comms", openFromMenu);
+  }, []);
+
+  useEffect(() => {
     const clearOperatorAlert = () => {
       setIncomingAlert(null);
       setUnread(0);
@@ -1094,6 +1117,15 @@ function CommsPanel({ mode }) {
 
       if (!open) {
         setUnread(value => value + 1);
+        if (mode === "director" && message.fromRole === "camera") {
+          window.dispatchEvent(new CustomEvent("scenepilot:secondary-tool-alert", {
+            detail: {
+              type: "comms",
+              active: true,
+              label: "CAMERA MESSAGE"
+            }
+          }));
+        }
       }
 
       if (mode === "camera" && message.fromRole === "director") {
@@ -1156,6 +1188,11 @@ function CommsPanel({ mode }) {
   function openPanel() {
     setOpen(true);
     setUnread(0);
+    if (mode === "director") {
+      window.dispatchEvent(new CustomEvent("scenepilot:secondary-tool-alert", {
+        detail: { type: "comms", active: false }
+      }));
+    }
   }
 
   function sendMessage(event) {
@@ -1189,11 +1226,13 @@ function CommsPanel({ mode }) {
         </button>
       )}
 
-      <button className={`sp-comms-fab ${mode}`} onClick={openPanel}>
-        <MessageSquare size={18}/>
-        {mode === "camera" ? "MESSAGE DIRECTOR" : "CAMERA COMMS"}
-        {unread > 0 && <b>{unread > 9 ? "9+" : unread}</b>}
-      </button>
+      {mode === "camera" && (
+        <button className={`sp-comms-fab ${mode}`} onClick={openPanel}>
+          <MessageSquare size={18}/>
+          MESSAGE DIRECTOR
+          {unread > 0 && <b>{unread > 9 ? "9+" : unread}</b>}
+        </button>
+      )}
 
       {open && (
         <div className="sp-comms-backdrop" onClick={() => setOpen(false)}>
@@ -1499,8 +1538,7 @@ export default function ScenePilotPortal() {
 
     return (
       <>
-        <App user={user}/>
-        <AccountBar user={user} onLogout={logout}/>
+        <App user={user} onLogout={logout}/>
         <IntercomPanel mode="director"/>
         <CommsPanel mode="director"/>
       </>
