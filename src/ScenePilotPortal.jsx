@@ -235,7 +235,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [marketing, setMarketing] = useState(true);
+  const [marketing, setMarketing] = useState(false);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
@@ -365,7 +365,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
                 checked={marketing}
                 onChange={event => setMarketing(event.target.checked)}
               />
-              <span>Send me ScenePilot beta and product updates.</span>
+              <span>Optional: Email me ScenePilot and ICA product updates, feature announcements, and occasional offers.</span>
             </label>
           )}
 
