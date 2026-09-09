@@ -145,6 +145,7 @@ function App({ user = null, onLogout = null }) {
   const [signalStatus, setSignalStatus] = useState("OFFLINE");
   const [directorLockMessage, setDirectorLockMessage] = useState("");
   const [isOnAir, setIsOnAir] = useState(false);
+  const [cameraRegistered, setCameraRegistered] = useState(false);
   const [assignedSlot, setAssignedSlot] = useState(1);
   const assignedSlotRef = useRef(1);
   const [cameraName, setCameraName] = useState("USER");
@@ -405,7 +406,7 @@ function App({ user = null, onLogout = null }) {
 
 
   useEffect(() => {
-    if (!showCamera || !stream || !socket.connected || !telemetryAllowed) return;
+    if (!showCamera || !stream || !cameraRegistered || !telemetryAllowed) return;
 
     let battery = null;
     let batteryCleanup = null;
@@ -540,7 +541,7 @@ function App({ user = null, onLogout = null }) {
       connection?.removeEventListener?.("change", sendTelemetry);
       batteryCleanup?.();
     };
-  }, [showCamera, stream, roomCode, telemetryAllowed]);
+  }, [showCamera, stream, roomCode, telemetryAllowed, cameraRegistered]);
 
   useEffect(() => {
     if (!showCamera || !navigator.mediaDevices) return;
@@ -2343,6 +2344,8 @@ async function enableCamera() {
       };
 
       const handleRegistered = ({ slotId, directorAvailable }) => {
+        setCameraRegistered(true);
+
         if (slotId) {
           assignedSlotRef.current = Number(slotId);
           setAssignedSlot(Number(slotId));
@@ -2387,6 +2390,7 @@ async function enableCamera() {
       };
 
       const handleDisconnect = () => {
+        setCameraRegistered(false);
         setSignalStatus("SIGNAL DISCONNECTED");
       };
 
@@ -2543,6 +2547,7 @@ async function enableCamera() {
     socket.disconnect();
 
     setStream(null);
+    setCameraRegistered(false);
     setIsOnAir(false);
     setZoomRange(null);
     setZoomValue(1);
@@ -3124,23 +3129,27 @@ async function enableCamera() {
 
   const networkLabelForCamera = camera => {
     if (!camera) return "OFFLINE";
-    if (camera.telemetryConsent === false) return "NOT SHARED";
-    if (camera.telemetrySupport?.network === false && !camera.network) return "WAITING";
 
     const bars = camera.network?.bars;
     if (bars === 4) return "EXCELLENT";
     if (bars === 3) return "GOOD";
     if (bars === 2) return "FAIR";
     if (bars === 1) return "WEAK";
+
+    if (camera.network?.source === "webrtc") return "CHECKING";
+    if (camera.telemetryConsent === false) return "CHECKING";
+    if (camera.telemetrySupport?.network === false && !camera.network) return "CHECKING";
     return camera.network ? "LIMITED" : "CHECKING";
   };
 
   const batteryLabelForCamera = camera => {
     if (!camera) return "OFFLINE";
+    if (Number.isFinite(camera.battery)) {
+      return `${camera.battery}%${camera.charging ? " ⚡" : ""}`;
+    }
     if (camera.telemetryConsent === false) return "NOT SHARED";
-    if (camera.telemetrySupport?.battery === false) return "UNSUPPORTED";
-    if (!Number.isFinite(camera.battery)) return "NOT SHARED";
-    return `${camera.battery}%${camera.charging ? " ⚡" : ""}`;
+    if (camera.telemetrySupport?.battery === false) return "DEVICE BLOCKED";
+    return "WAITING";
   };
 
   const displayNameForCamera = slotId => {
