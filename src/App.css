@@ -3597,3 +3597,26 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
   font-weight:800 !important;
   letter-spacing:.045em !important;
 }
+
+
+/* Keep Program status above the red program line so LIVE BUG owns the video canvas */
+.program-head-status{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.header-live-badge{
+  position:static !important;
+  inset:auto !important;
+  transform:none !important;
+  margin:0 !important;
+  min-height:20px;
+  padding:0 7px !important;
+  font-size:7px !important;
+  line-height:1 !important;
+  z-index:auto !important;
+}
+.header-live-badge i{
+  width:6px !important;
+  height:6px !important;
+}
