@@ -2572,8 +2572,8 @@ async function enableCamera() {
 
             {stream && (
               <>
-                <span className={`operator-live ${isOnAir ? "on-air" : "ready"}`}>
-                  <i /> {isOnAir ? "YOU ARE LIVE" : "CONNECTED / READY"}
+                <span className={`operator-live ${isOnAir ? "on-air" : "ready"}`} role="status" aria-live="polite">
+                  <i /> {isOnAir ? "LIVE" : "CONNECTED / READY"}
                 </span>
 
                 <div className={`on-air-banner ${isOnAir ? "live" : "standby"}`}>
@@ -2581,8 +2581,8 @@ async function enableCamera() {
                     <>
                       <Radio size={22}/>
                       <div>
-                        <strong>YOU ARE ON AIR</strong>
-                        <span>CAMERA {String(assignedSlot).padStart(2, "0")} IS LIVE</span>
+                        <strong>LIVE — YOU ARE ON AIR</strong>
+                        <span>CAMERA {String(assignedSlot).padStart(2, "0")} IS IN PROGRAM</span>
                       </div>
                     </>
                   ) : (
