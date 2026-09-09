@@ -92,7 +92,7 @@ function App({ user = null, onLogout = null }) {
   const [transition, setTransition] = useState("DISSOLVE");
   const [duration, setDuration] = useState(500);
   const [recording, setRecording] = useState(false);
-  const [recordMode, setRecordMode] = useState("both");
+  const [recordMode, setRecordMode] = useState(isOwner ? "both" : "iso");
   const [recordStatus, setRecordStatus] = useState("READY");
   const [pendingProgramMaster, setPendingProgramMaster] = useState(null);
   const [standby, setStandby] = useState(false);
@@ -1553,14 +1553,15 @@ function App({ user = null, onLogout = null }) {
     }
 
     const recorders = [];
+    const effectiveRecordMode = isOwner ? recordMode : "iso";
 
-    if (recordMode === "program" || recordMode === "both") {
+    if (effectiveRecordMode === "program" || effectiveRecordMode === "both") {
       const programStream = startProgramCompositor() || currentProgramMediaStream();
       const recorder = createProductionRecorder(programStream, "program-master", "program");
       if (recorder) recorders.push(recorder);
     }
 
-    if (recordMode === "iso" || recordMode === "both") {
+    if (effectiveRecordMode === "iso" || effectiveRecordMode === "both") {
       wirelessCameras.forEach(camera => {
         const cameraStream = remoteStreams[camera.socketId];
         const label = `cam-${String(camera.slotId || "x").padStart(2, "0")}-${displayNameForCamera(camera.slotId)}`;
@@ -1586,11 +1587,11 @@ function App({ user = null, onLogout = null }) {
     productionRecordersRef.current = recorders;
     setRecording(true);
     setRecordStatus(
-      recordMode === "program"
-        ? "PROGRAM RECORDING"
-        : recordMode === "iso"
-          ? `ISO RECORDING • ${recorders.length} FILES`
-          : `PROGRAM + ISO • ${recorders.length} RECORDERS`
+      effectiveRecordMode === "program"
+        ? "OWNER PROGRAM RECORDING"
+        : effectiveRecordMode === "iso"
+          ? `RAW / ISO RECORDING • ${recorders.length} FILES`
+          : `OWNER PROGRAM + ISO • ${recorders.length} RECORDERS`
     );
   }
 
@@ -1610,11 +1611,7 @@ function App({ user = null, onLogout = null }) {
     setRecordStatus(
       isOwner && (recordMode === "program" || recordMode === "both")
         ? "OWNER RECORDING SAVED • NO CUSTOMER RESTRICTIONS"
-        : recordMode === "program"
-          ? "PROGRAM MASTER READY • DC LIVE OR DELETE"
-          : recordMode === "both"
-            ? "RAW FILES SAVED • PROGRAM MASTER HELD"
-            : "RAW FILES SAVED TO THIS DEVICE"
+        : "RAW / ISO FILES SAVED TO THIS DEVICE"
     );
   }
 
@@ -4128,44 +4125,63 @@ async function enableCamera() {
           </div>
 
           <div className="record-panel">
-            <div className="panel-label">LOCAL RECORDING</div>
-
-            <div className="record-mode-grid" role="group" aria-label="Recording mode">
-              <button
-                type="button"
-                className={recordMode === "program" ? "active" : ""}
-                disabled={recording}
-                onClick={() => setRecordMode("program")}
-              >
-                <strong>PROGRAM</strong>
-                <small>Finished live source</small>
-              </button>
-              <button
-                type="button"
-                className={recordMode === "iso" ? "active" : ""}
-                disabled={recording}
-                onClick={() => setRecordMode("iso")}
-              >
-                <strong>ALL CAMERAS / ISO</strong>
-                <small>Separate camera files</small>
-              </button>
-              <button
-                type="button"
-                className={recordMode === "both" ? "active" : ""}
-                disabled={recording}
-                onClick={() => setRecordMode("both")}
-              >
-                <strong>BOTH</strong>
-                <small>Program + every camera</small>
-              </button>
+            <div className="panel-label">
+              {isOwner ? "OWNER RECORDING" : "RAW / ISO RECORDING"}
             </div>
+
+            {isOwner ? (
+              <div className="record-mode-grid" role="group" aria-label="Owner recording mode">
+                <button
+                  type="button"
+                  className={recordMode === "program" ? "active" : ""}
+                  disabled={recording}
+                  onClick={() => setRecordMode("program")}
+                >
+                  <strong>PROGRAM MASTER</strong>
+                  <small>Owner unrestricted</small>
+                </button>
+                <button
+                  type="button"
+                  className={recordMode === "iso" ? "active" : ""}
+                  disabled={recording}
+                  onClick={() => setRecordMode("iso")}
+                >
+                  <strong>ALL CAMERAS / ISO</strong>
+                  <small>Separate raw source files</small>
+                </button>
+                <button
+                  type="button"
+                  className={recordMode === "both" ? "active" : ""}
+                  disabled={recording}
+                  onClick={() => setRecordMode("both")}
+                >
+                  <strong>BOTH</strong>
+                  <small>Program master + raw ISO files</small>
+                </button>
+              </div>
+            ) : (
+              <div className="customer-raw-recording">
+                <div>
+                  <Film size={18}/>
+                  <strong>ALL CAMERAS / ISO</strong>
+                </div>
+                <small>
+                  Records each connected camera as a separate raw file. Director Cam is included
+                  when enabled. These source files belong to you and can be downloaded.
+                </small>
+              </div>
+            )}
 
             <button
               className={`record-button ${recording ? "recording" : ""}`}
               onClick={toggleProductionRecording}
             >
               <Circle size={19} fill="currentColor"/>
-              {recording ? "STOP & SAVE RECORDING" : "START RECORDING"}
+              {recording
+                ? "STOP & SAVE RECORDING"
+                : isOwner
+                  ? "START RECORDING"
+                  : "START RAW / ISO RECORDING"}
             </button>
 
             <div className="record-status-line">
@@ -4174,8 +4190,17 @@ async function enableCamera() {
             </div>
 
             <div className="output-data">
-              <span>{recordMode === "program" ? "PROGRAM" : recordMode === "iso" ? "ISO TRACKS" : "PROGRAM + ISO"}</span>
-              <span>{recordMode === "iso" ? "RAW • DOWNLOADABLE" : "PROGRAM • PROTECTED"}</span>
+              {isOwner ? (
+                <>
+                  <span>{recordMode === "program" ? "PROGRAM MASTER" : recordMode === "iso" ? "ISO TRACKS" : "PROGRAM + ISO"}</span>
+                  <span>{recordMode === "iso" ? "RAW • DOWNLOADABLE" : "OWNER • UNRESTRICTED"}</span>
+                </>
+              ) : (
+                <>
+                  <span>RAW SOURCE TRACKS</span>
+                  <span>DOWNLOADABLE • CUSTOMER OWNED</span>
+                </>
+              )}
             </div>
 
             {pendingProgramMaster && (
@@ -4224,7 +4249,7 @@ async function enableCamera() {
             <p className="record-help">
               {isOwner
                 ? "ICA Owner mode has no customer recording restrictions: raw files and finished Program masters can be downloaded, retained, published, archived or deleted at your discretion."
-                : "Raw ISO camera files can be downloaded and kept by the creator. The finished Program master includes the composed production, graphics, transitions and overlays, so it stays inside the ScenePilot / DC Live ecosystem: publish it to DC Live or delete it."}
+                : "This recorder is for your raw camera sources only. Each connected camera is saved separately for download and editing. Finished Program masters are handled by ScenePilot's protected Program workflow, not by this local recorder."}
             </p>
           </div>
 
