@@ -527,6 +527,99 @@ async function handleMe(request, env) {
   return json({ user });
 }
 
+async function handleDcLiveSubmissionTicket(request, env) {
+  const auth = await requireScenePilotNetworkMember(request, env);
+  if (auth.response) return auth.response;
+
+  const token = randomToken(32);
+  const tokenHash = await sha256(token);
+  const now = Date.now();
+  const expiresAt = now + 6 * 60 * 60 * 1000;
+
+  await env.DB.batch([
+    env.DB.prepare(
+      "DELETE FROM dc_live_submission_tokens WHERE expires_at <= ?"
+    ).bind(now),
+    env.DB.prepare(
+      `INSERT INTO dc_live_submission_tokens (
+        token_hash, user_id, network_id, expires_at, created_at
+      ) VALUES (?, ?, ?, ?, ?)`
+    ).bind(tokenHash, auth.user.id, auth.network.id, expiresAt, now)
+  ]);
+
+  return json({
+    token,
+    expiresAt,
+    creator: {
+      id: auth.user.id,
+      email: auth.user.email,
+      displayName: auth.user.displayName || "",
+      role: auth.user.role || "user"
+    },
+    network: {
+      id: auth.network.id,
+      name: auth.network.name
+    }
+  }, 201);
+}
+
+async function handleDcLiveVerifyTicket(request, env) {
+  const authorization = String(request.headers.get("Authorization") || "");
+  const token = authorization.toLowerCase().startsWith("bearer ")
+    ? authorization.slice(7).trim()
+    : "";
+
+  if (!token) {
+    return json({ valid: false, error: "Submission ticket required." }, 401);
+  }
+
+  const tokenHash = await sha256(token);
+  const row = await env.DB.prepare(
+    `SELECT
+      t.user_id,
+      t.network_id,
+      t.expires_at,
+      u.email,
+      u.display_name,
+      u.role,
+      u.status,
+      COALESCE(up.access_status, 'active') AS access_status,
+      n.name AS network_name
+    FROM dc_live_submission_tokens t
+    JOIN users u ON u.id = t.user_id
+    LEFT JOIN user_products up
+      ON up.user_id = u.id
+      AND up.product_id = 'product_scenepilot'
+    LEFT JOIN scenepilot_networks n ON n.id = t.network_id
+    WHERE t.token_hash = ?
+      AND t.expires_at > ?
+    LIMIT 1`
+  ).bind(tokenHash, Date.now()).first();
+
+  if (
+    !row ||
+    row.status !== "active" ||
+    row.access_status !== "active"
+  ) {
+    return json({ valid: false, error: "Submission ticket is invalid or expired." }, 401);
+  }
+
+  return json({
+    valid: true,
+    expiresAt: row.expires_at,
+    creator: {
+      id: row.user_id,
+      email: row.email,
+      displayName: row.display_name || "",
+      role: row.role || "user"
+    },
+    network: {
+      id: row.network_id || "",
+      name: row.network_name || "ScenePilot Network"
+    }
+  });
+}
+
 async function handleAdminUsers(request, env) {
   const auth = await requireAdmin(request, env);
   if (auth.response) return auth.response;
@@ -1774,6 +1867,14 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/broadcast/stop" && request.method === "POST") {
     return handleBroadcastControl(request, env, "stop");
+  }
+
+  if (url.pathname === "/api/dc-live/submission-ticket" && request.method === "POST") {
+    return handleDcLiveSubmissionTicket(request, env);
+  }
+
+  if (url.pathname === "/api/dc-live/verify-ticket" && request.method === "POST") {
+    return handleDcLiveVerifyTicket(request, env);
   }
 
   if (url.pathname === "/api/auth/register" && request.method === "POST") {
