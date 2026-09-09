@@ -3136,7 +3136,12 @@ async function enableCamera() {
           <div className="monitor program-monitor">
             <div className="monitor-head">
               <span>PROGRAM</span>
-              <strong>PGM</strong>
+              <div className="program-head-status">
+                <span className={`live-badge header-live-badge ${standby ? "standby" : ""}`}>
+                  <i/> {standby ? "STANDBY" : "LIVE"}
+                </span>
+                <strong>PGM</strong>
+              </div>
             </div>
             <div
               key={`program-${programTransition.key}`}
@@ -3207,7 +3212,6 @@ async function enableCamera() {
               ) : (
                 renderSource(programComposition.primary, "program")
               )}
-              <span className={`live-badge ${standby ? "standby" : ""}`}><i/> {standby ? "STANDBY" : "LIVE"}</span>
               <span className="source-tag">
                 {standby
                   ? "HOLD SCREEN • PROGRAM PAUSED"
