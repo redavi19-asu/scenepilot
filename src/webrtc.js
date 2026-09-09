@@ -51,3 +51,60 @@ export function createPeerConnection({
 
   return peer;
 }
+
+
+export async function optimizeVideoSender(sender, qualityProfile = "auto") {
+  if (!sender?.track || sender.track.kind !== "video") return;
+
+  try {
+    const params = sender.getParameters?.() || {};
+    if (!params.encodings?.length) {
+      params.encodings = [{}];
+    }
+
+    const connection =
+      navigator.connection ||
+      navigator.mozConnection ||
+      navigator.webkitConnection;
+
+    const effectiveType = String(connection?.effectiveType || "").toLowerCase();
+    const connectionType = String(connection?.type || "").toLowerCase();
+    const isSlowNetwork = ["slow-2g", "2g", "3g"].includes(effectiveType);
+    const isCellular = connectionType === "cellular";
+    const isMobileDevice =
+      /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+
+    let maxBitrate = 2600000;
+    let maxFramerate = 30;
+    let scaleResolutionDownBy = 1;
+
+    if (qualityProfile === "1080p") {
+      maxBitrate = 3200000;
+    } else if (qualityProfile === "720p") {
+      maxBitrate = 2200000;
+    }
+
+    if (isSlowNetwork) {
+      maxBitrate = 850000;
+      maxFramerate = 20;
+      scaleResolutionDownBy = 1.75;
+    } else if (isCellular || (isMobileDevice && !connection)) {
+      maxBitrate = 1600000;
+      maxFramerate = 24;
+      scaleResolutionDownBy = qualityProfile === "1080p" ? 1.35 : 1.15;
+    }
+
+    params.encodings[0] = {
+      ...params.encodings[0],
+      maxBitrate,
+      maxFramerate,
+      scaleResolutionDownBy
+    };
+
+    params.degradationPreference = "maintain-framerate";
+
+    await sender.setParameters?.(params);
+  } catch (error) {
+    console.warn("ScenePilot adaptive video tuning unavailable", error);
+  }
+}
