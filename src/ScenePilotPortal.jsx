@@ -1499,7 +1499,7 @@ export default function ScenePilotPortal() {
 
     return (
       <>
-        <App/>
+        <App user={user}/>
         <AccountBar user={user} onLogout={logout}/>
         <IntercomPanel mode="director"/>
         <CommsPanel mode="director"/>
