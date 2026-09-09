@@ -9,6 +9,77 @@ import TurnstileWidget from "./TurnstileWidget.jsx";
 import { socket } from "./socket";
 import "./ScenePilotPortal.css";
 
+function WatchPage({ roomCode }) {
+  const videoRef = useRef(null);
+  const [status, setStatus] = useState("CONNECTING TO LIVE PROGRAM");
+  const safeRoom = String(roomCode || "").replace(/[^A-Za-z0-9_-]/g, "");
+  const streamUrl = `https://live.icomputeranything.com/hls/live/${encodeURIComponent(safeRoom)}/index.m3u8`;
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !safeRoom) return undefined;
+
+    let hls = null;
+    let cancelled = false;
+    const markLive = () => setStatus("LIVE");
+    video.addEventListener("playing", markLive);
+
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = streamUrl;
+    } else {
+      import("hls.js").then(({ default: Hls }) => {
+        if (cancelled) return;
+        if (!Hls.isSupported()) {
+          setStatus("LIVE VIDEO IS NOT SUPPORTED IN THIS BROWSER");
+          return;
+        }
+
+        hls = new Hls({
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 8,
+          enableWorker: true
+        });
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          setStatus("LIVE PROGRAM READY — TAP PLAY");
+          video.play().catch(() => {});
+        });
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (!data.fatal) return;
+          setStatus("WAITING FOR THE LIVE PROGRAM");
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+          else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+        });
+      }).catch(() => setStatus("LIVE PLAYER COULD NOT LOAD"));
+    }
+
+    return () => {
+      cancelled = true;
+      video.removeEventListener("playing", markLive);
+      hls?.destroy();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [safeRoom, streamUrl]);
+
+  return (
+    <main className="sp-watch-shell">
+      <section className="sp-watch-card">
+        <div className="sp-watch-brand"><RadioTower size={20}/> SCENEPILOT LIVE</div>
+        <div className="sp-watch-video">
+          <video ref={videoRef} controls autoPlay playsInline aria-label={`ScenePilot live room ${safeRoom}`}/>
+        </div>
+        <div className="sp-watch-status">
+          <i className={status === "LIVE" ? "live" : ""}/>
+          <strong>{status}</strong>
+          <span>ROOM {safeRoom}</span>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     credentials: "include",
@@ -1364,6 +1435,7 @@ export default function ScenePilotPortal() {
   const params = new URLSearchParams(window.location.search);
   const cameraMode = params.get("camera") === "1";
   const cleanPath = window.location.pathname.replace(/\/+$/, "") || "/";
+  const watchMatch = cleanPath.match(/^\/watch\/([A-Za-z0-9_-]{1,80})$/);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(!cameraMode);
 
@@ -1382,6 +1454,10 @@ export default function ScenePilotPortal() {
     } catch (_) {}
     setUser(null);
     go("/");
+  }
+
+  if (watchMatch) {
+    return <WatchPage roomCode={watchMatch[1]}/>;
   }
 
   if (cameraMode) {

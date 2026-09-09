@@ -3902,7 +3902,10 @@ async function enableCamera() {
         </section>
 
         <BroadcastGraphics />
-        <BroadcastPanel roomCode={roomCode} />
+        <BroadcastPanel
+          roomCode={roomCode}
+          getProgramStream={() => startProgramCompositor() || currentProgramMediaStream()}
+        />
         <ReplayStudio roomCode={roomCode} />
       </main>
 

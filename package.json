@@ -10,17 +10,20 @@
     "preview": "vite preview",
     "dev:web": "vite --host 0.0.0.0",
     "dev:signal": "node server/index.js",
+    "start:encoder": "node server/encoder.js",
     "setup:d1": "node scripts/configure-d1.mjs"
   },
   "dependencies": {
     "concurrently": "^10.0.5",
     "express": "^5.2.1",
+    "hls.js": "^1.7.2",
     "lucide-react": "^1.41.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "socket.io": "^4.8.3",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",

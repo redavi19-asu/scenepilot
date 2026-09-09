@@ -1430,20 +1430,33 @@ async function handleBroadcastDestinations(request, env) {
        ORDER BY destination_id ASC`
     ).bind(auth.network.id).all();
 
+    const destinations = (result.results || []).map(row => ({
+      id: row.destination_id,
+      label: row.label || "",
+      url: row.rtmp_url || "",
+      configured: Boolean(row.rtmp_url && row.stream_key_ciphertext),
+      status: row.status || "configured",
+      updatedAt: row.updated_at || null
+    }));
+
+    if (!destinations.some(item => item.id === "self")) {
+      destinations.push({
+        id: "self",
+        label: "ScenePilot Self-Hosted",
+        url: "",
+        configured: Boolean(String(env.ENCODER_API_URL || "").trim()),
+        status: "configured",
+        updatedAt: null
+      });
+    }
+
     return json({
       network: {
         id: auth.network.id,
         name: auth.network.name
       },
       encoderConnected: Boolean(String(env.ENCODER_API_URL || "").trim()),
-      destinations: (result.results || []).map(row => ({
-        id: row.destination_id,
-        label: row.label || "",
-        url: row.rtmp_url || "",
-        configured: Boolean(row.rtmp_url && row.stream_key_ciphertext),
-        status: row.status || "configured",
-        updatedAt: row.updated_at || null
-      }))
+      destinations
     });
   }
 
@@ -1551,6 +1564,16 @@ async function loadBroadcastTargets(env, networkId, destinationIds) {
   const targets = [];
 
   for (const id of destinationIds) {
+    if (id === "self") {
+      targets.push({
+        id: "self",
+        label: "ScenePilot Self-Hosted",
+        url: "",
+        streamKey: ""
+      });
+      continue;
+    }
+
     const row = byId.get(id);
     if (!row?.rtmp_url || !row?.stream_key_ciphertext) {
       throw new Error(`${id} is not configured for this ScenePilot network.`);

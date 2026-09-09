@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   RadioTower, Users, Camera, Video,
@@ -43,7 +43,7 @@ async function api(path, options = {}) {
   return data;
 }
 
-export default function BroadcastPanel({ roomCode = "SP-4827" }) {
+export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream }) {
   const [selected, setSelected] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [showSecrets, setShowSecrets] = useState(false);
@@ -54,6 +54,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827" }) {
   const [shareStatus, setShareStatus] = useState("");
   const [showShare, setShowShare] = useState(false);
   const [settings, setSettings] = useState(EMPTY_SETTINGS);
+  const ingestRef = useRef({ recorder: null, socket: null });
 
   const publicWatchUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -94,6 +95,95 @@ export default function BroadcastPanel({ roomCode = "SP-4827" }) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => () => {
+    const { recorder, socket } = ingestRef.current;
+    try { if (recorder?.state !== "inactive") recorder.stop(); } catch (_) {}
+    try { socket?.close(); } catch (_) {}
+  }, []);
+
+  function chooseIngestMimeType() {
+    const candidates = [
+      "video/webm;codecs=vp8,opus",
+      "video/webm;codecs=vp9,opus",
+      "video/webm",
+      "video/mp4"
+    ];
+    return candidates.find(type => MediaRecorder.isTypeSupported?.(type)) || "";
+  }
+
+  async function startBrowserIngest(ingest) {
+    if (!ingest?.url || !ingest?.protocol) {
+      throw new Error("Encoder did not return a secure ingest session.");
+    }
+
+    const stream = getProgramStream?.();
+    if (!stream?.getVideoTracks?.().length) {
+      throw new Error("Put a camera in Program before going live.");
+    }
+
+    if (typeof MediaRecorder === "undefined" || typeof WebSocket === "undefined") {
+      throw new Error("This browser cannot send the Program feed to ScenePilot.");
+    }
+
+    const mimeType = chooseIngestMimeType();
+    const recorder = mimeType
+      ? new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4_000_000 })
+      : new MediaRecorder(stream, { videoBitsPerSecond: 4_000_000 });
+    const socket = new WebSocket(ingest.url, ingest.protocol);
+    socket.binaryType = "arraybuffer";
+
+    await new Promise((resolve, reject) => {
+      const timer = window.setTimeout(
+        () => reject(new Error("ScenePilot ingest connection timed out.")),
+        12000
+      );
+
+      socket.onopen = () => {
+        window.clearTimeout(timer);
+        resolve();
+      };
+      socket.onerror = () => {
+        window.clearTimeout(timer);
+        reject(new Error("ScenePilot could not open the secure ingest connection."));
+      };
+    });
+
+    recorder.ondataavailable = event => {
+      if (event.data?.size && socket.readyState === WebSocket.OPEN) {
+        socket.send(event.data);
+      }
+    };
+    recorder.onerror = () => setStatus("Program ingest recorder failed.");
+    socket.onclose = event => {
+      if (event.code !== 1000 && ingestRef.current.socket === socket) {
+        setStatus("Program ingest connection closed unexpectedly.");
+        setBroadcasting(false);
+      }
+    };
+
+    ingestRef.current = { recorder, socket };
+    recorder.start(1000);
+  }
+
+  async function stopBrowserIngest() {
+    const { recorder, socket } = ingestRef.current;
+    ingestRef.current = { recorder: null, socket: null };
+
+    if (recorder?.state !== "inactive") {
+      await new Promise(resolve => {
+        const timer = window.setTimeout(resolve, 1500);
+        recorder.addEventListener("stop", () => {
+          window.clearTimeout(timer);
+          resolve();
+        }, { once: true });
+        try { recorder.stop(); } catch (_) { resolve(); }
+      });
+    }
+
+    await new Promise(resolve => window.setTimeout(resolve, 250));
+    try { socket?.close(1000, "Broadcast stopped"); } catch (_) {}
+  }
 
   const selectedNames = useMemo(
     () => DESTINATIONS
@@ -236,10 +326,21 @@ export default function BroadcastPanel({ roomCode = "SP-4827" }) {
           })
         });
 
+        try {
+          await startBrowserIngest(data.encoder?.ingest);
+        } catch (error) {
+          await api("/api/broadcast/stop", {
+            method: "POST",
+            body: JSON.stringify({ room: roomCode, destinations: selected })
+          }).catch(() => {});
+          throw error;
+        }
+
         setBroadcasting(true);
         setShowShare(true);
         setStatus(data.status ? `Encoder: ${data.status}` : "Broadcast start accepted.");
       } else {
+        await stopBrowserIngest();
         const data = await api("/api/broadcast/stop", {
           method: "POST",
           body: JSON.stringify({
