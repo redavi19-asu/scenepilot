@@ -359,6 +359,7 @@ async function handleRegister(request, env) {
   const isFirstUser = Number(countRow?.count || 0) === 0;
   const role = isFirstUser ? "owner" : "user";
   const plan = isFirstUser ? "pro" : "beta";
+  const accessStatus = isFirstUser ? "active" : "pending";
   const id = crypto.randomUUID();
   const now = Date.now();
   const passwordData = await hashPassword(password);
@@ -382,14 +383,24 @@ async function handleRegister(request, env) {
     env.DB.prepare(
       `INSERT OR IGNORE INTO user_products (
         user_id, product_id, plan, access_status, source, created_at
-      ) VALUES (?, 'product_scenepilot', ?, 'active', ?, ?)`
+      ) VALUES (?, 'product_scenepilot', ?, ?, ?, ?)`
     ).bind(
       id,
       plan,
+      accessStatus,
       isFirstUser ? "owner-bootstrap" : "beta-signup",
       now
     )
   ]);
+
+  if (!isFirstUser) {
+    return json({
+      user: null,
+      firstOwner: false,
+      pendingApproval: true,
+      message: "Account created. ScenePilot beta access is waiting for administrator approval."
+    }, 201);
+  }
 
   const token = await createSession(env, id, request);
 
@@ -403,7 +414,7 @@ async function handleRegister(request, env) {
   );
 
   return json(
-    { user, firstOwner: isFirstUser },
+    { user, firstOwner: true, pendingApproval: false },
     201,
     { "Set-Cookie": cookieForSession(token) }
   );
@@ -470,7 +481,12 @@ async function handleLogin(request, env) {
   );
 
   if (user?.accessStatus !== "active") {
-    return json({ error: "ScenePilot access is suspended for this account." }, 403);
+    return json({
+      error:
+        user?.accessStatus === "pending"
+          ? "Your ScenePilot account is waiting for beta approval."
+          : "ScenePilot access is suspended for this account."
+    }, 403);
   }
 
   return json(
@@ -545,11 +561,11 @@ async function handleAdminAccess(request, env, userId) {
 
   const body = await readJson(request);
   const allowedPlans = new Set(["beta", "free", "ambassador", "pro"]);
-  const allowedAccess = new Set(["active", "suspended"]);
+  const allowedAccess = new Set(["pending", "active", "suspended"]);
   const allowedRoles = new Set(["user", "admin"]);
 
   const plan = allowedPlans.has(body.plan) ? body.plan : "beta";
-  const accessStatus = allowedAccess.has(body.accessStatus) ? body.accessStatus : "active";
+  const accessStatus = allowedAccess.has(body.accessStatus) ? body.accessStatus : "pending";
   const role = allowedRoles.has(body.role) ? body.role : "user";
   const now = Date.now();
 
@@ -1712,9 +1728,7 @@ async function handleApi(request, env, url) {
   }
 
   if (url.pathname === "/api/auth/register" && request.method === "POST") {
-    return json({
-      error: "ScenePilot account registration is currently closed."
-    }, 403);
+    return handleRegister(request, env);
   }
 
   if (url.pathname === "/api/auth/login" && request.method === "POST") {
