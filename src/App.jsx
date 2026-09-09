@@ -93,6 +93,7 @@ function App() {
   const [recording, setRecording] = useState(false);
   const [recordMode, setRecordMode] = useState("both");
   const [recordStatus, setRecordStatus] = useState("READY");
+  const [pendingProgramMaster, setPendingProgramMaster] = useState(null);
   const [standby, setStandby] = useState(false);
   const standbyRef = useRef(false);
   const programCompositeAudioTracksRef = useRef([]);
@@ -1477,10 +1478,26 @@ function App() {
       const blob = new Blob(chunks, { type });
       const timestamp = startedAt.toISOString().replace(/[:.]/g, "-");
       const ext = recordingExtension(type);
-      downloadRecordingBlob(
-        blob,
-        `scenepilot-${safeRecordingName(roomCode)}-${kind}-${safeRecordingName(label)}-${timestamp}.${ext}`
-      );
+      const filename =
+        `scenepilot-${safeRecordingName(roomCode)}-${kind}-${safeRecordingName(label)}-${timestamp}.${ext}`;
+
+      if (kind === "program") {
+        setPendingProgramMaster(current => {
+          if (current?.url) URL.revokeObjectURL(current.url);
+          return {
+            blob,
+            filename,
+            url: URL.createObjectURL(blob),
+            createdAt: Date.now(),
+            size: blob.size,
+            status: "ready"
+          };
+        });
+        setRecordStatus("PROGRAM MASTER READY • DC LIVE OR DELETE");
+        return;
+      }
+
+      downloadRecordingBlob(blob, filename);
     };
 
     recorder.start(1000);
@@ -1551,7 +1568,33 @@ function App() {
     productionChunksRef.current = [];
     stopProgramCompositor();
     setRecording(false);
-    setRecordStatus("SAVED TO THIS DEVICE");
+    setRecordStatus(
+      recordMode === "program"
+        ? "PROGRAM MASTER READY • DC LIVE OR DELETE"
+        : recordMode === "both"
+          ? "RAW FILES SAVED • PROGRAM MASTER HELD"
+          : "RAW FILES SAVED TO THIS DEVICE"
+    );
+  }
+
+  function deletePendingProgramMaster() {
+    setPendingProgramMaster(current => {
+      if (current?.url) URL.revokeObjectURL(current.url);
+      return null;
+    });
+    setRecordStatus("PROGRAM MASTER DELETED");
+  }
+
+  function publishPendingProgramMaster() {
+    if (!pendingProgramMaster?.blob) {
+      setRecordStatus("NO PROGRAM MASTER READY");
+      return;
+    }
+
+    setPendingProgramMaster(current =>
+      current ? { ...current, status: "queued" } : current
+    );
+    setRecordStatus("DC LIVE PUBLISH QUEUED • HANDOFF NOT WIRED YET");
   }
 
   function toggleStandby() {
@@ -3855,11 +3898,40 @@ async function enableCamera() {
 
             <div className="output-data">
               <span>{recordMode === "program" ? "PROGRAM" : recordMode === "iso" ? "ISO TRACKS" : "PROGRAM + ISO"}</span>
-              <span>REC • LOCAL DEVICE</span>
+              <span>{recordMode === "iso" ? "RAW • DOWNLOADABLE" : "PROGRAM • PROTECTED"}</span>
             </div>
+
+            {pendingProgramMaster && (
+              <div className="program-master-policy">
+                <div>
+                  <strong>FINISHED PROGRAM MASTER</strong>
+                  <small>
+                    This composed production is not downloadable. Raw ISO camera files remain yours to download.
+                  </small>
+                </div>
+                <div className="program-master-actions">
+                  <button
+                    type="button"
+                    className="program-delete"
+                    onClick={deletePendingProgramMaster}
+                  >
+                    DELETE PROGRAM
+                  </button>
+                  <button
+                    type="button"
+                    className="program-publish"
+                    onClick={publishPendingProgramMaster}
+                    disabled={pendingProgramMaster.status === "queued"}
+                  >
+                    {pendingProgramMaster.status === "queued" ? "QUEUED FOR DC LIVE" : "PUBLISH TO DC LIVE"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <p className="record-help">
-              Program records the composed production master: camera switches, layouts, transitions and on-air graphics.
-              ISO files stay separate for editing. Native mobile packaging can later move ISO capture onto each camera phone for full-quality originals.
+              Raw ISO camera files can be downloaded and kept by the creator. The finished Program master includes the composed production,
+              graphics, transitions and overlays, so it stays inside the ScenePilot / DC Live ecosystem: publish it to DC Live or delete it.
             </p>
           </div>
 
