@@ -2981,3 +2981,60 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
     text-align:center
   }
 }
+
+
+/* Remote camera controls: larger touch targets on phones/tablets */
+.remote-camera-control-card{
+  min-width:0;
+}
+.remote-camera-zoom-buttons{
+  width:100%;
+  grid-template-columns:repeat(3,minmax(120px,1fr));
+  gap:10px;
+}
+.remote-camera-zoom-buttons button{
+  width:100%;
+  min-width:0;
+  min-height:52px;
+  padding:0 14px;
+  font-size:9px;
+  border-radius:7px;
+  white-space:nowrap;
+}
+
+@media(max-width:680px){
+  .remote-camera-control-panel{
+    padding:12px;
+    overflow:hidden;
+  }
+  .remote-camera-control-card{
+    padding:10px;
+  }
+  .remote-camera-zoom-buttons{
+    grid-template-columns:1fr;
+    gap:9px;
+  }
+  .remote-camera-zoom-buttons button{
+    min-height:56px;
+    font-size:10px;
+    justify-content:center;
+  }
+}
+
+@media(orientation:landscape) and (max-height:620px){
+  .remote-camera-control-panel{
+    padding:9px 12px;
+  }
+  .remote-camera-control-grid{
+    grid-template-columns:1fr;
+  }
+  .remote-camera-zoom-buttons{
+    grid-template-columns:repeat(3,minmax(150px,1fr));
+    gap:10px;
+  }
+  .remote-camera-zoom-buttons button{
+    min-height:48px;
+    padding:0 16px;
+    font-size:9px;
+  }
+}
