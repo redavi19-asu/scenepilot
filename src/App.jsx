@@ -1646,7 +1646,7 @@ function App() {
     }
   }
 
-  async async function changeZoom(direction, mediaStream = stream) {
+  async function changeZoom(direction, mediaStream = stream) {
     const videoTrack = mediaStream?.getVideoTracks?.()[0];
     if (!videoTrack) return false;
 
