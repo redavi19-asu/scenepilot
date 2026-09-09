@@ -54,7 +54,13 @@ function getMediaDuration(file, url) {
   });
 }
 
-export default function ReplayStudio({ roomCode }) {
+export default function ReplayStudio({
+  roomCode,
+  isOwner = false,
+  programMaster = null,
+  onPublishProgram = null,
+  onDeleteProgram = null
+}) {
   const [open, setOpen] = useState(true);
   const [assets, setAssets] = useState([]);
   const [clips, setClips] = useState([]);
@@ -71,6 +77,10 @@ export default function ReplayStudio({ roomCode }) {
 
   const pixelsPerSecond = BASE_PIXELS_PER_SECOND * zoom;
   const selectedClip = clips.find(clip => clip.id === selectedClipId) || null;
+  const hasProtectedProgram = clips.some(
+    clip => clip.sourceType === "program-master" && clip.exportAllowed === false
+  );
+  const projectExportAllowed = isOwner || !hasProtectedProgram;
 
   const projectDuration = useMemo(() => {
     const clipEnd = clips.reduce(
@@ -87,6 +97,17 @@ export default function ReplayStudio({ roomCode }) {
       objectUrls.current.forEach(url => URL.revokeObjectURL(url));
     };
   }, []);
+
+  useEffect(() => {
+    if (programMaster?.blob) return;
+
+    setAssets(prev => prev.filter(asset => asset.sourceType !== "program-master"));
+    setClips(prev => prev.filter(clip => clip.sourceType !== "program-master"));
+    setSelectedClipId(current => {
+      const selected = clips.find(clip => clip.id === current);
+      return selected?.sourceType === "program-master" ? null : current;
+    });
+  }, [programMaster?.blob]);
 
   useEffect(() => {
     const media = previewRef.current;
@@ -132,7 +153,9 @@ export default function ReplayStudio({ roomCode }) {
         file,
         url,
         kind,
-        duration
+        duration,
+        sourceType: "user-media",
+        exportAllowed: true
       };
       nextAssets.push(asset);
 
@@ -160,7 +183,9 @@ export default function ReplayStudio({ roomCode }) {
         contrast: 1,
         saturation: 1,
         fadeIn: 0,
-        fadeOut: 0
+        fadeOut: 0,
+        sourceType: "user-media",
+        exportAllowed: true
       };
       nextClips.push(clip);
       if (trackId === "v1") cursor += duration;
@@ -169,6 +194,83 @@ export default function ReplayStudio({ roomCode }) {
     setAssets(prev => [...prev, ...nextAssets]);
     snapshot(nextClips);
     setSelectedClipId(nextClips.at(-1)?.id || null);
+  }
+
+  async function addCurrentProgramMaster() {
+    if (!programMaster?.blob) {
+      setProjectStatus("NO PROGRAM MASTER READY");
+      return;
+    }
+
+    const existing = assets.find(asset => asset.sourceType === "program-master");
+    if (existing) {
+      addAssetToTimeline(existing);
+      setProjectStatus(
+        isOwner
+          ? "OWNER PROGRAM MASTER ADDED • EXPORT ALLOWED"
+          : "PROTECTED PROGRAM ADDED • EDIT / PREVIEW ONLY"
+      );
+      return;
+    }
+
+    const url = URL.createObjectURL(programMaster.blob);
+    objectUrls.current.add(url);
+    const duration = await getMediaDuration(programMaster.blob, url);
+    const asset = {
+      id: uid("program"),
+      name: programMaster.filename || "ScenePilot Program Master",
+      file: programMaster.blob,
+      url,
+      kind: "video",
+      duration,
+      sourceType: "program-master",
+      exportAllowed: Boolean(isOwner)
+    };
+
+    setAssets(prev => [...prev, asset]);
+
+    const end = clips.reduce(
+      (max, clip) => clip.trackId === "v1"
+        ? Math.max(max, clip.start + clip.duration)
+        : max,
+      0
+    );
+
+    const clip = {
+      id: uid("program-clip"),
+      assetId: asset.id,
+      name: asset.name,
+      url,
+      kind: "video",
+      trackId: "v1",
+      start: end,
+      duration,
+      sourceDuration: duration,
+      inPoint: 0,
+      outPoint: duration,
+      speed: 1,
+      volume: 1,
+      opacity: 1,
+      scale: 1,
+      x: 0,
+      y: 0,
+      rotation: 0,
+      brightness: 1,
+      contrast: 1,
+      saturation: 1,
+      fadeIn: 0,
+      fadeOut: 0,
+      sourceType: "program-master",
+      exportAllowed: Boolean(isOwner)
+    };
+
+    snapshot([...clips, clip]);
+    setSelectedClipId(clip.id);
+    setProjectStatus(
+      isOwner
+        ? "OWNER PROGRAM MASTER ADDED • EXPORT ALLOWED"
+        : "PROTECTED PROGRAM ADDED • EDIT / PREVIEW ONLY"
+    );
   }
 
   function addAssetToTimeline(asset) {
@@ -198,6 +300,8 @@ export default function ReplayStudio({ roomCode }) {
       x: 0,
       y: 0,
       rotation: 0,
+      sourceType: asset.sourceType || "user-media",
+      exportAllowed: asset.exportAllowed !== false,
       brightness: 1,
       contrast: 1,
       saturation: 1,
@@ -302,7 +406,9 @@ export default function ReplayStudio({ roomCode }) {
       id: asset.id,
       name: asset.name,
       kind: asset.kind,
-      duration: asset.duration
+      duration: asset.duration,
+      sourceType: asset.sourceType || "user-media",
+      exportAllowed: asset.exportAllowed !== false
     }));
     const payload = {
       version: 1,
@@ -322,12 +428,21 @@ export default function ReplayStudio({ roomCode }) {
   }
 
   function downloadProject() {
+    if (!projectExportAllowed) {
+      setProjectStatus("EXPORT BLOCKED • PROTECTED PROGRAM • PUBLISH OR DELETE");
+      return;
+    }
+
     const payload = {
       version: 1,
       product: "ScenePilot Edit",
       roomCode,
       aspectRatio,
       exportedAt: new Date().toISOString(),
+      exportPolicy: {
+        owner: Boolean(isOwner),
+        containsProtectedProgram: hasProtectedProgram
+      },
       clips: clips.map(clip => ({
         ...clip,
         url: undefined,
@@ -489,6 +604,17 @@ export default function ReplayStudio({ roomCode }) {
               />
             </label>
 
+            {programMaster?.blob && (
+              <button
+                className={`nle-program-source ${isOwner ? "owner" : "protected"}`}
+                onClick={addCurrentProgramMaster}
+                type="button"
+              >
+                <Film size={17}/>
+                {isOwner ? "ADD CURRENT PROGRAM" : "EDIT PROTECTED PROGRAM"}
+              </button>
+            )}
+
             <button className="nle-add-title" onClick={addTextClip}>
               <Type size={17}/> ADD TITLE
             </button>
@@ -516,7 +642,11 @@ export default function ReplayStudio({ roomCode }) {
                   </span>
                   <span className="nle-asset-copy">
                     <strong>{asset.name}</strong>
-                    <small>{asset.kind.toUpperCase()} • {formatTime(asset.duration)}</small>
+                    <small>
+                      {asset.sourceType === "program-master"
+                        ? `${isOwner ? "OWNER PROGRAM" : "PROTECTED PROGRAM"} • ${formatTime(asset.duration)}`
+                        : `${asset.kind.toUpperCase()} • ${formatTime(asset.duration)}`}
+                    </small>
                   </span>
                   <Plus size={14}/>
                 </button>
@@ -854,7 +984,15 @@ export default function ReplayStudio({ roomCode }) {
               <button onClick={() => setPlayhead(selectedClip?.start || playhead)} disabled={!selectedClip}>
                 <MonitorUp size={16}/> PREVIEW CLIP
               </button>
-              <button onClick={downloadProject}><FileDown size={16}/> EXPORT PROJECT</button>
+              <button
+                onClick={downloadProject}
+                disabled={!projectExportAllowed}
+                title={!projectExportAllowed ? "Protected ScenePilot Program masters cannot be exported by customer accounts." : "Export project"}
+                className={!projectExportAllowed ? "nle-export-protected" : ""}
+              >
+                <FileDown size={16}/>
+                {!projectExportAllowed ? "PROTECTED PROGRAM" : "EXPORT PROJECT"}
+              </button>
             </div>
 
             <div className="nle-timeline-wrap">
@@ -921,13 +1059,36 @@ export default function ReplayStudio({ roomCode }) {
               </div>
             </div>
 
+            {hasProtectedProgram && !isOwner && (
+              <div className="nle-protected-policy">
+                <div>
+                  <strong>PROTECTED PROGRAM MASTER</strong>
+                  <span>
+                    You can edit and preview this Program here, but customer accounts cannot export
+                    the protected Program or use the editor as a download path.
+                  </span>
+                </div>
+                <div>
+                  {onPublishProgram && (
+                    <button type="button" onClick={onPublishProgram}>PUBLISH TO DC LIVE</button>
+                  )}
+                  {onDeleteProgram && (
+                    <button type="button" className="danger" onClick={onDeleteProgram}>DELETE PROGRAM</button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {projectStatus && <div className="nle-project-status">{projectStatus}</div>}
 
             <div className="editor-note">
               <strong>SCENEPILOT EDIT ACTIVE:</strong>
               Multi-track editing, trim/split, speed, transform, color, opacity, audio levels/fades,
               titles, lower thirds, captions, aspect presets, local project save and project export are active.
-              Final rendered movie export will connect to the native iOS/Android/Desktop media layer.
+              Uploaded media and raw/ISO footage remain exportable. Protected customer Program masters
+              are edit/preview-only and cannot use project or future rendered export as a download path.
+              Owner accounts remain unrestricted. Final rendered movie export will connect to the native
+              iOS/Android/Desktop media layer.
             </div>
           </div>
         </div>
