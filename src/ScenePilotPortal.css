@@ -1474,3 +1474,72 @@
     font-size: 7px;
   }
 }
+
+
+/* Beta account registration controls */
+.sp-nav-account-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.sp-nav-create{
+  min-height:38px;
+  padding:0 12px;
+  border:1px solid #5a5f57;
+  background:#1a1d19;
+  color:#e6e9e2;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.7px;
+  border-radius:7px;
+}
+.sp-nav-create:hover{
+  border-color:#d09a35;
+  color:#ffe0a0;
+}
+.sp-auth-mode-switch{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  margin:12px 0 14px;
+}
+.sp-auth-mode-switch button{
+  min-height:38px;
+  border:1px solid #3e433c;
+  background:#151814;
+  color:#8f958c;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.8px;
+  border-radius:7px;
+}
+.sp-auth-mode-switch button.active{
+  border-color:#d19a33;
+  background:#2e2415;
+  color:#ffe0a0;
+}
+.sp-marketing-opt{
+  display:flex !important;
+  flex-direction:row !important;
+  align-items:flex-start !important;
+  gap:8px !important;
+  font-size:8px !important;
+  line-height:1.35;
+}
+.sp-marketing-opt input{
+  width:auto !important;
+  margin-top:2px;
+}
+@media(max-width:620px){
+  .sp-nav-account-actions{
+    gap:5px;
+  }
+  .sp-nav-create,
+  .sp-nav-login{
+    padding:0 8px;
+    font-size:7px;
+  }
+}
