@@ -3222,3 +3222,100 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
     min-height:112px;
   }
 }
+
+
+/* Premium styling for focused remote controls */
+.remote-camera-control-popout{
+  border-radius:18px;
+  background:
+    radial-gradient(circle at top left, rgba(255,255,255,.04), transparent 32%),
+    linear-gradient(180deg,#171a16,#0f110e);
+}
+.remote-camera-popout-controls button{
+  position:relative;
+  overflow:hidden;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.10);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.015)),
+    #1b1f19;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 10px 24px rgba(0,0,0,.28);
+  transition:
+    transform .16s ease,
+    border-color .16s ease,
+    box-shadow .16s ease,
+    background .16s ease;
+}
+.remote-camera-popout-controls button::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,.07),transparent 42%);
+  pointer-events:none;
+}
+.remote-camera-popout-controls button svg{
+  padding:10px;
+  width:52px;
+  height:52px;
+  border-radius:50%;
+  background:#272c25;
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+}
+.remote-camera-popout-controls button:hover{
+  transform:translateY(-2px);
+  border-color:#6b7166;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.08),
+    0 14px 30px rgba(0,0,0,.34);
+}
+.remote-camera-popout-controls button:active{
+  transform:translateY(1px) scale(.985);
+}
+.remote-camera-popout-controls button:nth-child(1),
+.remote-camera-popout-controls button:nth-child(2){
+  background:
+    linear-gradient(180deg,rgba(102,150,255,.08),rgba(35,55,90,.04)),
+    #1b1f19;
+}
+.remote-camera-popout-controls button:nth-child(1) svg,
+.remote-camera-popout-controls button:nth-child(2) svg{
+  background:#202a38;
+}
+.remote-camera-popout-controls button:nth-child(3){
+  background:
+    linear-gradient(180deg,rgba(255,184,76,.09),rgba(90,57,18,.04)),
+    #1b1f19;
+}
+.remote-camera-popout-controls button:nth-child(3) svg{
+  background:#332818;
+}
+.remote-camera-popout-controls button.light-active{
+  background:
+    linear-gradient(180deg,rgba(255,190,72,.22),rgba(91,58,18,.16)),
+    #231b0f;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.08),
+    0 0 0 1px rgba(216,165,42,.22),
+    0 0 28px rgba(216,165,42,.18);
+}
+.remote-camera-popout-controls button strong{
+  font-size:15px;
+}
+.remote-camera-popout-controls button span{
+  font-size:8px;
+  letter-spacing:1px;
+}
+.remote-camera-popout-close{
+  border-radius:10px;
+}
+.remote-camera-select-card{
+  border-radius:10px;
+  transition:transform .14s ease,border-color .14s ease,background .14s ease;
+}
+.remote-camera-select-card:hover{
+  transform:translateY(-1px);
+  border-color:#555b52;
+}
