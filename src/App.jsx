@@ -1740,25 +1740,103 @@ function App() {
     const nextFacing =
       facingMode === "environment" ? "user" : "environment";
     const profile = qualityProfiles[qualityProfile];
+    const oldVideoTracks = stream.getVideoTracks();
+    const currentVideoTrack = oldVideoTracks[0];
+    const currentDeviceId = currentVideoTrack?.getSettings?.().deviceId || "";
 
     try {
       setSignalStatus("SWITCHING CAMERA");
-
       setSelectedVideoDevice("");
 
-      const replacement = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: nextFacing },
-          width: { ideal: profile.width },
-          height: { ideal: profile.height },
-          frameRate: { ideal: profile.fps, max: profile.fps }
-        },
-        audio: false
-      });
+      const baseVideoConstraints = {
+        width: { ideal: profile.width },
+        height: { ideal: profile.height },
+        frameRate: { ideal: profile.fps, max: profile.fps }
+      };
 
-      const newVideoTrack = replacement.getVideoTracks()[0];
+      let replacementStream = null;
+      let lastError = null;
+
+      // Android Chrome may ignore facingMode: ideal, so demand the other lens first.
+      try {
+        replacementStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            ...baseVideoConstraints,
+            facingMode: { exact: nextFacing }
+          },
+          audio: false
+        });
+      } catch (error) {
+        lastError = error;
+      }
+
+      // If exact facingMode fails, choose a different physical camera device.
+      if (!replacementStream) {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(device => device.kind === "videoinput");
+          const facingWords =
+            nextFacing === "environment"
+              ? /back|rear|environment|world/i
+              : /front|user|selfie|face/i;
+
+          const preferredDevice =
+            videoDevices.find(
+              device =>
+                device.deviceId &&
+                device.deviceId !== currentDeviceId &&
+                facingWords.test(device.label || "")
+            ) ||
+            videoDevices.find(
+              device =>
+                device.deviceId &&
+                device.deviceId !== currentDeviceId
+            );
+
+          if (preferredDevice) {
+            replacementStream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                ...baseVideoConstraints,
+                deviceId: { exact: preferredDevice.deviceId }
+              },
+              audio: false
+            });
+          }
+        } catch (error) {
+          lastError = error;
+        }
+      }
+
+      // Some Android builds will not release the second lens until the active
+      // camera track is stopped. Retry once after releasing the old camera.
+      if (!replacementStream) {
+        oldVideoTracks.forEach(track => track.stop());
+
+        try {
+          replacementStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              ...baseVideoConstraints,
+              facingMode: { exact: nextFacing }
+            },
+            audio: false
+          });
+        } catch (error) {
+          lastError = error;
+
+          // Last-resort Android fallback: let the browser choose the requested side.
+          replacementStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              ...baseVideoConstraints,
+              facingMode: { ideal: nextFacing }
+            },
+            audio: false
+          });
+        }
+      }
+
+      const newVideoTrack = replacementStream?.getVideoTracks?.()[0];
       if (!newVideoTrack) {
-        throw new Error("No replacement camera track available");
+        throw lastError || new Error("No replacement camera track available");
       }
 
       const replaceJobs = [];
@@ -1779,18 +1857,27 @@ function App() {
 
       await Promise.all(replaceJobs);
 
-      const oldVideoTracks = stream.getVideoTracks();
       const audioTracks = stream.getAudioTracks();
       const nextStream = new MediaStream([
         newVideoTrack,
         ...audioTracks
       ]);
 
-      oldVideoTracks.forEach(track => track.stop());
+      oldVideoTracks.forEach(track => {
+        if (track !== newVideoTrack && track.readyState !== "ended") {
+          track.stop();
+        }
+      });
 
-      setFacingMode(nextFacing);
+      const actualFacing = newVideoTrack.getSettings?.().facingMode;
+      setFacingMode(
+        actualFacing === "user" || actualFacing === "environment"
+          ? actualFacing
+          : nextFacing
+      );
       setStream(nextStream);
       readZoomCapability(nextStream);
+      refreshVideoInputs();
       setSignalStatus(
         Object.keys(peers.current).length
           ? "LIVE TO DIRECTOR"
