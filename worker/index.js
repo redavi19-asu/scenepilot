@@ -1663,10 +1663,15 @@ async function handleBroadcastControl(request, env, action) {
   const eventId = crypto.randomUUID();
   const now = Date.now();
 
+  const retentionClass = auth.user?.role === "owner" ? "owner" : "temporary";
+
   const encoderPayload = {
     eventId,
     networkId: auth.network.id,
     networkName: auth.network.name,
+    ownerUserId: auth.user?.id || null,
+    ownerRole: auth.user?.role || "user",
+    retentionClass,
     room: String(body.room || "SP-4827").slice(0, 80),
     destinations: targets
   };
