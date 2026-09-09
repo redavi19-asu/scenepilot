@@ -3926,3 +3926,27 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
     padding:14px;
   }
 }
+
+.customer-raw-recording{
+  margin-top:8px;
+  border:1px solid #4b5a49;
+  background:#172016;
+  padding:11px;
+  display:grid;
+  gap:7px;
+}
+.customer-raw-recording>div{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  color:#e7efe3;
+}
+.customer-raw-recording strong{
+  font-size:9px;
+  letter-spacing:.35px;
+}
+.customer-raw-recording small{
+  color:#99a795;
+  font-size:7px;
+  line-height:1.55;
+}
