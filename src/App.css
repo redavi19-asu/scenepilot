@@ -3950,3 +3950,35 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
   font-size:7px;
   line-height:1.55;
 }
+
+.record-panel .record-mode-grid button{
+  min-height:44px;
+  padding:6px 8px;
+  align-items:center;
+  text-align:center;
+}
+.record-panel .record-mode-grid strong{
+  font-size:8px;
+}
+.record-panel .record-button{
+  height:48px;
+}
+.record-panel .record-status-line{
+  margin-top:6px;
+  padding:6px 8px;
+}
+.record-panel .output-data{
+  margin-top:7px;
+}
+.record-panel .record-help{
+  margin-top:6px;
+  line-height:1.35;
+}
+.record-panel .program-master-policy.owner{
+  padding:9px;
+  gap:7px;
+}
+.record-panel .program-master-policy.owner small{
+  margin-top:3px;
+  line-height:1.3;
+}
