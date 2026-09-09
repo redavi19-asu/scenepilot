@@ -3758,3 +3758,16 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
 @media(max-width:760px){
   .program-master-actions{grid-template-columns:1fr}
 }
+
+.program-master-policy.owner{
+  border-color:#49644f;
+  background:#101a12;
+}
+.program-master-policy.owner strong{
+  color:#c5ebcc;
+}
+.program-master-actions .program-download{
+  border-color:#4b6f53;
+  background:#17301d;
+  color:#c8efd0;
+}
