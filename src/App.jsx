@@ -4,7 +4,7 @@ import {
   Settings, Maximize2, MonitorUp, Users, QrCode,
   Type, Layers, PictureInPicture2, Video, Camera,
   Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut, PhoneOff, ShieldCheck, Flashlight,
-  Scissors, Play, Save, Download, SkipBack, Film, Upload, Minimize2, Maximize
+  Scissors, Play, Save, Download, SkipBack, Film, Upload, Minimize2, Maximize, Menu, LogOut, MessageSquare, RadioTower
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
@@ -83,7 +83,7 @@ function LiveStreamVideo({ stream, className = "", muted = true }) {
   );
 }
 
-function App({ user = null }) {
+function App({ user = null, onLogout = null }) {
   const isOwner = user?.role === "owner";
   const [showSplash, setShowSplash] = useState(true);
   const [cameras, setCameras] = useState(initialCameras);
@@ -150,6 +150,9 @@ function App({ user = null }) {
   const [cameraName, setCameraName] = useState("USER");
   const [qualityProfile, setQualityProfile] = useState("auto");
   const [showTips, setShowTips] = useState(false);
+  const [directorMenuOpen, setDirectorMenuOpen] = useState(false);
+  const [directorCameraPanelOpen, setDirectorCameraPanelOpen] = useState(false);
+  const [secondaryToolAlert, setSecondaryToolAlert] = useState(null);
   const [showCallShield, setShowCallShield] = useState(false);
   const [liveShieldEnabled, setLiveShieldEnabled] = useState(false);
   const [telemetryAllowed, setTelemetryAllowed] = useState(false);
@@ -251,6 +254,25 @@ function App({ user = null }) {
     window.addEventListener("scenepilot:operator-alert", handleOperatorAlert);
     return () => {
       window.removeEventListener("scenepilot:operator-alert", handleOperatorAlert);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleSecondaryAlert = event => {
+      const detail = event.detail || {};
+      if (detail.active === false) {
+        setSecondaryToolAlert(null);
+        return;
+      }
+      setSecondaryToolAlert({
+        type: detail.type || "comms",
+        label: detail.label || "CREW ALERT"
+      });
+    };
+
+    window.addEventListener("scenepilot:secondary-tool-alert", handleSecondaryAlert);
+    return () => {
+      window.removeEventListener("scenepilot:secondary-tool-alert", handleSecondaryAlert);
     };
   }, []);
 
@@ -3244,10 +3266,103 @@ async function enableCamera() {
         <div className="top-actions">
           <span className="network"><i/> {signalStatus}</span>
           <button onClick={() => setShowJoin(true)}><Users size={18}/> ADD CAMERA</button>
-          <button onClick={() => setShowTips(true)}><CircleHelp size={18}/> TIPS</button>
-          <button className="icon-button"><Settings size={19}/></button>
+          <button
+            className={`icon-button director-menu-trigger ${secondaryToolAlert ? "has-alert" : ""}`}
+            onClick={() => setDirectorMenuOpen(value => !value)}
+            title="ScenePilot menu"
+            aria-label="Open ScenePilot menu"
+          >
+            <Menu size={20}/>
+            {secondaryToolAlert && <i className="director-menu-alert-dot"/>}
+          </button>
         </div>
       </header>
+
+      {directorMenuOpen && (
+        <>
+          <button
+            className="director-menu-backdrop"
+            type="button"
+            aria-label="Close ScenePilot menu"
+            onClick={() => setDirectorMenuOpen(false)}
+          />
+          <aside className="director-hamburger-panel" aria-label="ScenePilot menu">
+            <header>
+              <div>
+                <span>SCENEPILOT</span>
+                <strong>DIRECTOR MENU</strong>
+              </div>
+              <button type="button" onClick={() => setDirectorMenuOpen(false)} aria-label="Close menu">
+                <X size={18}/>
+              </button>
+            </header>
+
+            <div className="director-menu-account">
+              <small>SIGNED IN</small>
+              <strong>{user?.displayName || user?.email || "SCENEPILOT USER"}</strong>
+              <span>{String(user?.role || "user").toUpperCase()} • {String(user?.plan || "beta").toUpperCase()}</span>
+            </div>
+
+            <div className="director-menu-group">
+              <span>PRODUCTION TOOLS</span>
+              <button type="button" onClick={() => {
+                window.dispatchEvent(new CustomEvent("scenepilot:open-intercom"));
+                setSecondaryToolAlert(null);
+                setDirectorMenuOpen(false);
+              }}>
+                <RadioTower size={17}/> WALKIE-TALKIE
+                {secondaryToolAlert?.type === "intercom" && <b>!</b>}
+              </button>
+              <button type="button" onClick={() => {
+                window.dispatchEvent(new CustomEvent("scenepilot:open-comms"));
+                setSecondaryToolAlert(null);
+                setDirectorMenuOpen(false);
+              }}>
+                <MessageSquare size={17}/> CAMERA COMMS
+                {secondaryToolAlert?.type === "comms" && <b>!</b>}
+              </button>
+              <button type="button" onClick={() => {
+                setDirectorCameraPanelOpen(value => !value);
+                setDirectorMenuOpen(false);
+              }}>
+                <Camera size={17}/> {directorCameraPanelOpen ? "HIDE DIRECTOR CAM" : "DIRECTOR CAM"}
+                <small>{directorStream ? "ON" : "OFF"}</small>
+              </button>
+            </div>
+
+            <div className="director-menu-group">
+              <span>SETTINGS & HELP</span>
+              <button type="button" onClick={() => {
+                openSetNames();
+                setDirectorMenuOpen(false);
+              }}>
+                <Settings size={17}/> CAMERA LABELS / SETTINGS
+              </button>
+              <button type="button" onClick={() => {
+                setShowTips(true);
+                setDirectorMenuOpen(false);
+              }}>
+                <CircleHelp size={17}/> TIPS / HELP
+              </button>
+            </div>
+
+            {(user?.role === "owner" || user?.role === "admin") && (
+              <div className="director-menu-group">
+                <span>ADMINISTRATION</span>
+                <button type="button" onClick={() => window.location.assign("/admin")}>
+                  <ShieldCheck size={17}/> ADMIN
+                </button>
+              </div>
+            )}
+
+            {onLogout && (
+              <button className="director-menu-logout" type="button" onClick={onLogout}>
+                <LogOut size={17}/> LOG OUT
+              </button>
+            )}
+          </aside>
+        </>
+      )}
 
       {directorLockMessage && (
         <div className="director-lock-banner">
@@ -3520,6 +3635,7 @@ async function enableCamera() {
           </div>
 
           <div className="source-feature-row">
+          {directorCameraPanelOpen && (
           <div className="director-camera-panel">
             <div className="director-camera-copy">
               <span>LOCAL SOURCE</span>
@@ -3596,6 +3712,7 @@ async function enableCamera() {
               )}
             </div>
           </div>
+          )}
 
           <div
             className={`main-camera-home ${draggingCamera ? "drag-active" : ""}`}
