@@ -1318,6 +1318,7 @@ function AdminPage({ user, onLogout }) {
                   </td>
                   <td>
                     <select value={item.accessStatus} onChange={event => updateAccess(item, "accessStatus", event.target.value)}>
+                      <option value="pending">PENDING</option>
                       <option value="active">ACTIVE</option>
                       <option value="suspended">SUSPENDED</option>
                     </select>
