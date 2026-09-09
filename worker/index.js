@@ -733,22 +733,39 @@ export class ScenePilotRoom {
     return director;
   }
 
-  assignSlot(requestedSlot, sessionId) {
-    const allowed = [7, 8, 9, 1, 2, 3, 4, 5, 6];
+  assignSlot(_requestedSlot, sessionId) {
+    const allowed = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
     const used = new Set(
       [...this.cameras.values()]
         .filter(camera => camera.socketId !== sessionId)
-        .map(camera => camera.slotId)
+        .map(camera => Number(camera.slotId))
+        .filter(Number.isFinite)
     );
 
-    const requested = Number(requestedSlot);
+    return allowed.find(slot => !used.has(slot)) || 9;
+  }
 
-    if (allowed.includes(requested) && !used.has(requested)) {
-      return requested;
+  resetProductionSession() {
+    let nextSlot = 1;
+
+    for (const camera of this.cameras.values()) {
+      camera.slotId = nextSlot;
+      camera.name = `USER ${String(nextSlot).padStart(2, "0")}`;
+
+      const cameraSession = this.sessions.get(camera.socketId);
+      if (cameraSession) {
+        this.send(cameraSession, "camera:registered", {
+          slotId: nextSlot,
+          directorAvailable: true
+        });
+      }
+
+      nextSlot += 1;
+      if (nextSlot > 9) break;
     }
 
-    return allowed.find(slot => !used.has(slot)) || 7;
+    this.liveSlots = [];
   }
 
   sendChatMessage(session, payload) {
@@ -856,6 +873,10 @@ export class ScenePilotRoom {
       session.role = "director";
       this.activeDirectorId = session.id;
 
+      // Every Director login starts a clean production session.
+      // Keep connected sources, but renumber them from CAM 01 and clear names.
+      this.resetProductionSession();
+
       this.send(session, "director:granted", {
         socketId: session.id
       });
@@ -906,7 +927,7 @@ export class ScenePilotRoom {
 
       const camera = {
         socketId: session.id,
-        name: String(payload.name || "ROAMING 1").slice(0, 80),
+        name: `USER ${String(slotId).padStart(2, "0")}`,
         connected: true,
         slotId,
         battery: null,
