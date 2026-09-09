@@ -3654,3 +3654,52 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
   background:#e5b746;
   box-shadow:0 0 8px rgba(229,183,70,.5);
 }
+
+
+/* Camera-operator tally light: green ready, unmistakable red LIVE */
+.operator-live{
+  z-index:7;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;
+  letter-spacing:.08em;
+}
+.operator-live.ready{
+  background:rgba(43,79,48,.9) !important;
+  color:#eef7ec;
+  box-shadow:0 0 12px rgba(91,166,101,.18);
+}
+.operator-live.ready i{
+  background:#8bd181 !important;
+  box-shadow:0 0 8px rgba(139,209,129,.55);
+}
+.operator-live.on-air{
+  background:#c72f29 !important;
+  color:#fff !important;
+  border-color:#ff8d87 !important;
+  box-shadow:
+    0 0 0 2px rgba(255,255,255,.12),
+    0 0 20px rgba(199,47,41,.75),
+    0 0 42px rgba(199,47,41,.38) !important;
+  animation:operatorTallyBlink .9s ease-in-out infinite;
+}
+.operator-live.on-air i{
+  background:#fff !important;
+  box-shadow:0 0 10px rgba(255,255,255,.9);
+}
+.on-air-banner.live{
+  border-color:#ff918b !important;
+  box-shadow:
+    0 0 0 2px rgba(255,255,255,.1),
+    0 0 24px rgba(203,52,45,.6),
+    0 12px 30px rgba(0,0,0,.34) !important;
+}
+@keyframes operatorTallyBlink{
+  0%,100%{
+    transform:scale(1);
+    filter:brightness(1);
+  }
+  50%{
+    transform:scale(1.045);
+    filter:brightness(1.28);
+  }
+}
