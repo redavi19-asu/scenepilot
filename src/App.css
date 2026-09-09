@@ -3620,3 +3620,37 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
   width:6px !important;
   height:6px !important;
 }
+
+
+/* Dedicated Program LIVE status — independent from broadcast LIVE BUG */
+.program-live-status{
+  position:static !important;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  min-height:20px;
+  padding:0 8px;
+  border:1px solid rgba(201,74,66,.7);
+  background:#3a1715;
+  color:#ffd9d6;
+  font-size:7px;
+  font-weight:950;
+  letter-spacing:.08em;
+  line-height:1;
+}
+.program-live-status i{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#e2574f;
+  box-shadow:0 0 8px rgba(226,87,79,.6);
+}
+.program-live-status.standby{
+  border-color:rgba(238,185,68,.65);
+  background:#332911;
+  color:#f5d477;
+}
+.program-live-status.standby i{
+  background:#e5b746;
+  box-shadow:0 0 8px rgba(229,183,70,.5);
+}
