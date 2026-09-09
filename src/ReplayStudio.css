@@ -128,3 +128,81 @@
   }
   .nle-aspect-select{min-height:40px}
 }
+
+.nle-program-source{
+  margin-top:7px;
+  min-height:42px;
+  border:1px solid #6f746c;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.4px
+}
+.nle-program-source.protected{
+  background:#3a2418;
+  border-color:#d58a3a;
+  color:#ffd8a6
+}
+.nle-program-source.owner{
+  background:#173322;
+  border-color:#4aa36b;
+  color:#c9f7d5
+}
+.nle-export-protected{
+  border-color:#a45a26!important;
+  background:#3b2418!important;
+  color:#ffd7a8!important
+}
+.nle-protected-policy{
+  margin-top:9px;
+  border:1px solid #a45a26;
+  background:#2b1c14;
+  color:#f2d5b2;
+  padding:10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px
+}
+.nle-protected-policy>div:first-child{
+  display:flex;
+  flex-direction:column;
+  gap:4px
+}
+.nle-protected-policy strong{
+  color:#ffb86b;
+  font-size:8px;
+  letter-spacing:.7px
+}
+.nle-protected-policy span{
+  font-size:7px;
+  line-height:1.45;
+  color:#c9b49d
+}
+.nle-protected-policy>div:last-child{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap
+}
+.nle-protected-policy button{
+  min-height:34px;
+  border:1px solid #86603e;
+  background:#4a2d1b;
+  color:#fff0dd;
+  padding:0 10px;
+  font-size:7px;
+  font-weight:900
+}
+.nle-protected-policy button.danger{
+  border-color:#88413c;
+  background:#3d1f1c
+}
+@media(max-width:760px){
+  .nle-protected-policy{
+    align-items:flex-start;
+    flex-direction:column
+  }
+}
