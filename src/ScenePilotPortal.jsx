@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Radio, LogIn, UserPlus, Download, LockKeyhole, MessageSquare,
   Send, ShieldCheck, Users, ArrowRight, LogOut, Crown, Mail,
-  X, Camera, RadioTower, Mic, Headphones
+  X, Camera, RadioTower, Mic, Headphones, Cast, Maximize2
 } from "lucide-react";
 import App from "./App.jsx";
 import TurnstileWidget from "./TurnstileWidget.jsx";
@@ -12,6 +12,7 @@ import "./ScenePilotPortal.css";
 function WatchPage({ roomCode }) {
   const videoRef = useRef(null);
   const [status, setStatus] = useState("CONNECTING TO LIVE PROGRAM");
+  const [tvStatus, setTvStatus] = useState("");
   const safeRoom = String(roomCode || "").replace(/[^A-Za-z0-9_-]/g, "");
   const streamUrl = `https://live.icomputeranything.com/hls/live/${encodeURIComponent(safeRoom)}/index.m3u8`;
 
@@ -21,11 +22,44 @@ function WatchPage({ roomCode }) {
 
     let hls = null;
     let cancelled = false;
+
+    const seekToLiveEdge = () => {
+      if (!video.seekable?.length) return;
+      const liveEdge = video.seekable.end(video.seekable.length - 1);
+      if (!Number.isFinite(liveEdge)) return;
+      const target = Math.max(0, liveEdge - 0.65);
+      if (!Number.isFinite(video.currentTime) || liveEdge - video.currentTime > 2.25) {
+        try {
+          video.currentTime = target;
+        } catch (_) {}
+      }
+    };
+
     const markLive = () => setStatus("LIVE");
+    const catchUpToLive = () => {
+      if (!video.seekable?.length || video.paused) return;
+      const liveEdge = video.seekable.end(video.seekable.length - 1);
+      const latency = liveEdge - video.currentTime;
+
+      if (latency > 4.5) {
+        seekToLiveEdge();
+        video.playbackRate = 1;
+      } else if (latency > 2.25) {
+        video.playbackRate = 1.08;
+      } else if (video.playbackRate !== 1) {
+        video.playbackRate = 1;
+      }
+    };
+
     video.addEventListener("playing", markLive);
+    video.addEventListener("loadedmetadata", seekToLiveEdge);
+    video.addEventListener("canplay", seekToLiveEdge);
+    video.addEventListener("timeupdate", catchUpToLive);
 
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = streamUrl;
+      video.load();
+      video.play().catch(() => {});
     } else {
       import("hls.js").then(({ default: Hls }) => {
         if (cancelled) return;
@@ -35,16 +69,29 @@ function WatchPage({ roomCode }) {
         }
 
         hls = new Hls({
-          liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 8,
+          lowLatencyMode: true,
+          liveSyncDurationCount: 1,
+          liveMaxLatencyDurationCount: 3,
+          maxLiveSyncPlaybackRate: 1.2,
+          backBufferLength: 15,
+          maxBufferLength: 8,
           enableWorker: true
         });
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          setStatus("LIVE PROGRAM READY — TAP PLAY");
+          setStatus("LIVE PROGRAM READY");
+          const syncPosition = hls.liveSyncPosition;
+          if (Number.isFinite(syncPosition)) {
+            try {
+              video.currentTime = syncPosition;
+            } catch (_) {}
+          } else {
+            seekToLiveEdge();
+          }
           video.play().catch(() => {});
         });
+        hls.on(Hls.Events.LEVEL_UPDATED, seekToLiveEdge);
         hls.on(Hls.Events.ERROR, (_event, data) => {
           if (!data.fatal) return;
           setStatus("WAITING FOR THE LIVE PROGRAM");
@@ -57,22 +104,77 @@ function WatchPage({ roomCode }) {
     return () => {
       cancelled = true;
       video.removeEventListener("playing", markLive);
+      video.removeEventListener("loadedmetadata", seekToLiveEdge);
+      video.removeEventListener("canplay", seekToLiveEdge);
+      video.removeEventListener("timeupdate", catchUpToLive);
       hls?.destroy();
+      video.pause?.();
       video.removeAttribute("src");
       video.load();
     };
   }, [safeRoom, streamUrl]);
+
+  async function openTvPicker() {
+    const video = videoRef.current;
+    if (!video) return;
+
+    setTvStatus("");
+
+    try {
+      if (typeof video.webkitShowPlaybackTargetPicker === "function") {
+        video.webkitShowPlaybackTargetPicker();
+        setTvStatus("CHOOSE AN AIRPLAY TV OR DISPLAY");
+        return;
+      }
+
+      if (video.remote && typeof video.remote.prompt === "function") {
+        await video.remote.prompt();
+        setTvStatus("CHOOSE A TV OR REMOTE DISPLAY");
+        return;
+      }
+
+      setTvStatus("USE YOUR BROWSER CAST / AIRPLAY MENU FOR THIS DEVICE");
+    } catch (error) {
+      console.warn("ScenePilot TV playback picker unavailable", error);
+      setTvStatus("TV CONNECTION CANCELLED OR NOT AVAILABLE");
+    }
+  }
+
+  async function openFullscreen() {
+    const target = videoRef.current?.closest(".sp-watch-video");
+    try {
+      await target?.requestFullscreen?.();
+    } catch (_) {}
+  }
 
   return (
     <main className="sp-watch-shell">
       <section className="sp-watch-card">
         <div className="sp-watch-brand"><RadioTower size={20}/> SCENEPILOT LIVE</div>
         <div className="sp-watch-video">
-          <video ref={videoRef} controls autoPlay playsInline aria-label={`ScenePilot live room ${safeRoom}`}/>
+          <video
+            ref={videoRef}
+            controls
+            autoPlay
+            playsInline
+            x-webkit-airplay="allow"
+            aria-label={`ScenePilot live room ${safeRoom}`}
+          />
+          <div className="sp-watch-video-actions">
+            <button type="button" onClick={openTvPicker} title="Play on TV / AirPlay / Cast">
+              <Cast size={20}/>
+              <span>TV</span>
+            </button>
+            <button type="button" onClick={openFullscreen} title="Fullscreen">
+              <Maximize2 size={20}/>
+              <span>FULL</span>
+            </button>
+          </div>
         </div>
         <div className="sp-watch-status">
           <i className={status === "LIVE" ? "live" : ""}/>
           <strong>{status}</strong>
+          {tvStatus && <small>{tvStatus}</small>}
           <span>ROOM {safeRoom}</span>
         </div>
       </section>
