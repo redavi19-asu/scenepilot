@@ -336,9 +336,26 @@ const server = createServer(async (request, response) => {
       const body = await readJson(request);
       const room = safeRoom(body.room);
       const job = jobs.get(room);
-      if (job) stopJob(job);
-      jobs.delete(room);
-      return json(response, 200, { ok: true, status: "stopped", room });
+      let ownerArchive = null;
+
+      if (job) {
+        stopJob(job);
+
+        if (job.retentionClass === "owner") {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          ownerArchive = await archiveOwnerRecordings(job);
+        }
+
+        jobs.delete(room);
+      }
+
+      return json(response, 200, {
+        ok: true,
+        status: "stopped",
+        room,
+        retentionClass: job?.retentionClass || "temporary",
+        ownerArchive
+      });
     }
 
     return json(response, 404, { error: "Not found." });
