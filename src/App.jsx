@@ -1614,16 +1614,157 @@ function App({ user = null }) {
     setRecordStatus("PROGRAM MASTER DELETED");
   }
 
-  function publishPendingProgramMaster() {
+  async function publishPendingProgramMaster() {
     if (!pendingProgramMaster?.blob) {
       setRecordStatus("NO PROGRAM MASTER READY");
       return;
     }
 
+    const DC_LIVE_API = "https://dc-live-api.ryanedavis.workers.dev";
+    const blob = pendingProgramMaster.blob;
+    const filename = pendingProgramMaster.filename || "scenepilot-program.webm";
+    const mimeType = blob.type || (filename.toLowerCase().endsWith(".mp4") ? "video/mp4" : "video/webm");
+    const defaultTitle =
+      `${network?.name || user?.displayName || "ScenePilot"} • ${new Date().toLocaleString([], {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      })}`;
+
     setPendingProgramMaster(current =>
-      current ? { ...current, status: "queued" } : current
+      current ? { ...current, status: "uploading" } : current
     );
-    setRecordStatus("DC LIVE PUBLISH QUEUED • HANDOFF NOT WIRED YET");
+    setRecordStatus("DC LIVE • CREATING PENDING REVIEW");
+
+    try {
+      const ticketResponse = await fetch("/api/dc-live/submission-ticket", {
+        method: "POST",
+        credentials: "include",
+        headers: { Accept: "application/json" }
+      });
+      const ticketData = await ticketResponse.json().catch(() => ({}));
+      if (!ticketResponse.ok || !ticketData.token) {
+        throw new Error(ticketData.error || "Unable to authorize DC Live submission.");
+      }
+
+      const authHeaders = {
+        Authorization: `Bearer ${ticketData.token}`
+      };
+
+      const submissionResponse = await fetch(`${DC_LIVE_API}/api/creator/submissions`, {
+        method: "POST",
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          title: defaultTitle,
+          description: `Submitted from ScenePilot production room ${roomCode}.`,
+          room: roomCode,
+          filename,
+          mimeType,
+          requestedPriceCents: 0
+        })
+      });
+      const submissionData = await submissionResponse.json().catch(() => ({}));
+      if (!submissionResponse.ok || !submissionData.eventId) {
+        throw new Error(submissionData.error || "DC Live could not create the review submission.");
+      }
+
+      const startResponse = await fetch(
+        `${DC_LIVE_API}/api/creator/submissions/${encodeURIComponent(submissionData.eventId)}/upload/start`,
+        {
+          method: "POST",
+          headers: {
+            ...authHeaders,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ filename, mimeType })
+        }
+      );
+      const startData = await startResponse.json().catch(() => ({}));
+      if (!startResponse.ok || !startData.uploadId) {
+        throw new Error(startData.error || "DC Live could not start the Program upload.");
+      }
+
+      const chunkSize = 8 * 1024 * 1024;
+      const totalParts = Math.max(1, Math.ceil(blob.size / chunkSize));
+      const parts = [];
+
+      for (let index = 0; index < totalParts; index += 1) {
+        const partNumber = index + 1;
+        const start = index * chunkSize;
+        const end = Math.min(blob.size, start + chunkSize);
+        const chunk = blob.slice(start, end, mimeType);
+
+        setRecordStatus(
+          `DC LIVE UPLOAD • PART ${partNumber}/${totalParts} • ${Math.round((partNumber / totalParts) * 100)}%`
+        );
+
+        const partResponse = await fetch(
+          `${DC_LIVE_API}/api/creator/submissions/${encodeURIComponent(submissionData.eventId)}/upload/part/${partNumber}?uploadId=${encodeURIComponent(startData.uploadId)}`,
+          {
+            method: "PUT",
+            headers: {
+              ...authHeaders,
+              "Content-Type": "application/octet-stream"
+            },
+            body: chunk
+          }
+        );
+        const partData = await partResponse.json().catch(() => ({}));
+        if (!partResponse.ok || !partData.etag) {
+          throw new Error(partData.error || `DC Live upload failed on part ${partNumber}.`);
+        }
+
+        parts.push({
+          partNumber,
+          etag: partData.etag
+        });
+      }
+
+      const completeResponse = await fetch(
+        `${DC_LIVE_API}/api/creator/submissions/${encodeURIComponent(submissionData.eventId)}/upload/complete`,
+        {
+          method: "POST",
+          headers: {
+            ...authHeaders,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            uploadId: startData.uploadId,
+            parts
+          })
+        }
+      );
+      const completeData = await completeResponse.json().catch(() => ({}));
+      if (!completeResponse.ok || !completeData.ok) {
+        throw new Error(completeData.error || "DC Live could not finalize the Program upload.");
+      }
+
+      if (isOwner) {
+        setPendingProgramMaster(current =>
+          current ? { ...current, status: "submitted", submissionId: submissionData.eventId } : current
+        );
+      } else {
+        setPendingProgramMaster(current => {
+          if (current?.url) URL.revokeObjectURL(current.url);
+          return null;
+        });
+      }
+
+      setRecordStatus("DC LIVE • SUBMITTED • PENDING REVIEW");
+    } catch (error) {
+      console.error("ScenePilot DC Live submission failed", error);
+      setPendingProgramMaster(current =>
+        current ? { ...current, status: isOwner ? "owner" : "ready" } : current
+      );
+      setRecordStatus(
+        `DC LIVE SUBMISSION FAILED • ${error instanceof Error ? error.message : "TRY AGAIN"}`
+      );
+    }
   }
 
   function toggleStandby() {
@@ -3961,9 +4102,13 @@ async function enableCamera() {
                     type="button"
                     className="program-publish"
                     onClick={publishPendingProgramMaster}
-                    disabled={pendingProgramMaster.status === "queued"}
+                    disabled={pendingProgramMaster.status === "uploading" || pendingProgramMaster.status === "submitted"}
                   >
-                    {pendingProgramMaster.status === "queued" ? "QUEUED FOR DC LIVE" : "PUBLISH TO DC LIVE"}
+                    {pendingProgramMaster.status === "uploading"
+                      ? "UPLOADING TO DC LIVE…"
+                      : pendingProgramMaster.status === "submitted"
+                        ? "PENDING REVIEW"
+                        : "PUBLISH TO DC LIVE"}
                   </button>
                 </div>
               </div>
