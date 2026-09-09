@@ -527,7 +527,27 @@ async function handleMe(request, env) {
   return json({ user });
 }
 
+async function ensureDcLiveSubmissionSchema(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS dc_live_submission_tokens (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      network_id TEXT,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (network_id) REFERENCES scenepilot_networks(id) ON DELETE SET NULL
+    )`
+  ).run();
+
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS dc_live_submission_tokens_expiry_idx
+     ON dc_live_submission_tokens(expires_at)`
+  ).run();
+}
+
 async function handleDcLiveSubmissionTicket(request, env) {
+  await ensureDcLiveSubmissionSchema(env);
   const auth = await requireScenePilotNetworkMember(request, env);
   if (auth.response) return auth.response;
 
@@ -564,6 +584,7 @@ async function handleDcLiveSubmissionTicket(request, env) {
 }
 
 async function handleDcLiveVerifyTicket(request, env) {
+  await ensureDcLiveSubmissionSchema(env);
   const authorization = String(request.headers.get("Authorization") || "");
   const token = authorization.toLowerCase().startsWith("bearer ")
     ? authorization.slice(7).trim()
