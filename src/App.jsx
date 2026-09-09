@@ -1654,20 +1654,19 @@ function App() {
     const settings = videoTrack.getSettings?.() || {};
     const liveZoomRange = capabilities.zoom;
 
-    if (!liveZoomRange) {
-      console.warn("ScenePilot zoom is not exposed by this camera/browser");
-      return false;
-    }
-
-    const min = Number.isFinite(liveZoomRange.min) ? liveZoomRange.min : 1;
-    const max = Number.isFinite(liveZoomRange.max) ? liveZoomRange.max : min;
+    // Some iOS/Android browsers accept zoom constraints even when they do not
+    // expose a zoom capability object. Do not bail out just because the
+    // capability is missing.
+    const min = Number.isFinite(liveZoomRange?.min) ? liveZoomRange.min : 1;
+    const max = Number.isFinite(liveZoomRange?.max) ? liveZoomRange.max : 5;
     const step = Math.max(
-      Number.isFinite(liveZoomRange.step) ? liveZoomRange.step : 0.1,
+      Number.isFinite(liveZoomRange?.step) ? liveZoomRange.step : 0.15,
       0.1
     );
 
-    const current = Number.isFinite(settings.zoom)
-      ? settings.zoom
+    const reportedZoom = Number(settings.zoom);
+    const current = Number.isFinite(reportedZoom)
+      ? reportedZoom
       : Math.min(max, Math.max(min, zoomValueRef.current || min));
 
     const next = Math.min(
@@ -1677,22 +1676,35 @@ function App() {
 
     if (Math.abs(next - current) < 0.0001) return true;
 
-    try {
-      await videoTrack.applyConstraints({
-        advanced: [{ zoom: next }]
-      });
-      zoomValueRef.current = next;
-      setZoomValue(next);
-      setZoomRange({
-        min,
-        max,
-        step
-      });
-      return true;
-    } catch (error) {
-      console.warn("ScenePilot zoom unavailable", error);
-      return false;
+    const attempts = [
+      { advanced: [{ zoom: next }] },
+      { zoom: next },
+      { advanced: [{ zoom: { ideal: next } }] }
+    ];
+
+    let lastError = null;
+
+    for (const constraints of attempts) {
+      try {
+        await videoTrack.applyConstraints(constraints);
+
+        const after = videoTrack.getSettings?.() || {};
+        const actualZoom = Number(after.zoom);
+
+        zoomValueRef.current = Number.isFinite(actualZoom)
+          ? actualZoom
+          : next;
+        setZoomValue(zoomValueRef.current);
+        setZoomRange({ min, max, step });
+
+        return true;
+      } catch (error) {
+        lastError = error;
+      }
     }
+
+    console.warn("ScenePilot zoom unavailable", lastError);
+    return false;
   }
 
   function stopZoomHold() {
