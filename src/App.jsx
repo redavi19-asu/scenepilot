@@ -4137,8 +4137,7 @@ async function enableCamera() {
                   disabled={recording}
                   onClick={() => setRecordMode("program")}
                 >
-                  <strong>PROGRAM MASTER</strong>
-                  <small>Owner unrestricted</small>
+                  <strong>PROGRAM</strong>
                 </button>
                 <button
                   type="button"
@@ -4146,8 +4145,7 @@ async function enableCamera() {
                   disabled={recording}
                   onClick={() => setRecordMode("iso")}
                 >
-                  <strong>ALL CAMERAS / ISO</strong>
-                  <small>Separate raw source files</small>
+                  <strong>ISO</strong>
                 </button>
                 <button
                   type="button"
@@ -4156,7 +4154,6 @@ async function enableCamera() {
                   onClick={() => setRecordMode("both")}
                 >
                   <strong>BOTH</strong>
-                  <small>Program master + raw ISO files</small>
                 </button>
               </div>
             ) : (
@@ -4192,8 +4189,8 @@ async function enableCamera() {
             <div className="output-data">
               {isOwner ? (
                 <>
-                  <span>{recordMode === "program" ? "PROGRAM MASTER" : recordMode === "iso" ? "ISO TRACKS" : "PROGRAM + ISO"}</span>
-                  <span>{recordMode === "iso" ? "RAW • DOWNLOADABLE" : "OWNER • UNRESTRICTED"}</span>
+                  <span>{recordMode === "program" ? "PROGRAM" : recordMode === "iso" ? "ISO" : "PROGRAM + ISO"}</span>
+                  <span>OWNER • UNRESTRICTED</span>
                 </>
               ) : (
                 <>
@@ -4209,7 +4206,7 @@ async function enableCamera() {
                   <strong>{isOwner ? "ICA OWNER PROGRAM MASTER" : "FINISHED PROGRAM MASTER"}</strong>
                   <small>
                     {isOwner
-                      ? "Owner exemption active: download, keep, publish or delete this Program with no customer retention or monetization restriction."
+                      ? "Owner Program ready: download, keep, publish, or delete."
                       : "This composed production is not downloadable. Raw ISO camera files remain yours to download."}
                   </small>
                 </div>
@@ -4248,7 +4245,7 @@ async function enableCamera() {
 
             <p className="record-help">
               {isOwner
-                ? "ICA Owner mode has no customer recording restrictions: raw files and finished Program masters can be downloaded, retained, published, archived or deleted at your discretion."
+                ? "Owner controls: Program, ISO, or Both. No customer recording restrictions apply."
                 : "This recorder is for your raw camera sources only. Each connected camera is saved separately for download and editing. Finished Program masters are handled by ScenePilot's protected Program workflow, not by this local recorder."}
             </p>
           </div>
