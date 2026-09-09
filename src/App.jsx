@@ -9,7 +9,7 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import "./App.css";
 import { socket } from "./socket";
-import { createPeerConnection } from "./webrtc";
+import { createPeerConnection, optimizeVideoSender } from "./webrtc";
 import ReplayStudio from "./ReplayStudio";
 import BroadcastPanel from "./BroadcastPanel";
 import BroadcastGraphics from "./BroadcastGraphics";
@@ -17,7 +17,7 @@ import BroadcastGraphics from "./BroadcastGraphics";
 const qualityProfiles = {
   "1080p": { width: 1920, height: 1080, fps: 30, label: "1080P" },
   "720p": { width: 1280, height: 720, fps: 30, label: "720P" },
-  "auto": { width: 1280, height: 720, fps: 30, label: "AUTO" }
+  "auto": { width: 1280, height: 720, fps: 24, label: "AUTO" }
 };
 
 function ScenePilotSplash({ cameraMode }) {
@@ -146,7 +146,7 @@ function App() {
   const [assignedSlot, setAssignedSlot] = useState(7);
   const assignedSlotRef = useRef(7);
   const [cameraName, setCameraName] = useState("ROAMING 1");
-  const [qualityProfile, setQualityProfile] = useState("1080p");
+  const [qualityProfile, setQualityProfile] = useState("auto");
   const [showTips, setShowTips] = useState(false);
   const [showCallShield, setShowCallShield] = useState(false);
   const [liveShieldEnabled, setLiveShieldEnabled] = useState(false);
@@ -1769,7 +1769,11 @@ function App() {
           .find(candidate => candidate.track?.kind === "video");
 
         if (sender) {
-          replaceJobs.push(sender.replaceTrack(newVideoTrack));
+          replaceJobs.push(
+            sender
+              .replaceTrack(newVideoTrack)
+              .then(() => optimizeVideoSender(sender, qualityProfile))
+          );
         }
       });
 
@@ -1956,7 +1960,10 @@ async function enableCamera() {
         peers.current[from] = peer;
 
         media.getTracks().forEach(track => {
-          peer.addTrack(track, media);
+          const sender = peer.addTrack(track, media);
+          if (track.kind === "video") {
+            optimizeVideoSender(sender, qualityProfile);
+          }
         });
 
         try {
