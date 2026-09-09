@@ -4164,7 +4164,13 @@ async function enableCamera() {
           roomCode={roomCode}
           getProgramStream={() => startProgramCompositor() || currentProgramMediaStream()}
         />
-        <ReplayStudio roomCode={roomCode} />
+        <ReplayStudio
+          roomCode={roomCode}
+          isOwner={isOwner}
+          programMaster={pendingProgramMaster}
+          onPublishProgram={publishPendingProgramMaster}
+          onDeleteProgram={deletePendingProgramMaster}
+        />
       </main>
 
       <footer>
