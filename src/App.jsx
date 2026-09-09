@@ -3137,8 +3137,8 @@ async function enableCamera() {
             <div className="monitor-head">
               <span>PROGRAM</span>
               <div className="program-head-status">
-                <span className={`live-badge header-live-badge ${standby ? "standby" : ""}`}>
-                  <i/> {standby ? "STANDBY" : "LIVE"}
+                <span className={`program-live-status ${standby ? "standby" : "live"}`}>
+                  <i/> {standby ? "PROGRAM STANDBY" : "PROGRAM LIVE"}
                 </span>
                 <strong>PGM</strong>
               </div>
