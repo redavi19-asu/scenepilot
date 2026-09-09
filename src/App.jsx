@@ -1743,6 +1743,7 @@ function App() {
     const oldVideoTracks = stream.getVideoTracks();
     const currentVideoTrack = oldVideoTracks[0];
     const currentDeviceId = currentVideoTrack?.getSettings?.().deviceId || "";
+    const audioTracks = stream.getAudioTracks();
 
     try {
       setSignalStatus("SWITCHING CAMERA");
@@ -1754,10 +1755,20 @@ function App() {
         frameRate: { ideal: profile.fps, max: profile.fps }
       };
 
+      // Android often refuses to hand the rear camera back while the front
+      // camera track is still active. Release the active lens first.
+      oldVideoTracks.forEach(track => {
+        try {
+          track.stop();
+        } catch {}
+      });
+
+      // Give Android a moment to release the camera hardware.
+      await new Promise(resolve => window.setTimeout(resolve, 120));
+
       let replacementStream = null;
       let lastError = null;
 
-      // Android Chrome may ignore facingMode: ideal, so demand the other lens first.
       try {
         replacementStream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -1770,14 +1781,14 @@ function App() {
         lastError = error;
       }
 
-      // If exact facingMode fails, choose a different physical camera device.
+      // Fallback for Android devices that do not honor exact facingMode.
       if (!replacementStream) {
         try {
           const devices = await navigator.mediaDevices.enumerateDevices();
           const videoDevices = devices.filter(device => device.kind === "videoinput");
           const facingWords =
             nextFacing === "environment"
-              ? /back|rear|environment|world/i
+              ? /back|rear|environment|world|main/i
               : /front|user|selfie|face/i;
 
           const preferredDevice =
@@ -1807,23 +1818,10 @@ function App() {
         }
       }
 
-      // Some Android builds will not release the second lens until the active
-      // camera track is stopped. Retry once after releasing the old camera.
+      // Last resort: ask the browser for the requested side after the old
+      // hardware has already been released.
       if (!replacementStream) {
-        oldVideoTracks.forEach(track => track.stop());
-
         try {
-          replacementStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              ...baseVideoConstraints,
-              facingMode: { exact: nextFacing }
-            },
-            audio: false
-          });
-        } catch (error) {
-          lastError = error;
-
-          // Last-resort Android fallback: let the browser choose the requested side.
           replacementStream = await navigator.mediaDevices.getUserMedia({
             video: {
               ...baseVideoConstraints,
@@ -1831,6 +1829,8 @@ function App() {
             },
             audio: false
           });
+        } catch (error) {
+          lastError = error;
         }
       }
 
@@ -1857,17 +1857,10 @@ function App() {
 
       await Promise.all(replaceJobs);
 
-      const audioTracks = stream.getAudioTracks();
       const nextStream = new MediaStream([
         newVideoTrack,
         ...audioTracks
       ]);
-
-      oldVideoTracks.forEach(track => {
-        if (track !== newVideoTrack && track.readyState !== "ended") {
-          track.stop();
-        }
-      });
 
       const actualFacing = newVideoTrack.getSettings?.().facingMode;
       setFacingMode(
@@ -1877,7 +1870,8 @@ function App() {
       );
       setStream(nextStream);
       readZoomCapability(nextStream);
-      refreshVideoInputs();
+      await refreshVideoInputs();
+
       setSignalStatus(
         Object.keys(peers.current).length
           ? "LIVE TO DIRECTOR"
