@@ -1,6 +1,8 @@
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { readdir, stat, statfs, unlink } from "node:fs/promises";
+import { join } from "node:path";
 import { WebSocketServer } from "ws";
 
 const HOST = process.env.ENCODER_HOST || "127.0.0.1";
@@ -13,8 +15,78 @@ const PUBLIC_INGEST_URL = String(
   process.env.SCENEPILOT_PUBLIC_INGEST_URL || "wss://encoder.icomputeranything.com"
 ).replace(/\/+$/, "");
 const INGEST_TOKEN_TTL_MS = 10 * 60 * 1000;
+const RECORDING_ROOT = String(
+  process.env.SCENEPILOT_RECORDING_ROOT || "/home/ryan/scenepilot-data/recordings"
+).replace(/\/+$/, "");
+const RECORDING_RETENTION_HOURS = Math.max(
+  1,
+  Number(process.env.SCENEPILOT_RECORDING_RETENTION_HOURS || 72)
+);
+const STORAGE_WARNING_PERCENT = Math.min(
+  99,
+  Math.max(1, Number(process.env.SCENEPILOT_STORAGE_WARNING_PERCENT || 80))
+);
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+const RECORDING_EXTENSIONS = new Set([".flv", ".mkv", ".mov", ".mp4", ".webm"]);
 
 const jobs = new Map();
+
+async function cleanupRecordings() {
+  const cutoff = Date.now() - RECORDING_RETENTION_HOURS * 60 * 60 * 1000;
+  let deletedFiles = 0;
+  let deletedBytes = 0;
+
+  for (const directory of [join(RECORDING_ROOT, "program"), join(RECORDING_ROOT, "iso")]) {
+    let entries = [];
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch (error) {
+      console.error(`[retention] Cannot scan ${directory}: ${error.message}`);
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const extension = entry.name.slice(entry.name.lastIndexOf(".")).toLowerCase();
+      if (!RECORDING_EXTENSIONS.has(extension)) continue;
+
+      const path = join(directory, entry.name);
+      try {
+        const details = await stat(path);
+        if (details.mtimeMs >= cutoff) continue;
+        await unlink(path);
+        deletedFiles += 1;
+        deletedBytes += details.size;
+      } catch (error) {
+        console.error(`[retention] Cannot remove ${path}: ${error.message}`);
+      }
+    }
+  }
+
+  try {
+    const filesystem = await statfs(RECORDING_ROOT);
+    const total = Number(filesystem.blocks) * Number(filesystem.bsize);
+    const available = Number(filesystem.bavail) * Number(filesystem.bsize);
+    const usedPercent = total > 0 ? ((total - available) / total) * 100 : 0;
+
+    if (usedPercent >= STORAGE_WARNING_PERCENT) {
+      console.warn(
+        `[storage] WARNING: recording disk is ${usedPercent.toFixed(1)}% full ` +
+        `(warning threshold ${STORAGE_WARNING_PERCENT}%).`
+      );
+    }
+  } catch (error) {
+    console.error(`[storage] Cannot read recording disk usage: ${error.message}`);
+  }
+
+  if (deletedFiles) {
+    console.log(
+      `[retention] Deleted ${deletedFiles} recording(s), ` +
+      `${(deletedBytes / 1024 / 1024).toFixed(1)} MiB, older than ` +
+      `${RECORDING_RETENTION_HOURS} hours.`
+    );
+  }
+}
 
 function json(response, status, body) {
   response.writeHead(status, {
@@ -295,4 +367,16 @@ process.on("SIGINT", shutdown);
 
 server.listen(PORT, HOST, () => {
   console.log(`ScenePilot encoder API listening on http://${HOST}:${PORT}`);
+  console.log(
+    `ScenePilot recording retention: ${RECORDING_RETENTION_HOURS} hours; ` +
+    `storage warning: ${STORAGE_WARNING_PERCENT}%.`
+  );
+  cleanupRecordings().catch(error => {
+    console.error(`[retention] Initial cleanup failed: ${error.message}`);
+  });
+  setInterval(() => {
+    cleanupRecordings().catch(error => {
+      console.error(`[retention] Scheduled cleanup failed: ${error.message}`);
+    });
+  }, CLEANUP_INTERVAL_MS).unref();
 });
