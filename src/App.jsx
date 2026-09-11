@@ -216,6 +216,7 @@ function App({ user = null, onLogout = null }) {
   const [instantReplayMode, setInstantReplayMode] = useState("live");
   const [instantReplayUrl, setInstantReplayUrl] = useState(null);
   const [instantReplaySeconds, setInstantReplaySeconds] = useState(10);
+  const [instantReplayRate, setInstantReplayRate] = useState(1);
   const [instantReplayStatus, setInstantReplayStatus] = useState("BUFFER WAITING");
   const replayRecorderRef = useRef(null);
   const replayChunksRef = useRef([]);
@@ -1840,9 +1841,22 @@ function App({ user = null, onLogout = null }) {
       const video = instantReplayVideoRef.current;
       if (video) {
         video.currentTime = 0;
+        video.playbackRate = instantReplayRate;
         video.play?.().catch(() => {});
       }
     });
+  }
+
+  function setReplaySpeed(rate) {
+    const nextRate = Number(rate);
+    if (![0.25, 0.5, 1].includes(nextRate)) return;
+
+    setInstantReplayRate(nextRate);
+    const video = instantReplayVideoRef.current;
+    if (video) video.playbackRate = nextRate;
+
+    const label = nextRate === 1 ? "NORMAL" : `${nextRate}X SLOW MO`;
+    setInstantReplayStatus(`REPLAY ${instantReplaySeconds}S • ${label}`);
   }
 
   function returnToLive() {
@@ -4284,6 +4298,20 @@ async function enableCamera() {
                   onClick={() => buildInstantReplay(seconds)}
                 >
                   REPLAY {seconds}s
+                </button>
+              ))}
+            </div>
+
+            <div className="instant-replay-speed" role="group" aria-label="Replay speed">
+              {[0.25, 0.5, 1].map(rate => (
+                <button
+                  key={rate}
+                  type="button"
+                  className={instantReplayRate === rate ? "active" : ""}
+                  onClick={() => setReplaySpeed(rate)}
+                  disabled={!instantReplayUrl}
+                >
+                  {rate === 1 ? "NORMAL" : `${rate}X SLOW MO`}
                 </button>
               ))}
             </div>
