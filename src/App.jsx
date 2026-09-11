@@ -12,6 +12,11 @@ import { Device } from "@capacitor/device";
 import "./App.css";
 import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
+import {
+  smartGlassesSupportedHere,
+  startSmartGlassesStream,
+  stopSmartGlassesStream
+} from "./smartGlasses";
 import ReplayStudio from "./ReplayStudio";
 import BroadcastPanel from "./BroadcastPanel";
 import BroadcastGraphics from "./BroadcastGraphics";
@@ -202,6 +207,7 @@ function App({ user = null, onLogout = null }) {
   const [operatorCommsAlert, setOperatorCommsAlert] = useState(null);
   const [videoInputs, setVideoInputs] = useState([]);
   const [selectedVideoDevice, setSelectedVideoDevice] = useState("");
+  const [cameraSourceMode, setCameraSourceMode] = useState("phone");
   const [showReplayEditor, setShowReplayEditor] = useState(true);
   const [compositionMode, setCompositionMode] = useState("single");
   const [secondaryPreview, setSecondaryPreview] = useState(8);
@@ -2257,10 +2263,24 @@ async function enableCamera() {
             frameRate: { ideal: profile.fps, max: profile.fps }
           };
 
-      const media = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints,
-        audio: true
-      });
+      let media;
+      if (cameraSourceMode === "smart-glasses") {
+        setSignalStatus("CONNECTING SMART GLASSES");
+        const glassesVideo = await startSmartGlassesStream({ fps: profile.fps });
+        const microphone = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: true
+        });
+        media = new MediaStream([
+          ...glassesVideo.getVideoTracks(),
+          ...microphone.getAudioTracks()
+        ]);
+      } else {
+        media = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: true
+        });
+      }
 
       setStream(media);
       readZoomCapability(media);
@@ -2439,6 +2459,9 @@ async function enableCamera() {
       socket.connect();
       return true;
     } catch (error) {
+      if (cameraSourceMode === "smart-glasses") {
+        await stopSmartGlassesStream();
+      }
       setSignalStatus("CAMERA ACCESS FAILED");
       alert(`Camera access failed: ${error.message}`);
       return false;
@@ -2555,6 +2578,9 @@ async function enableCamera() {
 
   function stopCamera() {
     stream?.getTracks().forEach(track => track.stop());
+    if (cameraSourceMode === "smart-glasses") {
+      stopSmartGlassesStream();
+    }
     wakeLock.current?.release?.().catch?.(() => {});
     wakeLock.current = null;
 
@@ -2990,10 +3016,22 @@ async function enableCamera() {
                   <label>CAMERA SOURCE</label>
                   <div className="source-select-line">
                     <select
-                      value={selectedVideoDevice}
-                      onChange={event => setSelectedVideoDevice(event.target.value)}
+                      value={cameraSourceMode === "smart-glasses" ? "__smart_glasses__" : selectedVideoDevice}
+                      onChange={event => {
+                        const value = event.target.value;
+                        if (value === "__smart_glasses__") {
+                          setCameraSourceMode("smart-glasses");
+                          setSelectedVideoDevice("");
+                        } else {
+                          setCameraSourceMode("phone");
+                          setSelectedVideoDevice(value);
+                        }
+                      }}
                     >
                       <option value="">AUTO / PHONE CAMERA</option>
+                      {smartGlassesSupportedHere() && (
+                        <option value="__smart_glasses__">META SMART GLASSES • DEVELOPER PREVIEW</option>
+                      )}
                       {videoInputs.map((device, index) => (
                         <option key={device.deviceId || index} value={device.deviceId}>
                           {device.label || `CAMERA SOURCE ${index + 1}`}
@@ -3006,6 +3044,7 @@ async function enableCamera() {
                   </div>
                   <small>
                     HDMI capture cards and USB cameras appear here when the browser can see them.
+                    {smartGlassesSupportedHere() && " Meta smart glasses use the native wearable bridge in supported development builds."}
                   </small>
                 </div>
 
@@ -3515,6 +3554,15 @@ async function enableCamera() {
                   className="composition-video instant-replay-video"
                   autoPlay
                   playsInline
+                  defaultPlaybackRate={instantReplayRate}
+                  onLoadedMetadata={event => {
+                    event.currentTarget.playbackRate = instantReplayRate;
+                    event.currentTarget.defaultPlaybackRate = instantReplayRate;
+                    event.currentTarget.preservesPitch = false;
+                  }}
+                  onPlay={event => {
+                    event.currentTarget.playbackRate = instantReplayRate;
+                  }}
                   onEnded={returnToLive}
                 />
               ) : programComposition.mode === "nine" ? (
