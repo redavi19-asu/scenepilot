@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Radio, LogIn, UserPlus, Download, LockKeyhole, MessageSquare,
   Send, ShieldCheck, Users, ArrowRight, LogOut, Crown, Mail,
-  X, Camera, RadioTower, Mic, Headphones, Cast, Maximize2
+  X, Camera, RadioTower, Mic, Headphones, Cast, Maximize2, Smartphone
 } from "lucide-react";
 import App from "./App.jsx";
 import TurnstileWidget from "./TurnstileWidget.jsx";
@@ -234,6 +234,42 @@ function WatchPage({ roomCode }) {
         </div>
       </section>
     </main>
+  );
+}
+
+function CameraAppHandoff() {
+  const params = new URLSearchParams(window.location.search);
+  const cameraParams = new URLSearchParams({ camera: "1" });
+
+  for (const key of ["network", "room", "join"]) {
+    const value = params.get(key);
+    if (value && value.length <= 512) cameraParams.set(key, value);
+  }
+
+  const query = cameraParams.toString();
+  const appUrl = `scenepilot://camera?${query}`;
+  const browserUrl = `/app?${query}`;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => window.location.assign(appUrl), 150);
+    return () => window.clearTimeout(timer);
+  }, [appUrl]);
+
+  return (
+    <div className="sp-auth-shell">
+      <div className="sp-auth-card">
+        <Smartphone size={30}/>
+        <span className="sp-kicker">SCENEPILOT CAMERA</span>
+        <h1>Open the camera in ScenePilot.</h1>
+        <p>The installed app can share battery status. Chrome cannot provide it on iPhone or iPad.</p>
+        <button className="sp-auth-submit" onClick={() => window.location.assign(appUrl)}>
+          OPEN SCENEPILOT APP
+        </button>
+        <button className="sp-secondary" onClick={() => window.location.assign(browserUrl)}>
+          CONTINUE IN BROWSER
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1654,6 +1690,10 @@ export default function ScenePilotPortal() {
 
   if (watchMatch) {
     return <WatchPage roomCode={watchMatch[1]}/>;
+  }
+
+  if (cleanPath === "/camera-open") {
+    return <CameraAppHandoff/>;
   }
 
   if (cameraMode) {

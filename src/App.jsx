@@ -391,10 +391,21 @@ function App({ user = null, onLogout = null }) {
   }, [showCamera]);
 
   const networkId = network?.id || cameraNetworkId;
-  const joinUrl =
+  const cameraJoinQuery =
     network?.id && network?.joinToken
-      ? `${window.location.origin}${window.location.pathname}?camera=1&network=${encodeURIComponent(network.id)}&room=${encodeURIComponent(roomCode)}&join=${encodeURIComponent(network.joinToken)}`
+      ? new URLSearchParams({
+          camera: "1",
+          network: network.id,
+          room: roomCode,
+          join: network.joinToken
+        }).toString()
       : "";
+  const joinUrl = cameraJoinQuery
+    ? `${window.location.origin}/app?${cameraJoinQuery}`
+    : "";
+  const cameraHandoffUrl = cameraJoinQuery
+    ? `${window.location.origin}/camera-open?${cameraJoinQuery}`
+    : "";
 
   async function refreshVideoInputs() {
     try {
@@ -4388,8 +4399,8 @@ async function enableCamera() {
               {" "}and room {roomCode}. Cameras using another company's QR code cannot enter this production.
             </p>
             <div className="qr-wrap">
-              {joinUrl ? (
-                <QRCodeSVG value={joinUrl} size={190}/>
+              {cameraHandoffUrl ? (
+                <QRCodeSVG value={cameraHandoffUrl} size={190}/>
               ) : (
                 <span>NETWORK QR LOADING…</span>
               )}

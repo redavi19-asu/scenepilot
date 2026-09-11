@@ -25,6 +25,7 @@
     "mobile:ios": "npm run mobile:sync && cap open ios"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.1",
     "@capacitor/device": "^8.0.3",
     "concurrently": "^10.0.5",
