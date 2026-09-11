@@ -206,7 +206,9 @@ function App({ user = null, onLogout = null }) {
   const [operatorControlsCollapsed, setOperatorControlsCollapsed] = useState(false);
   const [operatorCommsAlert, setOperatorCommsAlert] = useState(null);
   const [videoInputs, setVideoInputs] = useState([]);
+  const [audioInputs, setAudioInputs] = useState([]);
   const [selectedVideoDevice, setSelectedVideoDevice] = useState("");
+  const [selectedAudioDevice, setSelectedAudioDevice] = useState("");
   const [cameraSourceMode, setCameraSourceMode] = useState("phone");
   const [showReplayEditor, setShowReplayEditor] = useState(true);
   const [compositionMode, setCompositionMode] = useState("single");
@@ -418,9 +420,18 @@ function App({ user = null, onLogout = null }) {
     try {
       const devices = await navigator.mediaDevices?.enumerateDevices?.();
       const cameras = (devices || []).filter(device => device.kind === "videoinput");
+      const microphones = (devices || []).filter(device => device.kind === "audioinput");
       setVideoInputs(cameras);
+      setAudioInputs(microphones);
+
+      if (
+        selectedAudioDevice &&
+        !microphones.some(device => device.deviceId === selectedAudioDevice)
+      ) {
+        setSelectedAudioDevice("");
+      }
     } catch (error) {
-      console.warn("ScenePilot camera source discovery unavailable", error);
+      console.warn("ScenePilot camera/audio source discovery unavailable", error);
     }
   }
 
@@ -2263,13 +2274,26 @@ async function enableCamera() {
             frameRate: { ideal: profile.fps, max: profile.fps }
           };
 
+      const audioConstraints = selectedAudioDevice
+        ? {
+            deviceId: { exact: selectedAudioDevice },
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        : {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          };
+
       let media;
       if (cameraSourceMode === "smart-glasses") {
         setSignalStatus("CONNECTING SMART GLASSES");
         const glassesVideo = await startSmartGlassesStream({ fps: profile.fps });
         const microphone = await navigator.mediaDevices.getUserMedia({
           video: false,
-          audio: true
+          audio: audioConstraints
         });
         media = new MediaStream([
           ...glassesVideo.getVideoTracks(),
@@ -2278,7 +2302,7 @@ async function enableCamera() {
       } else {
         media = await navigator.mediaDevices.getUserMedia({
           video: videoConstraints,
-          audio: true
+          audio: audioConstraints
         });
       }
 
@@ -3045,6 +3069,29 @@ async function enableCamera() {
                   <small>
                     HDMI capture cards and USB cameras appear here when the browser can see them.
                     {smartGlassesSupportedHere() && " Meta smart glasses use the native wearable bridge in supported development builds."}
+                  </small>
+                </div>
+
+                <div className="source-row">
+                  <label>AUDIO SOURCE</label>
+                  <div className="source-select-line">
+                    <select
+                      value={selectedAudioDevice}
+                      onChange={event => setSelectedAudioDevice(event.target.value)}
+                    >
+                      <option value="">AUTO / DEVICE DEFAULT</option>
+                      {audioInputs.map((device, index) => (
+                        <option key={device.deviceId || index} value={device.deviceId}>
+                          {device.label || `AUDIO INPUT ${index + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={refreshVideoInputs}>
+                      REFRESH
+                    </button>
+                  </div>
+                  <small>
+                    USB audio interfaces, mixers, capture devices, Bluetooth microphones, and other system audio inputs appear here when iOS, Android, macOS, or the browser exposes them.
                   </small>
                 </div>
 
