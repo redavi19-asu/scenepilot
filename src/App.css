@@ -893,6 +893,29 @@ footer span:last-child{margin-left:auto}
   font-size:8px;
   font-weight:900
 }
+.instant-replay-speed{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:5px;
+  margin-top:6px
+}
+.instant-replay-speed button{
+  min-height:34px;
+  border:1px solid #4a4e47;
+  background:#181b18;
+  color:#c9cdc4;
+  font-size:8px;
+  font-weight:900
+}
+.instant-replay-speed button.active{
+  background:#3a4737;
+  border-color:#6b8065;
+  color:#fff
+}
+.instant-replay-speed button:disabled{
+  opacity:.38;
+  cursor:not-allowed
+}
 .instant-replay-actions{
   display:grid;
   grid-template-columns:1fr 1fr;
