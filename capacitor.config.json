@@ -1,0 +1,9 @@
+{
+  "appId": "com.icomputeranything.scenepilot",
+  "appName": "ScenePilot",
+  "webDir": "dist",
+  "server": {
+    "url": "https://scenepilot.ryanedavis.workers.dev/app",
+    "cleartext": false
+  }
+}

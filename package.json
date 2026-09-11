@@ -19,9 +19,14 @@
     "desktop": "electron .",
     "package:mac": "electron-builder --mac zip --arm64",
     "package:mac:dmg": "electron-builder --mac dmg zip --arm64",
-    "package:win": "electron-builder --win nsis --x64"
+    "package:win": "electron-builder --win nsis --x64",
+    "mobile:sync": "npm run build && cap sync",
+    "mobile:android": "npm run mobile:sync && cap open android",
+    "mobile:ios": "npm run mobile:sync && cap open ios"
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/device": "^8.0.3",
     "concurrently": "^10.0.5",
     "express": "^5.2.1",
     "hls.js": "^1.7.2",
@@ -34,6 +39,9 @@
     "ws": "^8.21.3"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/ios": "^8.5.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",

@@ -7,6 +7,8 @@ import {
   Scissors, Play, Save, Download, SkipBack, Film, Upload, Minimize2, Maximize, Menu, LogOut, MessageSquare, RadioTower
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { Capacitor } from "@capacitor/core";
+import { Device } from "@capacitor/device";
 import "./App.css";
 import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
@@ -160,7 +162,7 @@ function App({ user = null, onLogout = null }) {
     battery: null,
     charging: null,
     network: null,
-    batterySupported: Boolean(navigator.getBattery),
+    batterySupported: Boolean(navigator.getBattery || Capacitor.isNativePlatform()),
     networkSupported: Boolean(
       navigator.connection ||
       navigator.mozConnection ||
@@ -417,10 +419,9 @@ function App({ user = null, onLogout = null }) {
       navigator.mozConnection ||
       navigator.webkitConnection;
 
-    const nativeBatteryReader =
-      window.Capacitor?.Plugins?.Device?.getBatteryInfo ||
-      window.Capacitor?.Plugins?.Battery?.getBatteryInfo ||
-      null;
+    const nativeBatteryReader = Capacitor.isNativePlatform()
+      ? () => Device.getBatteryInfo()
+      : null;
 
     const batterySupported = Boolean(navigator.getBattery || nativeBatteryReader);
     const networkSupported = Boolean(connection);
@@ -486,9 +487,7 @@ function App({ user = null, onLogout = null }) {
 
       if (nativeBatteryReader) {
         try {
-          const info = await nativeBatteryReader.call(
-            window.Capacitor?.Plugins?.Device || window.Capacitor?.Plugins?.Battery
-          );
+          const info = await nativeBatteryReader();
           const rawLevel = Number(info?.batteryLevel);
           const batteryPercent = Number.isFinite(rawLevel)
             ? Math.round((rawLevel <= 1 ? rawLevel * 100 : rawLevel))
@@ -2187,7 +2186,7 @@ function App({ user = null, onLogout = null }) {
         network: null,
         telemetryConsent: false,
         support: {
-          battery: Boolean(navigator.getBattery),
+          battery: Boolean(navigator.getBattery || Capacitor.isNativePlatform()),
           network: Boolean(
             navigator.connection ||
             navigator.mozConnection ||
