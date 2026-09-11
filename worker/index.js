@@ -1841,6 +1841,215 @@ async function handleBroadcastControl(request, env, action) {
   });
 }
 
+function realtimeConfig(env) {
+  const appId = String(env.REALTIME_APP_ID || "").trim();
+  const appSecret = String(env.REALTIME_APP_SECRET || "").trim();
+  return { appId, appSecret, ready: Boolean(appId && appSecret) };
+}
+
+function validRealtimeRoom(value) {
+  const room = String(value || "").trim();
+  return /^[A-Za-z0-9_-]{1,80}$/.test(room) ? room : "";
+}
+
+async function callRealtime(env, path, body = null, method = "POST") {
+  const config = realtimeConfig(env);
+  if (!config.ready) {
+    return { ok: false, status: 503, data: { error: "Cloudflare Realtime is not configured yet." } };
+  }
+
+  const response = await fetch(
+    `https://rtc.live.cloudflare.com/v1/apps/${encodeURIComponent(config.appId)}${path}`,
+    {
+      method,
+      headers: {
+        Authorization: `Bearer ${config.appSecret}`,
+        ...(body ? { "Content-Type": "application/json" } : {})
+      },
+      ...(body ? { body: JSON.stringify(body) } : {})
+    }
+  );
+  const data = await response.json().catch(() => ({}));
+  return { ok: response.ok, status: response.status, data };
+}
+
+async function createRealtimeSession(env) {
+  const result = await callRealtime(env, "/sessions/new");
+  if (!result.ok || !result.data?.sessionId) {
+    throw new Error(result.data?.errorDescription || result.data?.error || "Could not create a Realtime session.");
+  }
+  return result.data.sessionId;
+}
+
+async function realtimeToken(env, sessionId, expiresAt) {
+  const secret = realtimeConfig(env).appSecret;
+  const payload = `${sessionId}.${expiresAt}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
+  return `${expiresAt}.${bytesToHex(new Uint8Array(signature))}`;
+}
+
+async function validRealtimeToken(env, sessionId, token) {
+  const [expiresAtText, signatureHex] = String(token || "").split(".");
+  const expiresAt = Number(expiresAtText);
+  if (
+    !Number.isFinite(expiresAt) ||
+    Date.now() > expiresAt ||
+    !/^[a-f0-9]{64}$/i.test(signatureHex || "")
+  ) return false;
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(realtimeConfig(env).appSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+  return crypto.subtle.verify(
+    "HMAC",
+    key,
+    hexToBytes(signatureHex),
+    new TextEncoder().encode(`${sessionId}.${expiresAt}`)
+  );
+}
+
+async function handleRealtimePublish(request, env) {
+  const auth = await requireScenePilotNetworkMember(request, env);
+  if (auth.response) return auth.response;
+
+  const body = await readJson(request);
+  const room = validRealtimeRoom(body.room);
+  if (!room) return json({ error: "Enter a valid ScenePilot room." }, 400);
+  if (!realtimeConfig(env).ready) {
+    return json({ error: "Cloudflare Realtime is not configured yet." }, 503);
+  }
+
+  if (request.method === "DELETE") {
+    await env.DB.prepare(
+      "DELETE FROM scenepilot_realtime_publications WHERE room_code = ? AND network_id = ?"
+    ).bind(room, auth.network.id).run();
+    return json({ ok: true });
+  }
+
+  const sessionDescription = body.sessionDescription;
+  const tracks = Array.isArray(body.tracks)
+    ? body.tracks.slice(0, 4).map(track => ({
+        location: "local",
+        mid: String(track?.mid || "").slice(0, 20),
+        trackName: String(track?.trackName || "").slice(0, 200)
+      })).filter(track => track.mid && track.trackName)
+    : [];
+
+  if (
+    sessionDescription?.type !== "offer" ||
+    !sessionDescription.sdp ||
+    sessionDescription.sdp.length > 1024 * 1024 ||
+    !tracks.length
+  ) {
+    return json({ error: "Realtime publish offer is incomplete." }, 400);
+  }
+
+  const sessionId = await createRealtimeSession(env);
+  const result = await callRealtime(
+    env,
+    `/sessions/${encodeURIComponent(sessionId)}/tracks/new`,
+    { sessionDescription, tracks }
+  );
+  if (!result.ok) {
+    return json({ error: result.data?.errorDescription || result.data?.error || "Realtime rejected the Program feed." }, result.status);
+  }
+
+  const now = Date.now();
+  await env.DB.prepare(
+    `INSERT INTO scenepilot_realtime_publications (
+      room_code, network_id, session_id, tracks_json, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(room_code) DO UPDATE SET
+      network_id = excluded.network_id,
+      session_id = excluded.session_id,
+      tracks_json = excluded.tracks_json,
+      updated_at = excluded.updated_at`
+  ).bind(room, auth.network.id, sessionId, JSON.stringify(tracks), now, now).run();
+
+  return json({ ...result.data, sessionId });
+}
+
+async function handleRealtimeSubscribe(request, env) {
+  const body = await readJson(request);
+  const room = validRealtimeRoom(body.room);
+  if (!room) return json({ error: "Enter a valid ScenePilot room." }, 400);
+  if (!realtimeConfig(env).ready) {
+    return json({ error: "Cloudflare Realtime is not configured yet." }, 503);
+  }
+
+  const publication = await env.DB.prepare(
+    `SELECT session_id, tracks_json
+     FROM scenepilot_realtime_publications
+     WHERE room_code = ? AND updated_at > ?
+     LIMIT 1`
+  ).bind(room, Date.now() - 12 * 60 * 60 * 1000).first();
+  if (!publication) return json({ error: "Realtime Program is not live." }, 404);
+
+  const publishedTracks = JSON.parse(publication.tracks_json || "[]");
+  const tracks = publishedTracks.map(track => ({
+    location: "remote",
+    sessionId: publication.session_id,
+    trackName: track.trackName
+  }));
+  if (!tracks.length) return json({ error: "Realtime Program has no media tracks." }, 404);
+
+  const sessionId = await createRealtimeSession(env);
+  const result = await callRealtime(
+    env,
+    `/sessions/${encodeURIComponent(sessionId)}/tracks/new`,
+    { tracks }
+  );
+  if (!result.ok) {
+    return json({ error: result.data?.errorDescription || result.data?.error || "Realtime subscription failed." }, result.status);
+  }
+
+  const expiresAt = Date.now() + 2 * 60 * 1000;
+  return json({
+    ...result.data,
+    sessionId,
+    token: await realtimeToken(env, sessionId, expiresAt)
+  });
+}
+
+async function handleRealtimeRenegotiate(request, env) {
+  const body = await readJson(request);
+  const sessionId = String(body.sessionId || "").trim();
+  if (!realtimeConfig(env).ready) {
+    return json({ error: "Cloudflare Realtime is not configured yet." }, 503);
+  }
+  if (!sessionId || !(await validRealtimeToken(env, sessionId, body.token))) {
+    return json({ error: "Realtime subscription authorization expired." }, 403);
+  }
+  if (
+    body.sessionDescription?.type !== "answer" ||
+    !body.sessionDescription.sdp ||
+    body.sessionDescription.sdp.length > 1024 * 1024
+  ) {
+    return json({ error: "Realtime subscription answer is incomplete." }, 400);
+  }
+
+  const result = await callRealtime(
+    env,
+    `/sessions/${encodeURIComponent(sessionId)}/renegotiate`,
+    { sessionDescription: body.sessionDescription },
+    "PUT"
+  );
+  return result.ok
+    ? json(result.data)
+    : json({ error: result.data?.errorDescription || result.data?.error || "Realtime negotiation failed." }, result.status);
+}
+
 async function handleApi(request, env, url) {
   if (url.pathname === "/api/health" || url.pathname === "/health") {
     let databaseReady = false;
@@ -1896,6 +2105,21 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/dc-live/verify-ticket" && request.method === "POST") {
     return handleDcLiveVerifyTicket(request, env);
+  }
+
+  if (
+    url.pathname === "/api/realtime/publish" &&
+    (request.method === "POST" || request.method === "DELETE")
+  ) {
+    return handleRealtimePublish(request, env);
+  }
+
+  if (url.pathname === "/api/realtime/subscribe" && request.method === "POST") {
+    return handleRealtimeSubscribe(request, env);
+  }
+
+  if (url.pathname === "/api/realtime/renegotiate" && request.method === "POST") {
+    return handleRealtimeRenegotiate(request, env);
   }
 
   if (url.pathname === "/api/auth/register" && request.method === "POST") {

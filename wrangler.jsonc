@@ -2,7 +2,14 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "scenepilot",
   "main": "worker/index.js",
-  "compatibility_date": "2026-09-06",
+  "compatibility_date": "2026-09-10",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "REALTIME_APP_ID": "88e4a5e7cbc552d693f50fd676b66b21"
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

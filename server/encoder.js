@@ -219,9 +219,12 @@ function startIngest(input, room) {
     "-preset", "veryfast",
     "-tune", "zerolatency",
     "-pix_fmt", "yuv420p",
+    // nginx-rtmp can only close an HLS segment on a video keyframe. A fixed
+    // one-second GOP makes its one-second HLS target deterministic at 30 fps.
     "-g", "30",
     "-keyint_min", "30",
     "-sc_threshold", "0",
+    "-force_key_frames", "expr:gte(t,n_forced*1)",
     "-c:a", "aac",
     "-ar", "48000",
     "-b:a", "128k",

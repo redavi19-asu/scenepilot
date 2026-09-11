@@ -5,6 +5,7 @@ import {
   Server, Settings2, Eye, EyeOff, Play, Square, Globe2, Save, CheckCircle2,
   Copy, Share2, QrCode, ExternalLink
 } from "lucide-react";
+import { publishProgramToRealtime } from "./cloudflareRealtime";
 import "./BroadcastPanel.css";
 
 const DESTINATIONS = [
@@ -55,6 +56,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const [showShare, setShowShare] = useState(false);
   const [settings, setSettings] = useState(EMPTY_SETTINGS);
   const ingestRef = useRef({ recorder: null, socket: null });
+  const realtimeRef = useRef(null);
 
   const publicWatchUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -100,6 +102,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     const { recorder, socket } = ingestRef.current;
     try { if (recorder?.state !== "inactive") recorder.stop(); } catch (_) {}
     try { socket?.close(); } catch (_) {}
+    void realtimeRef.current?.stop?.();
   }, []);
 
   function chooseIngestMimeType() {
@@ -163,7 +166,9 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     };
 
     ingestRef.current = { recorder, socket };
-    recorder.start(1000);
+    // Feed FFmpeg four times per second instead of making it wait for a full
+    // one-second MediaRecorder slice before each WebSocket delivery.
+    recorder.start(250);
   }
 
   async function stopBrowserIngest() {
@@ -336,10 +341,22 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           throw error;
         }
 
+        try {
+          realtimeRef.current = await publishProgramToRealtime(
+            roomCode,
+            getProgramStream?.()
+          );
+        } catch (error) {
+          console.warn("Cloudflare Realtime unavailable; HLS remains active.", error);
+          realtimeRef.current = null;
+        }
+
         setBroadcasting(true);
         setShowShare(true);
         setStatus(data.status ? `Encoder: ${data.status}` : "Broadcast start accepted.");
       } else {
+        await realtimeRef.current?.stop?.();
+        realtimeRef.current = null;
         await stopBrowserIngest();
         const data = await api("/api/broadcast/stop", {
           method: "POST",

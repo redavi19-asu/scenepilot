@@ -7,6 +7,7 @@ import {
 import App from "./App.jsx";
 import TurnstileWidget from "./TurnstileWidget.jsx";
 import { socket } from "./socket";
+import { subscribeToRealtimeProgram } from "./cloudflareRealtime";
 import "./ScenePilotPortal.css";
 
 function WatchPage({ roomCode }) {
@@ -21,8 +22,8 @@ function WatchPage({ roomCode }) {
     if (!video || !safeRoom) return undefined;
 
     let hls = null;
+    let realtime = null;
     let cancelled = false;
-
     const seekToLiveEdge = () => {
       if (!video.seekable?.length) return;
       const liveEdge = video.seekable.end(video.seekable.length - 1);
@@ -35,7 +36,7 @@ function WatchPage({ roomCode }) {
       }
     };
 
-    const markLive = () => setStatus("LIVE");
+    const markLive = () => setStatus(video.srcObject ? "LIVE — REALTIME" : "LIVE");
     const catchUpToLive = () => {
       if (!video.seekable?.length || video.paused) return;
       const liveEdge = video.seekable.end(video.seekable.length - 1);
@@ -56,11 +57,17 @@ function WatchPage({ roomCode }) {
     video.addEventListener("canplay", seekToLiveEdge);
     video.addEventListener("timeupdate", catchUpToLive);
 
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = streamUrl;
-      video.load();
-      video.play().catch(() => {});
-    } else {
+    const startHls = () => {
+      if (cancelled) return;
+      video.srcObject = null;
+
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = streamUrl;
+        video.load();
+        video.play().catch(() => {});
+        return;
+      }
+
       import("hls.js").then(({ default: Hls }) => {
         if (cancelled) return;
         if (!Hls.isSupported()) {
@@ -99,7 +106,15 @@ function WatchPage({ roomCode }) {
           else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
         });
       }).catch(() => setStatus("LIVE PLAYER COULD NOT LOAD"));
-    }
+    };
+
+    subscribeToRealtimeProgram(safeRoom, video)
+      .then(connection => {
+        if (cancelled) return connection.stop();
+        realtime = connection;
+        setStatus("LIVE — REALTIME");
+      })
+      .catch(() => startHls());
 
     return () => {
       cancelled = true;
@@ -107,6 +122,7 @@ function WatchPage({ roomCode }) {
       video.removeEventListener("loadedmetadata", seekToLiveEdge);
       video.removeEventListener("canplay", seekToLiveEdge);
       video.removeEventListener("timeupdate", catchUpToLive);
+      realtime?.stop();
       hls?.destroy();
       video.pause?.();
       video.removeAttribute("src");
