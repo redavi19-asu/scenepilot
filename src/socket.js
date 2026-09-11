@@ -9,6 +9,7 @@ class ScenePilotSocket {
     this.wantConnected = false;
     this.manualClose = false;
     this.reconnectTimer = null;
+    this.heartbeatTimer = null;
   }
 
   get connected() {
@@ -102,6 +103,18 @@ class ScenePilotSocket {
       pending.forEach(message => {
         ws.send(JSON.stringify(message));
       });
+
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = setInterval(() => {
+        if (this.ws === ws && ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify({
+              event: "session:heartbeat",
+              payload: { ts: Date.now() }
+            }));
+          } catch (_) {}
+        }
+      }, 5000);
     });
 
     ws.addEventListener("message", event => {
@@ -117,6 +130,8 @@ class ScenePilotSocket {
     });
 
     ws.addEventListener("close", () => {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
       if (this.ws === ws) {
         this.ws = null;
       }
@@ -159,7 +174,9 @@ class ScenePilotSocket {
     this.manualClose = true;
     this.wantConnected = false;
     clearTimeout(this.reconnectTimer);
+    clearInterval(this.heartbeatTimer);
     this.reconnectTimer = null;
+    this.heartbeatTimer = null;
     this.queue = [];
 
     if (this.ws) {

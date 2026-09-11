@@ -800,7 +800,8 @@ export class ScenePilotRoom {
       role: null,
       canDirect: request.headers.get("X-ScenePilot-Can-Direct") === "1",
       userId: request.headers.get("X-ScenePilot-User-Id") || null,
-      displayName: request.headers.get("X-ScenePilot-Display-Name") || ""
+      displayName: request.headers.get("X-ScenePilot-Display-Name") || "",
+      lastSeenAt: Date.now()
     };
 
     this.sessions.set(session.id, session);
@@ -842,6 +843,12 @@ export class ScenePilotRoom {
 
     if (!director) {
       this.activeDirectorId = null;
+      return null;
+    }
+
+    if (Date.now() - director.lastSeenAt > 15000) {
+      this.removeSession(director);
+      return null;
     }
 
     return director;
@@ -961,6 +968,15 @@ export class ScenePilotRoom {
 
     const event = message?.event;
     const payload = message?.payload || {};
+
+    session.lastSeenAt = Date.now();
+
+    if (event === "session:heartbeat") {
+      // Standby heartbeats also expire an orphaned Director and trigger
+      // director:available so another device can claim the room.
+      this.getActiveDirector();
+      return;
+    }
 
     if (event === "director:join") {
       if (!session.canDirect || session.role === "camera") {
