@@ -307,6 +307,8 @@
   place-items: center;
   padding: 34px 20px;
   position: relative;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .sp-auth-back {
@@ -321,6 +323,8 @@
 
 .sp-auth-card {
   width: min(100%, 500px);
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid #444b40;
   background: #151913;
   padding: clamp(26px, 5vw, 42px);
@@ -877,10 +881,22 @@
 
   .sp-auth-shell {
     align-content: start;
+    padding: max(18px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   }
 
   .sp-auth-card {
-    padding: 24px 18px;
+    padding: 22px 16px;
+  }
+
+  .sp-auth-mode-switch button {
+    min-width: 0;
+    padding-inline: 6px;
+    white-space: normal;
+  }
+
+  .sp-turnstile-wrap {
+    max-width: 100%;
+    overflow-x: auto;
   }
 
   .sp-admin {
