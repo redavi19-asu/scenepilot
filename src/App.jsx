@@ -9,6 +9,7 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import { Capacitor } from "@capacitor/core";
 import { Device } from "@capacitor/device";
+import { App as CapacitorApp } from "@capacitor/app";
 import "./App.css";
 import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
@@ -176,6 +177,8 @@ function App({ user = null, onLogout = null }) {
     status: "NOT SHARED"
   });
   const wakeLock = useRef(null);
+  const [cameraInterrupted, setCameraInterrupted] = useState(false);
+  const [cameraResumeStatus, setCameraResumeStatus] = useState("");
   const reconnectTimers = useRef({});
   const directorLinkStatsRef = useRef({});
   const audioElements = useRef({});
@@ -306,30 +309,83 @@ function App({ user = null, onLogout = null }) {
   useEffect(() => {
     if (!showCamera) return;
 
+    let appStateListener = null;
+    let resumeTimer = null;
+
     const keepAwake = async () => {
-      if (document.visibilityState !== "visible") return;
+      if (!stream || document.visibilityState !== "visible") return;
       try {
         if ("wakeLock" in navigator && !wakeLock.current) {
           wakeLock.current = await navigator.wakeLock.request("screen");
+          wakeLock.current?.addEventListener?.("release", () => {
+            wakeLock.current = null;
+          }, { once: true });
         }
       } catch (error) {
         console.warn("ScenePilot camera wake lock unavailable", error);
       }
     };
 
+    const resumeCameraSession = async () => {
+      if (!stream) return;
+
+      await keepAwake();
+
+      const videoTrack = stream.getVideoTracks?.()[0];
+      if (!videoTrack || videoTrack.readyState === "ended") {
+        setCameraInterrupted(true);
+        setCameraResumeStatus("CAMERA WAS PAUSED BY THE DEVICE — TAP RECONNECT");
+        setSignalStatus("CAMERA PAUSED");
+        return;
+      }
+
+      socket.setNetwork(networkId, cameraJoinToken);
+      socket.setRoom(roomCode);
+      socket.connect();
+
+      setCameraInterrupted(false);
+      setCameraResumeStatus("CAMERA SESSION RESUMED");
+      clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(() => setCameraResumeStatus(""), 2600);
+    };
+
+    const markInterrupted = () => {
+      if (!stream) return;
+      setCameraInterrupted(true);
+      setCameraResumeStatus("CAMERA TRANSMISSION PAUSED WHILE APP WAS IN BACKGROUND");
+    };
+
     const handleVisibility = () => {
-      if (document.visibilityState === "visible" && stream) {
-        keepAwake();
+      if (document.visibilityState === "visible") {
+        resumeCameraSession();
+      } else {
+        markInterrupted();
       }
     };
 
     if (stream) keepAwake();
     document.addEventListener("visibilitychange", handleVisibility);
 
+    if (Capacitor.isNativePlatform()) {
+      CapacitorApp.addListener("appStateChange", ({ isActive }) => {
+        if (isActive) {
+          resumeCameraSession();
+        } else {
+          markInterrupted();
+        }
+      }).then(listener => {
+        appStateListener = listener;
+      }).catch(error => {
+        console.warn("ScenePilot native app-state listener unavailable", error);
+      });
+    }
+
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
+      appStateListener?.remove?.();
+      clearTimeout(resumeTimer);
     };
-  }, [showCamera, stream]);
+  }, [showCamera, stream, networkId, cameraJoinToken, roomCode]);
 
   const queryParams = new URLSearchParams(window.location.search);
   const roomCode = queryParams.get("room") || "SP-4827";
@@ -2870,6 +2926,44 @@ async function enableCamera() {
 
         <main className="operator-main">
           <div className="phone-monitor">
+            {stream && operatorControlsCollapsed && (
+              <div className="operator-power-save-status" aria-live="polite">
+                <i />
+                <strong>{isOnAir ? "LIVE" : "CAMERA READY"}</strong>
+                <span>CAMERA {String(assignedSlot).padStart(2, "0")}</span>
+              </div>
+            )}
+
+            {cameraResumeStatus && (
+              <div className={`camera-resume-notice ${cameraInterrupted ? "interrupted" : "resumed"}`} role="status" aria-live="polite">
+                <strong>{cameraInterrupted ? "CAMERA INTERRUPTED" : "CAMERA RESTORED"}</strong>
+                <span>{cameraResumeStatus}</span>
+                {cameraInterrupted && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setCameraResumeStatus("RECONNECTING CAMERA…");
+                      const videoTrack = stream?.getVideoTracks?.()[0];
+
+                      if (!videoTrack || videoTrack.readyState === "ended") {
+                        stopCamera();
+                        await startCamera();
+                        return;
+                      }
+
+                      socket.setNetwork(networkId, cameraJoinToken);
+                      socket.setRoom(roomCode);
+                      socket.connect();
+                      setCameraInterrupted(false);
+                      setCameraResumeStatus("CAMERA SESSION RESUMED");
+                    }}
+                  >
+                    RECONNECT
+                  </button>
+                )}
+              </div>
+            )}
+
             {stream ? (
               <video ref={cameraVideo} autoPlay muted playsInline />
             ) : (
