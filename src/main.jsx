@@ -4,7 +4,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 import "./index.css";
 import ScenePilotPortal from "./ScenePilotPortal.jsx";
 
-function openScenePilotUrl(value) {
+function openScenePilotUrl(value, allowRepeat = false) {
   try {
     const url = new URL(value);
     if (url.protocol !== "scenepilot:" || url.hostname !== "camera") return;
@@ -14,14 +14,26 @@ function openScenePilotUrl(value) {
       const item = url.searchParams.get(key);
       if (item && item.length <= 512) cameraParams.set(key, item);
     }
-    window.location.assign(`/app?${cameraParams.toString()}`);
+    const target = `/app?${cameraParams.toString()}`;
+    const current = `${window.location.pathname}${window.location.search}`;
+    const launchKey = `scenepilot:last-launch:${url.href}`;
+
+    if (
+      current === target ||
+      (!allowRepeat && window.sessionStorage.getItem(launchKey) === "handled")
+    ) {
+      return;
+    }
+
+    window.sessionStorage.setItem(launchKey, "handled");
+    window.location.replace(target);
   } catch (error) {
     console.warn("ScenePilot ignored an invalid app link", error);
   }
 }
 
 if (Capacitor.isNativePlatform()) {
-  void CapacitorApp.addListener("appUrlOpen", event => openScenePilotUrl(event.url));
+  void CapacitorApp.addListener("appUrlOpen", event => openScenePilotUrl(event.url, true));
   void CapacitorApp.getLaunchUrl()
     .then(result => {
       if (result?.url) openScenePilotUrl(result.url);
