@@ -151,7 +151,7 @@ function WatchPage({ roomCode }) {
 
       setTvStatus("USE YOUR BROWSER CAST / AIRPLAY MENU FOR THIS DEVICE");
     } catch (error) {
-      console.warn("ScenePilot TV playback picker unavailable", error);
+      console.warn("Urban Director Studio TV playback picker unavailable", error);
       setTvStatus("TV CONNECTION CANCELLED OR NOT AVAILABLE");
     }
   }
@@ -189,7 +189,7 @@ function WatchPage({ roomCode }) {
 
       setTvStatus("FULLSCREEN IS NOT AVAILABLE IN THIS BROWSER");
     } catch (error) {
-      console.warn("ScenePilot fullscreen unavailable", error);
+      console.warn("Urban Director Studio fullscreen unavailable", error);
 
       try {
         if (typeof video.webkitEnterFullscreen === "function") {
@@ -213,7 +213,7 @@ function WatchPage({ roomCode }) {
             autoPlay
             playsInline
             x-webkit-airplay="allow"
-            aria-label={`ScenePilot live room ${safeRoom}`}
+            aria-label={`Urban Director Studio live room ${safeRoom}`}
           />
           <div className="sp-watch-video-actions">
             <button type="button" onClick={openTvPicker} title="Play on TV / AirPlay / Cast">
@@ -259,11 +259,11 @@ function CameraAppHandoff() {
     <div className="sp-auth-shell">
       <div className="sp-auth-card">
         <Smartphone size={30}/>
-        <span className="sp-kicker">SCENEPILOT CAMERA</span>
-        <h1>Open the camera in ScenePilot.</h1>
+        <span className="sp-kicker">URBAN DIRECTOR STUDIO CAMERA</span>
+        <h1>Open the camera in Urban Director Studio.</h1>
         <p>The installed app can share battery status. Chrome cannot provide it on iPhone or iPad.</p>
         <button className="sp-auth-submit" onClick={() => window.location.assign(appUrl)}>
-          OPEN SCENEPILOT APP
+          OPEN URBAN DIRECTOR STUDIO APP
         </button>
         <button className="sp-secondary" onClick={() => window.location.assign(browserUrl)}>
           CONTINUE IN BROWSER
@@ -293,8 +293,8 @@ async function api(path, options = {}) {
     data = {
       error:
         response.ok
-          ? "ScenePilot returned an unreadable response."
-          : `ScenePilot account service failed (HTTP ${response.status}).`
+          ? "Urban Director Studio returned an unreadable response."
+          : `Urban Director Studio account service failed (HTTP ${response.status}).`
     };
   }
 
@@ -344,7 +344,7 @@ function LandingPage() {
             <span className="sp-kicker">LIVE PRODUCTION • PHONES • CAMERAS • EVENTS</span>
             <h1>Your production switcher can fit in a browser.</h1>
             <p>
-              ScenePilot turns phones, tablets, capture devices and computers into a
+              Urban Director Studio turns phones, tablets, capture devices and computers into a
               coordinated live-production system with a dedicated Director and wireless
               camera operators.
             </p>
@@ -363,7 +363,7 @@ function LandingPage() {
 
             <div className="sp-beta-note">
               <ShieldCheck size={17}/>
-              <span>Create an account to request beta access. Director access is granted separately by the ScenePilot administrator.</span>
+              <span>Create an account to request beta access. Director access is granted separately by the Urban Director Studio administrator.</span>
             </div>
           </div>
 
@@ -396,7 +396,7 @@ function LandingPage() {
           <article>
             <LockKeyhole size={22}/>
             <strong>ICA ACCOUNT</strong>
-            <p>Your login is designed to become one account for ScenePilot and future I Computer Anything SaaS products.</p>
+            <p>Your login is designed to become one account for Urban Director Studio and future I Computer Anything SaaS products.</p>
           </article>
         </section>
 
@@ -416,7 +416,7 @@ function LandingPage() {
       </main>
 
       <footer className="sp-landing-footer">
-        <span>ScenePilot</span>
+        <span>Urban Director Studio</span>
         <span>Built by I Computer Anything</span>
       </footer>
     </div>
@@ -474,7 +474,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
       );
 
       if (mode === "register" && data.pendingApproval) {
-        setStatus("ACCOUNT CREATED — WAITING FOR BETA APPROVAL. You can log in after the ScenePilot administrator activates your access.");
+        setStatus("ACCOUNT CREATED — WAITING FOR BETA APPROVAL. You can log in after the Urban Director Studio administrator activates your access.");
         setMode("login");
         setPassword("");
         setTurnstileToken("");
@@ -494,15 +494,15 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
 
   return (
     <div className="sp-auth-shell">
-      <button className="sp-auth-back" onClick={() => go("/")}>← ScenePilot home</button>
+      <button className="sp-auth-back" onClick={() => go("/")}>← Urban Director Studio home</button>
       <div className="sp-auth-card">
         <div className="sp-auth-logo"><Radio size={26}/></div>
         <span className="sp-kicker">ICA SOFTWARE ACCOUNT</span>
         <h1>{mode === "register" ? "Create your account." : "Welcome back."}</h1>
         <p>
           {mode === "register"
-            ? "Create your ICA Software account to request ScenePilot beta access. Registration does not unlock the Director console until an administrator approves you."
-            : "Sign in to open the Director console after your ScenePilot access has been activated."}
+            ? "Create your ICA Software account to request Urban Director Studio beta access. Registration does not unlock the Director console until an administrator approves you."
+            : "Sign in to open the Director console after your Urban Director Studio access has been activated."}
         </p>
 
         <div className="sp-auth-mode-switch">
@@ -558,7 +558,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
                 checked={marketing}
                 onChange={event => setMarketing(event.target.checked)}
               />
-              <span>Optional: Email me ScenePilot and ICA product updates, feature announcements, and occasional offers.</span>
+              <span>Optional: Email me Urban Director Studio and ICA product updates, feature announcements, and occasional offers.</span>
             </label>
           )}
 
@@ -679,7 +679,7 @@ function IntercomPanel({ mode }) {
       try {
         await peer.addIceCandidate(candidate);
       } catch (error) {
-        console.warn("ScenePilot intercom queued ICE error", error);
+        console.warn("Urban Director Studio intercom queued ICE error", error);
       }
     }
   }, []);
@@ -805,7 +805,7 @@ function IntercomPanel({ mode }) {
       }
     } catch (error) {
       setStatus("MICROPHONE BLOCKED");
-      console.error("ScenePilot intercom microphone error", error);
+      console.error("Urban Director Studio intercom microphone error", error);
     }
   }, [mode, ensureMic, directorId, ensurePeer, attachMicToPeer]);
 
@@ -853,7 +853,7 @@ function IntercomPanel({ mode }) {
     } catch (error) {
       setTalking(false);
       setStatus("INTERCOM ERROR");
-      console.error("ScenePilot intercom transmit error", error);
+      console.error("Urban Director Studio intercom transmit error", error);
     }
   }, [
     talking,
@@ -981,7 +981,7 @@ function IntercomPanel({ mode }) {
 
         setStatus("INTERCOM CONNECTING");
       } catch (error) {
-        console.error("ScenePilot intercom offer error", error);
+        console.error("Urban Director Studio intercom offer error", error);
         setStatus("INTERCOM ERROR");
       }
     };
@@ -995,7 +995,7 @@ function IntercomPanel({ mode }) {
         await flushIce(from);
         setStatus("INTERCOM CONNECTED");
       } catch (error) {
-        console.error("ScenePilot intercom answer error", error);
+        console.error("Urban Director Studio intercom answer error", error);
         setStatus("INTERCOM ERROR");
       }
     };
@@ -1014,7 +1014,7 @@ function IntercomPanel({ mode }) {
       try {
         await peerState.peer.addIceCandidate(candidate);
       } catch (error) {
-        console.warn("ScenePilot intercom ICE error", error);
+        console.warn("Urban Director Studio intercom ICE error", error);
       }
     };
 
@@ -1099,7 +1099,7 @@ function IntercomPanel({ mode }) {
 
     ids.forEach(id => {
       ensurePeer(id, true).catch(error => {
-        console.warn("ScenePilot intercom preconnect error", error);
+        console.warn("Urban Director Studio intercom preconnect error", error);
       });
     });
   }, [mode, open, targetId, targets, ensurePeer]);
@@ -1558,10 +1558,10 @@ function AdminPage({ user, onLogout }) {
       <header>
         <div>
           <span className="sp-kicker">I COMPUTER ANYTHING • SOFTWARE ADMIN</span>
-          <h1>ScenePilot Accounts</h1>
+          <h1>Urban Director Studio Accounts</h1>
         </div>
         <div className="sp-admin-actions">
-          <button onClick={() => go("/app")}>OPEN SCENEPILOT</button>
+          <button onClick={() => go("/app")}>OPEN URBAN DIRECTOR STUDIO</button>
           <button onClick={() => window.location.assign("https://icomputeranything.com/master")}>ICA MASTER</button>
           <button onClick={onLogout}><LogOut size={15}/> LOGOUT</button>
         </div>
