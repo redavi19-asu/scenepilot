@@ -205,7 +205,7 @@ function WatchPage({ roomCode }) {
   return (
     <main className="sp-watch-shell">
       <section className="sp-watch-card">
-        <div className="sp-watch-brand"><RadioTower size={20}/> SCENEPILOT LIVE</div>
+        <div className="sp-watch-brand"><RadioTower size={20}/> URBAN DIRECTOR STUDIO LIVE</div>
         <div className="sp-watch-video">
           <video
             ref={videoRef}
@@ -323,7 +323,7 @@ function LandingPage() {
         <div className="sp-landing-brand">
           <span className="sp-landing-mark"><Radio size={24}/></span>
           <div>
-            <strong>SCENEPILOT</strong>
+            <strong>URBAN DIRECTOR STUDIO</strong>
             <small>BY I COMPUTER ANYTHING</small>
           </div>
         </div>
@@ -1715,7 +1715,7 @@ export default function ScenePilotPortal() {
           <div className="sp-auth-card">
             <LockKeyhole size={28}/>
             <h1>Admin access required.</h1>
-            <button className="sp-auth-submit" onClick={() => go("/app")}>RETURN TO SCENEPILOT</button>
+            <button className="sp-auth-submit" onClick={() => go("/app")}>RETURN TO URBAN DIRECTOR STUDIO</button>
           </div>
         </div>
       );
