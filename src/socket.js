@@ -1,9 +1,12 @@
+import { signalUrl } from "./runtimeApi";
+
 class ScenePilotSocket {
   constructor() {
     this.ws = null;
     this.room = null;
     this.network = null;
     this.joinToken = null;
+    this.signalTicket = null;
     this.listeners = new Map();
     this.queue = [];
     this.wantConnected = false;
@@ -54,9 +57,10 @@ class ScenePilotSocket {
     return this;
   }
 
-  setNetwork(network, joinToken = null) {
+  setNetwork(network, joinToken = null, signalTicket = null) {
     this.network = network || null;
     this.joinToken = joinToken || null;
+    this.signalTicket = signalTicket || null;
     return this;
   }
 
@@ -84,11 +88,12 @@ class ScenePilotSocket {
       return;
     }
 
-    const protocol =
-      window.location.protocol === "https:" ? "wss:" : "ws:";
-
-    const url =
-      `${protocol}//${window.location.host}/signal?room=${encodeURIComponent(this.room)}&network=${encodeURIComponent(this.network || "")}${this.joinToken ? `&join=${encodeURIComponent(this.joinToken)}` : ""}`;
+    const url = signalUrl({
+      room: this.room,
+      network: this.network,
+      joinToken: this.joinToken,
+      signalTicket: this.signalTicket
+    });
 
     const ws = new WebSocket(url);
     this.ws = ws;

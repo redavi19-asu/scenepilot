@@ -1,3 +1,5 @@
+import { apiFetch } from "./runtimeApi";
+
 const REALTIME_TIMEOUT_MS = 10000;
 
 async function realtimeApi(path, body, method = "POST") {
@@ -5,7 +7,7 @@ async function realtimeApi(path, body, method = "POST") {
   const timer = window.setTimeout(() => controller.abort(), REALTIME_TIMEOUT_MS);
 
   try {
-    const response = await fetch(path, {
+    const response = await apiFetch(path, {
       method,
       credentials: "include",
       headers: { "Content-Type": "application/json" },

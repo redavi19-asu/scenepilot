@@ -3,12 +3,13 @@ import {
   Radio, LogIn, UserPlus, LockKeyhole, MessageSquare,
   Send, ShieldCheck, Users, ArrowRight, LogOut, Crown, Mail,
   X, Camera, RadioTower, Mic, Headphones, Cast, Maximize2, Smartphone,
-  Monitor, Film, Layers3, Server, Globe2, CheckCircle2
+  Monitor, Film, Layers3, Server, Globe2, CheckCircle2, Trash2, RefreshCw
 } from "lucide-react";
 import App from "./App.jsx";
 import TurnstileWidget from "./TurnstileWidget.jsx";
 import { socket } from "./socket";
 import { subscribeToRealtimeProgram } from "./cloudflareRealtime";
+import { apiFetch, setNativeSessionToken } from "./runtimeApi";
 import "./ScenePilotPortal.css";
 
 function WatchPage({ roomCode }) {
@@ -275,7 +276,7 @@ function CameraAppHandoff() {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
@@ -308,6 +309,10 @@ async function api(path, options = {}) {
     const error = new Error(message);
     error.status = response.status;
     throw error;
+  }
+
+  if (data?.sessionToken) {
+    setNativeSessionToken(data.sessionToken);
   }
 
   return data;
@@ -656,11 +661,128 @@ function LandingPage() {
           <span>Built by I Computer Anything</span>
         </div>
         <div>
+          <button onClick={() => go("/privacy")}>PRIVACY</button>
+          <button onClick={() => go("/support")}>SUPPORT</button>
           <button onClick={() => window.location.assign("https://icomputeranything.com")}>I COMPUTER ANYTHING</button>
           <button onClick={() => go("/app")}>LOGIN</button>
         </div>
       </footer>
     </div>
+  );
+}
+
+function PrivacyPage() {
+  return (
+    <main className="sp-privacy-shell">
+      <section className="sp-privacy-card">
+        <button className="sp-auth-back sp-privacy-back" onClick={() => go("/")}>← Urban Director Studio home</button>
+        <span className="sp-kicker">PRIVACY</span>
+        <h1>Urban Director Studio Privacy Policy</h1>
+        <p className="sp-privacy-updated">Last updated: September 12, 2026</p>
+
+        <h2>Information we collect</h2>
+        <p>
+          When you create an Urban Director Studio account, we collect your name, email address,
+          password credentials in hashed form, account role and access status, and optional
+          product-update consent. We also keep operational information needed to maintain signed-in
+          sessions and production-room access.
+        </p>
+
+        <h2>Camera, microphone, and production media</h2>
+        <p>
+          Urban Director Studio requests camera and microphone access only when you use production
+          features that need them. Live audio and video may be transmitted through our production
+          infrastructure and service providers so connected cameras, Directors, viewers, or broadcast
+          destinations can receive the production. The app does not request your precise location.
+        </p>
+
+        <h2>Recordings and broadcast destinations</h2>
+        <p>
+          Recordings created on your device remain under your control unless you choose to upload,
+          publish, or send them to a configured destination. If you configure a streaming destination,
+          the app stores the destination settings needed to operate that connection. Stream credentials
+          are protected before storage.
+        </p>
+
+        <h2>Device and connection information</h2>
+        <p>
+          Production features may use limited device and connection information such as battery level,
+          network quality, session identifiers, and browser or app user-agent information to display
+          operator status, maintain connections, and troubleshoot reliability.
+        </p>
+
+        <h2>How we use information</h2>
+        <p>
+          We use account and production information to authenticate users, operate production rooms,
+          connect camera operators and Directors, provide live production features, secure the service,
+          troubleshoot problems, and communicate product updates when you opt in.
+        </p>
+
+        <h2>Service providers and third-party destinations</h2>
+        <p>
+          Urban Director Studio uses infrastructure providers, including Cloudflare, to deliver account,
+          database, networking, and realtime production services. When you choose to broadcast to an
+          external destination, information and media are also handled according to that destination's
+          policies and your configuration.
+        </p>
+
+        <h2>Data retention and account deletion</h2>
+        <p>
+          Account information is retained while your account remains active or as needed to operate the
+          service. You can permanently delete your Urban Director Studio account from the Director menu
+          inside the app. Account deletion removes your account record and associated Urban Director
+          Studio data that we are not legally required to retain.
+        </p>
+
+        <h2>Your choices</h2>
+        <p>
+          You may decline optional marketing messages, control camera and microphone permissions in your
+          device settings, stop a broadcast at any time, and permanently delete your account from inside
+          the app.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          Questions about Urban Director Studio privacy can be sent through I Computer Anything at
+          icomputeranything.com.
+        </p>
+      </section>
+    </main>
+  );
+}
+
+function SupportPage() {
+  return (
+    <main className="sp-privacy-shell">
+      <section className="sp-privacy-card">
+        <button className="sp-auth-back sp-privacy-back" onClick={() => go("/")}>← Urban Director Studio home</button>
+        <span className="sp-kicker">SUPPORT</span>
+        <h1>Urban Director Studio Support</h1>
+        <p>
+          Need help with account access, camera connections, live production, recording,
+          broadcast setup, or another Urban Director Studio feature? Contact I Computer Anything.
+        </p>
+
+        <h2>Email support</h2>
+        <p>
+          <a className="sp-support-link" href="mailto:ryanedavis@gmail.com?subject=Urban%20Director%20Studio%20Support">
+            ryanedavis@gmail.com
+          </a>
+        </p>
+
+        <h2>Product and business support</h2>
+        <p>
+          Visit <a className="sp-support-link" href="https://icomputeranything.com">icomputeranything.com</a>
+          for I Computer Anything contact options and product information.
+        </p>
+
+        <h2>When contacting support</h2>
+        <p>
+          Include the device you are using, the production room or feature involved, and a short
+          description of what happened. Do not send passwords, stream keys, or other account secrets.
+        </p>
+      </section>
+    </main>
   );
 }
 
@@ -714,16 +836,17 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
         }
       );
 
-      if (mode === "register" && data.pendingApproval) {
-        setStatus("ACCOUNT CREATED — ACCESS PENDING. You can log in after the Urban Director Studio administrator activates your access.");
-        setMode("login");
-        setPassword("");
-        setTurnstileToken("");
-        setTurnstileResetKey(value => value + 1);
+      if (data.user) {
+        onAuthenticated(data.user);
         return;
       }
 
-      onAuthenticated(data.user);
+      setStatus(
+        data.message ||
+        (mode === "register"
+          ? "Account created. Sign in to continue."
+          : "Sign in could not be completed.")
+      );
     } catch (error) {
       setStatus(error.message);
       setTurnstileToken("");
@@ -811,11 +934,55 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
 
           {status && <div className="sp-auth-error">{status}</div>}
 
+          <p className="sp-auth-legal">
+            By continuing, you agree to the account terms and acknowledge the
+            <button type="button" onClick={() => go("/privacy")}> Urban Director Studio Privacy Policy</button>.
+          </p>
+
           <button className="sp-auth-submit" disabled={busy || !turnstileToken}>
             {mode === "register" ? <UserPlus size={17}/> : <LogIn size={17}/>}
             {busy ? "PLEASE WAIT..." : mode === "register" ? "CREATE ACCOUNT" : "LOGIN"}
           </button>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function AccessStatusPage({ user, onLogout, onDeleteAccount }) {
+  const pending = user?.accessStatus === "pending";
+  const suspended = user?.accessStatus === "suspended";
+
+  return (
+    <div className="sp-auth-shell">
+      <div className="sp-auth-card sp-access-status-card">
+        <div className="sp-auth-logo"><LockKeyhole size={26}/></div>
+        <span className="sp-kicker">URBAN DIRECTOR STUDIO ACCOUNT</span>
+        <h1>{pending ? "Access pending." : suspended ? "Access suspended." : "Account access."}</h1>
+        <p>
+          {pending
+            ? "Your account is signed in and waiting for Director access approval. You can check again, sign out, or permanently delete your account."
+            : suspended
+              ? "Director access is currently suspended. You can sign out or permanently delete your account."
+              : "Your account is signed in, but Director access is not currently available."}
+        </p>
+
+        <div className="sp-access-status-actions">
+          {pending && (
+            <button className="sp-auth-submit" type="button" onClick={() => window.location.reload()}>
+              <RefreshCw size={17}/> CHECK ACCESS
+            </button>
+          )}
+          <button className="sp-secondary" type="button" onClick={onLogout}>
+            <LogOut size={17}/> LOG OUT
+          </button>
+          <button className="sp-delete-account-button" type="button" onClick={onDeleteAccount}>
+            <Trash2 size={17}/> DELETE ACCOUNT
+          </button>
+          <button className="sp-access-privacy" type="button" onClick={() => go("/privacy")}>
+            PRIVACY POLICY
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -827,7 +994,7 @@ function AccountBar({ user, onLogout }) {
       <div>
         {user.role === "owner" ? <Crown size={15}/> : <ShieldCheck size={15}/>}
         <span>{user.displayName || user.email}</span>
-        <small>{String(user.plan || "beta").toUpperCase()}</small>
+        <small>{String(user.plan || "free").toUpperCase()}</small>
       </div>
       {(user.role === "owner" || user.role === "admin") && (
         <button onClick={() => go("/admin")}>ADMIN</button>
@@ -1819,7 +1986,7 @@ function AdminPage({ user, onLogout }) {
       <section className="sp-admin-card">
         <div className="sp-admin-card-head">
           <div>
-            <span className="sp-kicker">CUSTOMERS / BETA USERS</span>
+            <span className="sp-kicker">CUSTOMER ACCOUNTS</span>
             <h2>Account access</h2>
           </div>
         </div>
@@ -1854,7 +2021,7 @@ function AdminPage({ user, onLogout }) {
                   </td>
                   <td>
                     <select value={item.plan} onChange={event => updateAccess(item, "plan", event.target.value)}>
-                      <option value="beta">BETA</option>
+                      <option value="beta">LEGACY</option>
                       <option value="free">FREE</option>
                       <option value="ambassador">AMBASSADOR</option>
                       <option value="pro">PRO</option>
@@ -1925,12 +2092,46 @@ export default function ScenePilotPortal() {
     try {
       await api("/api/auth/logout", { method: "POST", body: "{}" });
     } catch (_) {}
+    setNativeSessionToken("");
     setUser(null);
     go("/");
   }
 
+  async function deleteAccount() {
+    if (!user) return;
+
+    const accepted = window.confirm(
+      "Permanently delete your Urban Director Studio account and associated data? This cannot be undone."
+    );
+    if (!accepted) return;
+
+    const confirmation = window.prompt('Type DELETE to confirm permanent account deletion.');
+    if (confirmation !== "DELETE") return;
+
+    try {
+      await api("/api/auth/account", {
+        method: "DELETE",
+        body: JSON.stringify({ confirm: "DELETE" })
+      });
+      setNativeSessionToken("");
+      setUser(null);
+      window.alert("Your Urban Director Studio account has been permanently deleted.");
+      go("/");
+    } catch (error) {
+      window.alert(error.message || "Account deletion could not be completed.");
+    }
+  }
+
   if (watchMatch) {
     return <WatchPage roomCode={watchMatch[1]}/>;
+  }
+
+  if (cleanPath === "/privacy") {
+    return <PrivacyPage/>;
+  }
+
+  if (cleanPath === "/support") {
+    return <SupportPage/>;
   }
 
   if (cleanPath === "/camera-open") {
@@ -1966,17 +2167,26 @@ export default function ScenePilotPortal() {
 
   if (cleanPath === "/register") {
     if (loading) return <div className="sp-portal-loading"><Radio size={28}/> LOADING ICA ACCOUNT...</div>;
-    if (user) return <AuthPanel onAuthenticated={setUser} initialMode="register"/>;
+    if (user?.accessStatus !== "active") {
+      return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount}/>;
+    }
+    if (user) {
+      window.location.replace("/app");
+      return <div className="sp-portal-loading"><Radio size={28}/> OPENING URBAN DIRECTOR STUDIO...</div>;
+    }
     return <AuthPanel onAuthenticated={setUser} initialMode="register"/>;
   }
 
   if (cleanPath === "/app") {
     if (loading) return <div className="sp-portal-loading"><Radio size={28}/> LOADING ICA ACCOUNT...</div>;
     if (!user) return <AuthPanel onAuthenticated={setUser}/>;
+    if (user.accessStatus !== "active") {
+      return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount}/>;
+    }
 
     return (
       <>
-        <App user={user} onLogout={logout}/>
+        <App user={user} onLogout={logout} onDeleteAccount={deleteAccount}/>
         <IntercomPanel mode="director"/>
         <CommsPanel mode="director"/>
       </>

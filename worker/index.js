@@ -4,6 +4,61 @@ const PASSWORD_ITERATIONS = 100000;
 const TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
+const NATIVE_APP_ORIGINS = new Set([
+  "capacitor://localhost",
+  "ionic://localhost",
+  "http://localhost",
+  "https://localhost"
+]);
+
+function requestOrigin(request) {
+  return String(request.headers.get("Origin") || "").trim();
+}
+
+function isNativeAppRequest(request) {
+  const platform = String(
+    request.headers.get("X-Urban-Director-Platform") || ""
+  ).toLowerCase();
+  return (
+    (platform === "ios" || platform === "android") &&
+    NATIVE_APP_ORIGINS.has(requestOrigin(request))
+  );
+}
+
+function bearerToken(request) {
+  const authorization = String(request.headers.get("Authorization") || "");
+  return authorization.toLowerCase().startsWith("bearer ")
+    ? authorization.slice(7).trim()
+    : "";
+}
+
+function corsHeadersFor(request) {
+  const origin = requestOrigin(request);
+  if (!NATIVE_APP_ORIGINS.has(origin)) return {};
+
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Urban-Director-Platform",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+    "Vary": "Origin"
+  };
+}
+
+function withCors(response, request) {
+  const cors = corsHeadersFor(request);
+  if (!Object.keys(cors).length) return response;
+
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(cors)) headers.set(key, value);
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
@@ -131,7 +186,7 @@ function publicUser(row) {
     role: row.role || "user",
     status: row.status || "active",
     marketingOptIn: Boolean(row.marketing_opt_in),
-    plan: row.plan || "beta",
+    plan: row.plan || "free",
     accessStatus: row.access_status || "active",
     createdAt: row.created_at || null,
     lastLoginAt: row.last_login_at || null
@@ -141,7 +196,9 @@ function publicUser(row) {
 async function getCurrentUser(request, env) {
   if (!env.DB) return null;
 
-  const token = parseCookies(request)[SESSION_COOKIE];
+  const token =
+    bearerToken(request) ||
+    parseCookies(request)[SESSION_COOKIE];
   if (!token) return null;
 
   const sessionId = await sha256(token);
@@ -157,7 +214,7 @@ async function getCurrentUser(request, env) {
       u.marketing_opt_in,
       u.created_at,
       u.last_login_at,
-      COALESCE(up.plan, 'beta') AS plan,
+      COALESCE(up.plan, 'free') AS plan,
       COALESCE(up.access_status, 'active') AS access_status
     FROM sessions s
     JOIN users u ON u.id = s.user_id
@@ -199,7 +256,11 @@ async function createSession(env, userId, request) {
 async function requireAdmin(request, env) {
   const user = await getCurrentUser(request, env);
 
-  if (!user || (user.role !== "owner" && user.role !== "admin")) {
+  if (
+    !user ||
+    user.accessStatus !== "active" ||
+    (user.role !== "owner" && user.role !== "admin")
+  ) {
     return { user: null, response: json({ error: "Admin access required." }, 403) };
   }
 
@@ -215,6 +276,8 @@ async function readJson(request) {
 }
 
 async function verifyTurnstile(request, env, token, expectedAction) {
+  if (isNativeAppRequest(request)) return null;
+
   const secret = String(env.TURNSTILE_SECRET_KEY || "").trim();
 
   if (!secret) {
@@ -302,7 +365,7 @@ async function ensureScenePilotProduct(env) {
     ) VALUES (
       'product_scenepilot',
       'scenepilot',
-      'ScenePilot',
+      'Urban Director Studio',
       'active',
       ?
     )`
@@ -362,7 +425,7 @@ async function handleRegister(request, env) {
 
   const isFirstUser = Number(countRow?.count || 0) === 0;
   const role = isFirstUser ? "owner" : "user";
-  const plan = isFirstUser ? "pro" : "beta";
+  const plan = isFirstUser ? "pro" : "free";
   const accessStatus = isFirstUser ? "active" : "pending";
   const id = crypto.randomUUID();
   const now = Date.now();
@@ -392,19 +455,10 @@ async function handleRegister(request, env) {
       id,
       plan,
       accessStatus,
-      isFirstUser ? "owner-bootstrap" : "beta-signup",
+      isFirstUser ? "owner-bootstrap" : "signup",
       now
     )
   ]);
-
-  if (!isFirstUser) {
-    return json({
-      user: null,
-      firstOwner: false,
-      pendingApproval: true,
-      message: "Account created. Urban Director Studio beta access is waiting for administrator approval."
-    }, 201);
-  }
 
   const token = await createSession(env, id, request);
 
@@ -418,7 +472,15 @@ async function handleRegister(request, env) {
   );
 
   return json(
-    { user, firstOwner: true, pendingApproval: false },
+    {
+      user,
+      firstOwner: isFirstUser,
+      pendingApproval: !isFirstUser,
+      message: isFirstUser
+        ? "Account created."
+        : "Account created. Urban Director Studio access is waiting for administrator approval.",
+      ...(isNativeAppRequest(request) ? { sessionToken: token } : {})
+    },
     201,
     { "Set-Cookie": cookieForSession(token) }
   );
@@ -484,24 +546,26 @@ async function handleLogin(request, env) {
     env
   );
 
-  if (user?.accessStatus !== "active") {
-    return json({
-      error:
-        user?.accessStatus === "pending"
-          ? "Your Urban Director Studio account is waiting for beta approval."
-          : "Urban Director Studio access is suspended for this account."
-    }, 403);
-  }
-
   return json(
-    { user },
+    {
+      user,
+      accessMessage:
+        user?.accessStatus === "pending"
+          ? "Your Urban Director Studio access is waiting for approval."
+          : user?.accessStatus === "suspended"
+            ? "Urban Director Studio access is suspended for this account."
+            : "",
+      ...(isNativeAppRequest(request) ? { sessionToken: token } : {})
+    },
     200,
     { "Set-Cookie": cookieForSession(token) }
   );
 }
 
 async function handleLogout(request, env) {
-  const token = parseCookies(request)[SESSION_COOKIE];
+  const token =
+    bearerToken(request) ||
+    parseCookies(request)[SESSION_COOKIE];
 
   if (env.DB && token) {
     const sessionId = await sha256(token);
@@ -529,6 +593,92 @@ async function handleMe(request, env) {
   }
 
   return json({ user });
+}
+
+async function handleDeleteAccount(request, env) {
+  if (!env.DB) {
+    return json({ error: "Urban Director Studio database is unavailable." }, 503);
+  }
+
+  const user = await getCurrentUser(request, env);
+  if (!user) {
+    return json({ error: "Sign in before deleting your account." }, 401);
+  }
+
+  const body = await readJson(request);
+  if (String(body.confirm || "") !== "DELETE") {
+    return json({ error: "Type DELETE to confirm permanent account deletion." }, 400);
+  }
+
+  await ensureSignalTicketSchema(env);
+  await ensureDcLiveSubmissionSchema(env);
+
+  const userId = user.id;
+
+  await env.DB.batch([
+    env.DB.prepare(
+      `DELETE FROM scenepilot_realtime_publications
+       WHERE network_id IN (
+         SELECT id FROM scenepilot_networks WHERE created_by = ?
+       )`
+    ).bind(userId),
+    env.DB.prepare(
+      `DELETE FROM scenepilot_broadcast_events
+       WHERE network_id IN (
+         SELECT id FROM scenepilot_networks WHERE created_by = ?
+       )`
+    ).bind(userId),
+    env.DB.prepare(
+      `DELETE FROM scenepilot_broadcast_destinations
+       WHERE network_id IN (
+         SELECT id FROM scenepilot_networks WHERE created_by = ?
+       )`
+    ).bind(userId),
+    env.DB.prepare(
+      `DELETE FROM dc_live_submission_tokens
+       WHERE user_id = ?
+          OR network_id IN (
+            SELECT id FROM scenepilot_networks WHERE created_by = ?
+          )`
+    ).bind(userId, userId),
+    env.DB.prepare(
+      `DELETE FROM scenepilot_signal_tickets
+       WHERE user_id = ?
+          OR network_id IN (
+            SELECT id FROM scenepilot_networks WHERE created_by = ?
+          )`
+    ).bind(userId, userId),
+    env.DB.prepare(
+      `DELETE FROM scenepilot_network_members
+       WHERE network_id IN (
+         SELECT id FROM scenepilot_networks WHERE created_by = ?
+       )`
+    ).bind(userId),
+    env.DB.prepare(
+      "DELETE FROM scenepilot_network_members WHERE user_id = ?"
+    ).bind(userId),
+    env.DB.prepare(
+      "DELETE FROM scenepilot_networks WHERE created_by = ?"
+    ).bind(userId),
+    env.DB.prepare(
+      "UPDATE email_campaigns SET created_by = NULL WHERE created_by = ?"
+    ).bind(userId),
+    env.DB.prepare(
+      "DELETE FROM user_products WHERE user_id = ?"
+    ).bind(userId),
+    env.DB.prepare(
+      "DELETE FROM sessions WHERE user_id = ?"
+    ).bind(userId),
+    env.DB.prepare(
+      "DELETE FROM users WHERE id = ?"
+    ).bind(userId)
+  ]);
+
+  return json(
+    { ok: true, deleted: true },
+    200,
+    { "Set-Cookie": clearSessionCookie() }
+  );
 }
 
 async function ensureDcLiveSubmissionSchema(env) {
@@ -659,7 +809,7 @@ async function handleAdminUsers(request, env) {
       u.marketing_opt_in,
       u.created_at,
       u.last_login_at,
-      COALESCE(up.plan, 'beta') AS plan,
+      COALESCE(up.plan, 'free') AS plan,
       COALESCE(up.access_status, 'active') AS access_status
     FROM users u
     LEFT JOIN user_products up
@@ -682,7 +832,7 @@ async function handleAdminAccess(request, env, userId) {
   const allowedAccess = new Set(["pending", "active", "suspended"]);
   const allowedRoles = new Set(["user", "admin"]);
 
-  const plan = allowedPlans.has(body.plan) ? body.plan : "beta";
+  const plan = allowedPlans.has(body.plan) ? body.plan : "free";
   const accessStatus = allowedAccess.has(body.accessStatus) ? body.accessStatus : "pending";
   const role = allowedRoles.has(body.role) ? body.role : "user";
   const now = Date.now();
@@ -1400,6 +1550,83 @@ async function ensureUserScenePilotNetwork(env, user) {
   return getUserScenePilotNetwork(env, user.id);
 }
 
+async function ensureSignalTicketSchema(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS scenepilot_signal_tickets (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      network_id TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (network_id) REFERENCES scenepilot_networks(id) ON DELETE CASCADE
+    )`
+  ).run();
+
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS scenepilot_signal_tickets_expiry_idx
+     ON scenepilot_signal_tickets(expires_at)`
+  ).run();
+}
+
+async function createSignalTicket(env, userId, networkId) {
+  await ensureSignalTicketSchema(env);
+
+  const token = randomToken(24);
+  const tokenHash = await sha256(token);
+  const now = Date.now();
+  const expiresAt = now + 12 * 60 * 60 * 1000;
+
+  await env.DB.batch([
+    env.DB.prepare(
+      "DELETE FROM scenepilot_signal_tickets WHERE expires_at <= ?"
+    ).bind(now),
+    env.DB.prepare(
+      `INSERT INTO scenepilot_signal_tickets (
+        token_hash, user_id, network_id, expires_at, created_at
+      ) VALUES (?, ?, ?, ?, ?)`
+    ).bind(tokenHash, userId, networkId, expiresAt, now)
+  ]);
+
+  return { token, expiresAt };
+}
+
+async function userFromSignalTicket(env, networkId, token) {
+  if (!networkId || !token) return null;
+
+  await ensureSignalTicketSchema(env);
+
+  const tokenHash = await sha256(token);
+  const row = await env.DB.prepare(
+    `SELECT
+      u.id,
+      u.email,
+      u.display_name,
+      u.role,
+      u.status,
+      u.marketing_opt_in,
+      u.created_at,
+      u.last_login_at,
+      COALESCE(up.plan, 'free') AS plan,
+      COALESCE(up.access_status, 'active') AS access_status
+    FROM scenepilot_signal_tickets t
+    JOIN users u ON u.id = t.user_id
+    JOIN scenepilot_network_members m
+      ON m.user_id = u.id
+      AND m.network_id = t.network_id
+    LEFT JOIN user_products up
+      ON up.user_id = u.id
+      AND up.product_id = 'product_scenepilot'
+    WHERE t.token_hash = ?
+      AND t.network_id = ?
+      AND t.expires_at > ?
+      AND u.status = 'active'
+    LIMIT 1`
+  ).bind(tokenHash, networkId, Date.now()).first();
+
+  return row ? publicUser(row) : null;
+}
+
 async function handleNetwork(request, env) {
   if (!env.DB) {
     return json({ error: "Urban Director Studio database is unavailable." }, 503);
@@ -1411,6 +1638,7 @@ async function handleNetwork(request, env) {
   }
 
   const network = await ensureUserScenePilotNetwork(env, user);
+  const signalTicket = await createSignalTicket(env, user.id, network.id);
 
   return json({
     network: {
@@ -1418,7 +1646,9 @@ async function handleNetwork(request, env) {
       name: network.name,
       slug: network.slug,
       joinToken: network.join_token,
-      memberRole: network.member_role
+      memberRole: network.member_role,
+      signalTicket: signalTicket.token,
+      signalTicketExpiresAt: signalTicket.expiresAt
     }
   });
 }
@@ -2158,6 +2388,10 @@ async function handleApi(request, env, url) {
     return handleMe(request, env);
   }
 
+  if (url.pathname === "/api/auth/account" && request.method === "DELETE") {
+    return handleDeleteAccount(request, env);
+  }
+
   if (url.pathname === "/api/admin/users" && request.method === "GET") {
     return handleAdminUsers(request, env);
   }
@@ -2188,35 +2422,45 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    if (
+      request.method === "OPTIONS" &&
+      NATIVE_APP_ORIGINS.has(requestOrigin(request))
+    ) {
+      return new Response(null, {
+        status: 204,
+        headers: corsHeadersFor(request)
+      });
+    }
+
     if (url.pathname === "/health") {
       try {
-        return await handleApi(request, env, url);
+        return withCors(await handleApi(request, env, url), request);
       } catch (error) {
         console.error("Urban Director Studio health endpoint error", error);
-        return json({
+        return withCors(json({
           ok: false,
           service: "Urban Director Studio",
           error: error instanceof Error ? error.message : String(error)
-        }, 500);
+        }, 500), request);
       }
     }
 
     if (url.pathname.startsWith("/api/")) {
       try {
-        return await handleApi(request, env, url);
+        return withCors(await handleApi(request, env, url), request);
       } catch (error) {
         console.error(
           "Urban Director Studio API unhandled error",
           error
         );
 
-        return json({
+        return withCors(json({
           error: "Urban Director Studio account service error.",
           detail:
             error instanceof Error
               ? error.message
               : String(error)
-        }, 500);
+        }, 500), request);
       }
     }
 
@@ -2227,6 +2471,8 @@ export default {
         String(url.searchParams.get("network") || "").trim();
       const joinToken =
         String(url.searchParams.get("join") || "").trim();
+      const signalTicket =
+        String(url.searchParams.get("ticket") || "").trim();
 
       if (!env.DB || !networkId) {
         return json({
@@ -2238,6 +2484,9 @@ export default {
 
       try {
         user = await getCurrentUser(request, env);
+        if (!user && signalTicket) {
+          user = await userFromSignalTicket(env, networkId, signalTicket);
+        }
       } catch (error) {
         console.error("Urban Director Studio auth lookup failed", error);
       }
@@ -2300,7 +2549,9 @@ export default {
     if (
       url.pathname === "/" ||
       url.pathname === "/app" ||
-      url.pathname === "/admin"
+      url.pathname === "/admin" ||
+      url.pathname === "/privacy" ||
+      url.pathname === "/support"
     ) {
       return new Response(
         `<!doctype html>

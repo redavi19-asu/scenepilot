@@ -39,6 +39,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Validate bundled iOS assets
+        run: npx cap copy ios
+
   deploy:
     name: Deploy Urban Director Studio to Cloudflare
     if: github.event_name != 'pull_request'

@@ -4,7 +4,7 @@ import {
   Settings, Maximize2, MonitorUp, Users, QrCode,
   Type, Layers, PictureInPicture2, Video, Camera,
   Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut, PhoneOff, ShieldCheck, Flashlight,
-  Scissors, Play, Save, Download, SkipBack, Film, Upload, Minimize2, Maximize, Menu, LogOut, MessageSquare, RadioTower
+  Scissors, Play, Save, Download, SkipBack, Film, Upload, Minimize2, Maximize, Menu, LogOut, MessageSquare, RadioTower, Trash2
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Capacitor } from "@capacitor/core";
@@ -21,6 +21,7 @@ import {
 import ReplayStudio from "./ReplayStudio";
 import BroadcastPanel from "./BroadcastPanel";
 import BroadcastGraphics from "./BroadcastGraphics";
+import { apiFetch, publicOrigin } from "./runtimeApi";
 
 const qualityProfiles = {
   "1080p": { width: 1920, height: 1080, fps: 30, label: "1080P" },
@@ -91,7 +92,7 @@ function LiveStreamVideo({ stream, className = "", muted = true }) {
   );
 }
 
-function App({ user = null, onLogout = null }) {
+function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const isOwner = user?.role === "owner";
   const [showSplash, setShowSplash] = useState(true);
   const [cameras, setCameras] = useState(initialCameras);
@@ -427,7 +428,7 @@ function App({ user = null, onLogout = null }) {
 
     let cancelled = false;
 
-    fetch("/api/network", {
+    apiFetch("/api/network", {
       credentials: "include",
       headers: { Accept: "application/json" }
     })
@@ -456,6 +457,7 @@ function App({ user = null, onLogout = null }) {
   }, [showCamera]);
 
   const networkId = network?.id || cameraNetworkId;
+  const directorSignalTicket = network?.signalTicket || "";
   const cameraJoinQuery =
     network?.id && network?.joinToken
       ? new URLSearchParams({
@@ -466,10 +468,10 @@ function App({ user = null, onLogout = null }) {
         }).toString()
       : "";
   const joinUrl = cameraJoinQuery
-    ? `${window.location.origin}/app?${cameraJoinQuery}`
+    ? `${publicOrigin()}/app?${cameraJoinQuery}`
     : "";
   const cameraHandoffUrl = cameraJoinQuery
-    ? `${window.location.origin}/camera-open?${cameraJoinQuery}`
+    ? `${publicOrigin()}/camera-open?${cameraJoinQuery}`
     : "";
 
   async function refreshVideoInputs() {
@@ -887,7 +889,7 @@ function App({ user = null, onLogout = null }) {
     socket.on("director:denied", handleDirectorDenied);
     socket.on("director:available", handleDirectorAvailable);
 
-    socket.setNetwork(networkId);
+    socket.setNetwork(networkId, null, directorSignalTicket);
     socket.setRoom(roomCode);
     socket.connect();
 
@@ -912,7 +914,7 @@ function App({ user = null, onLogout = null }) {
 
       socket.disconnect();
     };
-  }, [showCamera, roomCode, networkId]);
+  }, [showCamera, roomCode, networkId, directorSignalTicket]);
 
   useEffect(() => {
     if (showCamera) return;
@@ -1742,7 +1744,7 @@ function App({ user = null, onLogout = null }) {
     setRecordStatus("DC LIVE • CREATING PENDING REVIEW");
 
     try {
-      const ticketResponse = await fetch("/api/dc-live/submission-ticket", {
+      const ticketResponse = await apiFetch("/api/dc-live/submission-ticket", {
         method: "POST",
         credentials: "include",
         headers: { Accept: "application/json" }
@@ -3509,7 +3511,7 @@ async function enableCamera() {
             <div className="director-menu-account">
               <small>SIGNED IN</small>
               <strong>{user?.displayName || user?.email || "URBAN DIRECTOR STUDIO USER"}</strong>
-              <span>{String(user?.role || "user").toUpperCase()} • {String(user?.plan || "beta").toUpperCase()}</span>
+              <span>{String(user?.role || "user").toUpperCase()} • {String(user?.plan || "free").toUpperCase()}</span>
             </div>
 
             <div className="director-menu-group">
@@ -3546,6 +3548,12 @@ async function enableCamera() {
               }}>
                 <CircleHelp size={17}/> TIPS / HELP
               </button>
+              <button type="button" onClick={() => window.location.assign("/support")}>
+                <CircleHelp size={17}/> SUPPORT
+              </button>
+              <button type="button" onClick={() => window.location.assign("/privacy")}>
+                <ShieldCheck size={17}/> PRIVACY POLICY
+              </button>
             </div>
 
             {(user?.role === "owner" || user?.role === "admin") && (
@@ -3560,6 +3568,12 @@ async function enableCamera() {
             {onLogout && (
               <button className="director-menu-logout" type="button" onClick={onLogout}>
                 <LogOut size={17}/> LOG OUT
+              </button>
+            )}
+
+            {onDeleteAccount && (
+              <button className="director-menu-delete-account" type="button" onClick={onDeleteAccount}>
+                <Trash2 size={17}/> DELETE ACCOUNT
               </button>
             )}
           </aside>
