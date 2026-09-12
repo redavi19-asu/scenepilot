@@ -19,7 +19,7 @@ app.get("/", (req, res) => {
     <!doctype html>
     <html>
       <head>
-        <title>ScenePilot Signal Server</title>
+        <title>Urban Director Studio Signal Server</title>
         <style>
           body {
             margin: 0;
@@ -51,7 +51,7 @@ app.get("/", (req, res) => {
 
       <body>
         <div class="box">
-          <h1>SCENEPILOT</h1>
+          <h1>URBAN DIRECTOR STUDIO</h1>
           <h2 class="online">SIGNAL SERVER ONLINE</h2>
           <small>WebRTC coordination service • 3001</small>
         </div>
@@ -463,7 +463,7 @@ httpServer.listen(
   "0.0.0.0",
   () => {
     console.log(
-      `ScenePilot signaling server running on ${PORT}`
+      `Urban Director Studio signaling server running on ${PORT}`
     );
   }
 );

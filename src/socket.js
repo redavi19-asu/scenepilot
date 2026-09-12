@@ -44,7 +44,7 @@ class ScenePilotSocket {
       try {
         handler(payload);
       } catch (error) {
-        console.error(`ScenePilot listener error [${event}]`, error);
+        console.error(`Urban Director Studio listener error [${event}]`, error);
       }
     });
   }
@@ -125,7 +125,7 @@ class ScenePilotSocket {
         if (!message?.event) return;
         this.dispatch(message.event, message.payload);
       } catch (error) {
-        console.error("ScenePilot signaling message error", error);
+        console.error("Urban Director Studio signaling message error", error);
       }
     });
 
@@ -145,7 +145,7 @@ class ScenePilotSocket {
     });
 
     ws.addEventListener("error", error => {
-      console.error("ScenePilot signaling socket error", error);
+      console.error("Urban Director Studio signaling socket error", error);
     });
   }
 
@@ -181,7 +181,7 @@ class ScenePilotSocket {
 
     if (this.ws) {
       try {
-        this.ws.close(1000, "ScenePilot client disconnect");
+        this.ws.close(1000, "Urban Director Studio client disconnect");
       } catch (_) {}
     }
 

@@ -40,7 +40,7 @@ export function createPeerConnection({
 
   peer.onconnectionstatechange = () => {
     console.log(
-      "ScenePilot WebRTC:",
+      "Urban Director Studio WebRTC:",
       peer.connectionState
     );
 
@@ -105,6 +105,6 @@ export async function optimizeVideoSender(sender, qualityProfile = "auto") {
 
     await sender.setParameters?.(params);
   } catch (error) {
-    console.warn("ScenePilot adaptive video tuning unavailable", error);
+    console.warn("Urban Director Studio adaptive video tuning unavailable", error);
   }
 }

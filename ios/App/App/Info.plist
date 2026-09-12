@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>ScenePilot</string>
+	<string>Urban Director Studio</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -36,9 +36,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>ScenePilot uses the camera for live production video.</string>
+	<string>Urban Director Studio uses the camera for live production video.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>ScenePilot uses the microphone for live production audio.</string>
+	<string>Urban Director Studio uses the microphone for live production audio.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

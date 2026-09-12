@@ -1,4 +1,4 @@
-name: ScenePilot CI + Cloudflare Deploy
+name: Urban Director Studio CI + Cloudflare Deploy
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   validate:
-    name: Validate ScenePilot
+    name: Validate Urban Director Studio
     runs-on: ubuntu-latest
 
     steps:
@@ -40,7 +40,7 @@ jobs:
         run: npm run build
 
   deploy:
-    name: Deploy ScenePilot to Cloudflare
+    name: Deploy Urban Director Studio to Cloudflare
     if: github.event_name != 'pull_request'
     needs: validate
     runs-on: ubuntu-latest

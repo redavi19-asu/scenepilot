@@ -69,7 +69,7 @@ INSERT OR IGNORE INTO products (
 ) VALUES (
   'product_scenepilot',
   'scenepilot',
-  'ScenePilot',
+  'Urban Director Studio',
   'active',
   datetime('now')
 );

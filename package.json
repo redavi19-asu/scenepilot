@@ -1,7 +1,7 @@
 {
   "name": "scenepilot",
-  "productName": "ScenePilot",
-  "description": "ScenePilot live production director and camera platform",
+  "productName": "Urban Director Studio",
+  "description": "Urban Director Studio live production director and camera platform",
   "author": "I Computer Anything",
   "private": true,
   "version": "0.1.0",
@@ -53,8 +53,8 @@
   },
   "build": {
     "appId": "com.icomputeranything.scenepilot",
-    "productName": "ScenePilot",
-    "artifactName": "ScenePilot-${version}-${arch}.${ext}",
+    "productName": "Urban Director Studio",
+    "artifactName": "Urban-Director-Studio-${version}-${arch}.${ext}",
     "files": [
       "electron/**/*",
       "package.json"
@@ -71,8 +71,8 @@
       "category": "public.app-category.video",
       "identity": null,
       "extendInfo": {
-        "NSCameraUsageDescription": "ScenePilot uses the camera for live production video.",
-        "NSMicrophoneUsageDescription": "ScenePilot uses the microphone for live production audio."
+        "NSCameraUsageDescription": "Urban Director Studio uses the camera for live production video.",
+        "NSMicrophoneUsageDescription": "Urban Director Studio uses the microphone for live production audio."
       }
     },
     "win": {

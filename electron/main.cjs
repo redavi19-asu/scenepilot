@@ -40,7 +40,7 @@ function createWindow() {
     height: 960,
     minWidth: 1024,
     minHeight: 700,
-    title: "ScenePilot",
+    title: "Urban Director Studio",
     backgroundColor: "#080a08",
     autoHideMenuBar: true,
     show: false,

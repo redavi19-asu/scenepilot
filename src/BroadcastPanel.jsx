@@ -14,7 +14,7 @@ const DESTINATIONS = [
   { id: "youtube", name: "YouTube", icon: Video, kind: "external" },
   { id: "twitch", name: "Twitch", icon: RadioTower, kind: "external" },
   { id: "tiktok", name: "TikTok", icon: RadioTower, kind: "external" },
-  { id: "self", name: "ScenePilot Self-Hosted", icon: Server, kind: "self" },
+  { id: "self", name: "Urban Director Studio Self-Hosted", icon: Server, kind: "self" },
   { id: "custom", name: "Custom RTMP", icon: Globe2, kind: "custom" }
 ];
 
@@ -38,7 +38,7 @@ async function api(path, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || `ScenePilot broadcast request failed (HTTP ${response.status}).`);
+    throw new Error(data.error || `Urban Director Studio broadcast request failed (HTTP ${response.status}).`);
   }
 
   return data;
@@ -126,7 +126,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     }
 
     if (typeof MediaRecorder === "undefined" || typeof WebSocket === "undefined") {
-      throw new Error("This browser cannot send the Program feed to ScenePilot.");
+      throw new Error("This browser cannot send the Program feed to Urban Director Studio.");
     }
 
     const mimeType = chooseIngestMimeType();
@@ -138,7 +138,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
 
     await new Promise((resolve, reject) => {
       const timer = window.setTimeout(
-        () => reject(new Error("ScenePilot ingest connection timed out.")),
+        () => reject(new Error("Urban Director Studio ingest connection timed out.")),
         12000
       );
 
@@ -148,7 +148,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
       };
       socket.onerror = () => {
         window.clearTimeout(timer);
-        reject(new Error("ScenePilot could not open the secure ingest connection."));
+        reject(new Error("Urban Director Studio could not open the secure ingest connection."));
       };
     });
 
@@ -254,7 +254,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         }
       }
 
-      setStatus("Selected destinations saved to this ScenePilot network.");
+      setStatus("Selected destinations saved to this Urban Director Studio network.");
     } catch (error) {
       setStatus(error.message);
     } finally {
@@ -382,7 +382,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           <span className="eyebrow">OUTPUT ROUTING</span>
           <strong>BROADCAST / MULTISTREAM</strong>
           <small>
-            Each ScenePilot company keeps its own streaming destinations and credentials.
+            Each Urban Director Studio company keeps its own streaming destinations and credentials.
           </small>
         </div>
 
@@ -488,7 +488,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
                         setSaving(true);
                         setStatus("");
                         saveDestination(destination.id)
-                          .then(() => setStatus(`${destination.name} saved for this ScenePilot network.`))
+                          .then(() => setStatus(`${destination.name} saved for this Urban Director Studio network.`))
                           .catch(error => setStatus(error.message))
                           .finally(() => setSaving(false));
                       }}
@@ -572,7 +572,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
               size={152}
               level="M"
               marginSize={2}
-              title="ScenePilot public watch QR code"
+              title="Urban Director Studio public watch QR code"
             />
             <strong>SCAN TO WATCH</strong>
             <small>{roomCode}</small>
@@ -588,8 +588,8 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
 
       <div className="broadcast-future-note">
         <strong>HOW THIS IS WIRED:</strong>
-        The client's saved destinations belong only to their ScenePilot network. GO LIVE now calls the
-        ScenePilot encoder API with that network's decrypted stream targets. Once the Debian encoder URL
+        The client's saved destinations belong only to their Urban Director Studio network. GO LIVE now calls the
+        Urban Director Studio encoder API with that network's decrypted stream targets. Once the Debian encoder URL
         is connected, it can publish the Program output to every checked destination.
       </div>
     </section>
