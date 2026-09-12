@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import { useEffect, useRef } from "react";
 
 const DEFAULT_SITE_KEY = "0x4AAAAAAErrAXJrlyLdjt5s";
@@ -15,6 +16,11 @@ export default function TurnstileWidget({
     DEFAULT_SITE_KEY;
 
   useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      onToken("native-app");
+      return () => onToken("");
+    }
+
     let cancelled = false;
 
     const renderWidget = () => {
@@ -81,6 +87,14 @@ export default function TurnstileWidget({
       widgetIdRef.current = null;
     };
   }, [action, onToken, resetKey, siteKey]);
+
+  if (Capacitor.isNativePlatform()) {
+    return (
+      <div className="sp-turnstile-wrap sp-native-auth-check">
+        <small>Secure app sign-in</small>
+      </div>
+    );
+  }
 
   return (
     <div className="sp-turnstile-wrap">
