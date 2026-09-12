@@ -616,6 +616,7 @@ async function handleDeleteAccount(request, env) {
   }
 
   await ensureSignalTicketSchema(env);
+  await ensureDcLiveSubmissionSchema(env);
 
   const userId = user.id;
 
@@ -2553,7 +2554,9 @@ export default {
     if (
       url.pathname === "/" ||
       url.pathname === "/app" ||
-      url.pathname === "/admin"
+      url.pathname === "/admin" ||
+      url.pathname === "/privacy" ||
+      url.pathname === "/support"
     ) {
       return new Response(
         `<!doctype html>
