@@ -600,6 +600,91 @@ async function handleMe(request, env) {
   return json({ user });
 }
 
+async function handleDeleteAccount(request, env) {
+  if (!env.DB) {
+    return json({ error: "Urban Director Studio database is unavailable." }, 503);
+  }
+
+  const user = await getCurrentUser(request, env);
+  if (!user) {
+    return json({ error: "Sign in before deleting your account." }, 401);
+  }
+
+  const body = await readJson(request);
+  if (String(body.confirm || "") !== "DELETE") {
+    return json({ error: "Type DELETE to confirm permanent account deletion." }, 400);
+  }
+
+  await ensureSignalTicketSchema(env);
+
+  const userId = user.id;
+
+  await env.DB.batch([
+    env.DB.prepare(
+      `DELETE FROM scenepilot_realtime_publications
+       WHERE network_id IN (
+         SELECT id FROM scenepilot_networks WHERE created_by = ?
+       )`
+    ).bind(userId),
+    env.DB.prepare(
+      `DELETE FROM scenepilot_broadcast_events
+       WHERE network_id IN (
+         SELECT id FROM scenepilot_networks WHERE created_by = ?
+       )`
+    ).bind(userId),
+    env.DB.prepare(
+      `DELETE FROM scenepilot_broadcast_destinations
+       WHERE network_id IN (
+         SELECT id FROM scenepilot_networks WHERE created_by = ?
+       )`
+    ).bind(userId),
+    env.DB.prepare(
+      `DELETE FROM dc_live_submission_tokens
+       WHERE user_id = ?
+          OR network_id IN (
+            SELECT id FROM scenepilot_networks WHERE created_by = ?
+          )`
+    ).bind(userId, userId),
+    env.DB.prepare(
+      `DELETE FROM scenepilot_signal_tickets
+       WHERE user_id = ?
+          OR network_id IN (
+            SELECT id FROM scenepilot_networks WHERE created_by = ?
+          )`
+    ).bind(userId, userId),
+    env.DB.prepare(
+      `DELETE FROM scenepilot_network_members
+       WHERE network_id IN (
+         SELECT id FROM scenepilot_networks WHERE created_by = ?
+       )`
+    ).bind(userId),
+    env.DB.prepare(
+      "DELETE FROM scenepilot_network_members WHERE user_id = ?"
+    ).bind(userId),
+    env.DB.prepare(
+      "DELETE FROM scenepilot_networks WHERE created_by = ?"
+    ).bind(userId),
+    env.DB.prepare(
+      "UPDATE email_campaigns SET created_by = NULL WHERE created_by = ?"
+    ).bind(userId),
+    env.DB.prepare(
+      "DELETE FROM user_products WHERE user_id = ?"
+    ).bind(userId),
+    env.DB.prepare(
+      "DELETE FROM sessions WHERE user_id = ?"
+    ).bind(userId),
+    env.DB.prepare(
+      "DELETE FROM users WHERE id = ?"
+    ).bind(userId)
+  ]);
+
+  return json(
+    { ok: true, deleted: true },
+    200,
+    { "Set-Cookie": clearSessionCookie() }
+  );
+}
+
 async function ensureDcLiveSubmissionSchema(env) {
   await env.DB.prepare(
     `CREATE TABLE IF NOT EXISTS dc_live_submission_tokens (
@@ -1469,6 +1554,83 @@ async function ensureUserScenePilotNetwork(env, user) {
   return getUserScenePilotNetwork(env, user.id);
 }
 
+async function ensureSignalTicketSchema(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS scenepilot_signal_tickets (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      network_id TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (network_id) REFERENCES scenepilot_networks(id) ON DELETE CASCADE
+    )`
+  ).run();
+
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS scenepilot_signal_tickets_expiry_idx
+     ON scenepilot_signal_tickets(expires_at)`
+  ).run();
+}
+
+async function createSignalTicket(env, userId, networkId) {
+  await ensureSignalTicketSchema(env);
+
+  const token = randomToken(24);
+  const tokenHash = await sha256(token);
+  const now = Date.now();
+  const expiresAt = now + 10 * 60 * 1000;
+
+  await env.DB.batch([
+    env.DB.prepare(
+      "DELETE FROM scenepilot_signal_tickets WHERE expires_at <= ?"
+    ).bind(now),
+    env.DB.prepare(
+      `INSERT INTO scenepilot_signal_tickets (
+        token_hash, user_id, network_id, expires_at, created_at
+      ) VALUES (?, ?, ?, ?, ?)`
+    ).bind(tokenHash, userId, networkId, expiresAt, now)
+  ]);
+
+  return { token, expiresAt };
+}
+
+async function userFromSignalTicket(env, networkId, token) {
+  if (!networkId || !token) return null;
+
+  await ensureSignalTicketSchema(env);
+
+  const tokenHash = await sha256(token);
+  const row = await env.DB.prepare(
+    `SELECT
+      u.id,
+      u.email,
+      u.display_name,
+      u.role,
+      u.status,
+      u.marketing_opt_in,
+      u.created_at,
+      u.last_login_at,
+      COALESCE(up.plan, 'free') AS plan,
+      COALESCE(up.access_status, 'active') AS access_status
+    FROM scenepilot_signal_tickets t
+    JOIN users u ON u.id = t.user_id
+    JOIN scenepilot_network_members m
+      ON m.user_id = u.id
+      AND m.network_id = t.network_id
+    LEFT JOIN user_products up
+      ON up.user_id = u.id
+      AND up.product_id = 'product_scenepilot'
+    WHERE t.token_hash = ?
+      AND t.network_id = ?
+      AND t.expires_at > ?
+      AND u.status = 'active'
+    LIMIT 1`
+  ).bind(tokenHash, networkId, Date.now()).first();
+
+  return row ? publicUser(row) : null;
+}
+
 async function handleNetwork(request, env) {
   if (!env.DB) {
     return json({ error: "Urban Director Studio database is unavailable." }, 503);
@@ -1480,6 +1642,7 @@ async function handleNetwork(request, env) {
   }
 
   const network = await ensureUserScenePilotNetwork(env, user);
+  const signalTicket = await createSignalTicket(env, user.id, network.id);
 
   return json({
     network: {
@@ -1487,7 +1650,9 @@ async function handleNetwork(request, env) {
       name: network.name,
       slug: network.slug,
       joinToken: network.join_token,
-      memberRole: network.member_role
+      memberRole: network.member_role,
+      signalTicket: signalTicket.token,
+      signalTicketExpiresAt: signalTicket.expiresAt
     }
   });
 }
@@ -2227,6 +2392,10 @@ async function handleApi(request, env, url) {
     return handleMe(request, env);
   }
 
+  if (url.pathname === "/api/auth/account" && request.method === "DELETE") {
+    return handleDeleteAccount(request, env);
+  }
+
   if (url.pathname === "/api/admin/users" && request.method === "GET") {
     return handleAdminUsers(request, env);
   }
@@ -2296,6 +2465,8 @@ export default {
         String(url.searchParams.get("network") || "").trim();
       const joinToken =
         String(url.searchParams.get("join") || "").trim();
+      const signalTicket =
+        String(url.searchParams.get("ticket") || "").trim();
 
       if (!env.DB || !networkId) {
         return json({
@@ -2307,6 +2478,9 @@ export default {
 
       try {
         user = await getCurrentUser(request, env);
+        if (!user && signalTicket) {
+          user = await userFromSignalTicket(env, networkId, signalTicket);
+        }
       } catch (error) {
         console.error("Urban Director Studio auth lookup failed", error);
       }
