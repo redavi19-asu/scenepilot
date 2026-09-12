@@ -434,7 +434,7 @@ function App({ user = null, onLogout = null }) {
       .then(async response => {
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(data.error || "Unable to load ScenePilot network.");
+          throw new Error(data.error || "Unable to load Urban Director Studio network.");
         }
         return data;
       })
@@ -1302,7 +1302,7 @@ function App({ user = null, onLogout = null }) {
     ctx.fillStyle = "#f3efe6";
     ctx.font = "900 18px Arial";
     ctx.letterSpacing = "4px";
-    ctx.fillText("SCENEPILOT", width / 2, height / 2 - 67);
+    ctx.fillText("URBAN DIRECTOR STUDIO", width / 2, height / 2 - 67);
 
     ctx.fillStyle = "#ffffff";
     ctx.font = "900 58px Arial";
@@ -1764,7 +1764,7 @@ function App({ user = null, onLogout = null }) {
         },
         body: JSON.stringify({
           title: defaultTitle,
-          description: `Submitted from ScenePilot production room ${roomCode}.`,
+          description: `Submitted from Urban Director Studio production room ${roomCode}.`,
           room: roomCode,
           filename,
           mimeType,
@@ -2870,17 +2870,17 @@ async function enableCamera() {
       <div className={`operator-shell ${operatorControlsCollapsed ? "controls-collapsed" : ""} ${cameraSetupOpen ? "setup-active" : ""}`}>
         <header className="operator-header">
           <div>
-            <span className="eyebrow">SCENEPILOT CAMERA</span>
+            <span className="eyebrow">URBAN DIRECTOR STUDIO CAMERA</span>
             <h1>Camera Operator</h1>
           </div>
-          <span className="room-pill">{network?.name || "SCENEPILOT NETWORK"} • ROOM {roomCode}</span>
+          <span className="room-pill">{network?.name || "URBAN DIRECTOR STUDIO NETWORK"} • ROOM {roomCode}</span>
         </header>
 
         {cameraSetupOpen && (
           <div className="camera-startup-gate" role="dialog" aria-modal="true" aria-label="Camera startup setup">
             <div className="camera-startup-card">
               <div className="camera-startup-brand">
-                <span className="eyebrow">SCENEPILOT CAMERA</span>
+                <span className="eyebrow">URBAN DIRECTOR STUDIO CAMERA</span>
                 <h2>Two quick permissions</h2>
                 <p>Finish these two steps before the camera operator screen opens.</p>
               </div>
@@ -3208,7 +3208,7 @@ async function enableCamera() {
                 <strong>DEVICE TELEMETRY</strong>
                 <span>
                   Share battery and network quality with the Director when this browser supports it.
-                  ScenePilot does not request location for telemetry.
+                  Urban Director Studio does not request location for telemetry.
                 </span>
               </div>
 
@@ -3277,10 +3277,10 @@ async function enableCamera() {
             <div className="join-modal call-shield-modal" onClick={e => e.stopPropagation()}>
               <button className="modal-close" onClick={() => setShowCallShield(false)}><X/></button>
               <div className="join-icon"><PhoneOff size={29}/></div>
-              <span className="eyebrow">SCENEPILOT LIVE SHIELD</span>
+              <span className="eyebrow">URBAN DIRECTOR STUDIO LIVE SHIELD</span>
               <h2>Protect this camera phone</h2>
               <p>
-                ScenePilot will keep the screen awake while Live Shield is on. Your browser cannot
+                Urban Director Studio will keep the screen awake while Live Shield is on. Your browser cannot
                 turn off cellular calls by itself, so enable the phone's Focus / Do Not Disturb mode
                 before going live.
               </p>
@@ -3304,7 +3304,7 @@ async function enableCamera() {
             <div className="join-modal tips-modal" onClick={e => e.stopPropagation()}>
               <button className="modal-close" onClick={() => setShowTips(false)}><X/></button>
               <div className="join-icon"><CircleHelp size={29}/></div>
-              <span className="eyebrow">SCENEPILOT CAMERA HELP</span>
+              <span className="eyebrow">URBAN DIRECTOR STUDIO CAMERA HELP</span>
               <h2>Camera operator tips</h2>
               <div className="tips-list">
                 <p><strong>1.</strong> Enter a camera name before connecting.</p>
@@ -3312,11 +3312,11 @@ async function enableCamera() {
                 <p><strong>3.</strong> Start with 1080P. Use 720P or Auto if bandwidth gets tight.</p>
                 <p><strong>4.</strong> Choose ALLOW DEVICE TELEMETRY if you want the Director to see battery and browser-reported network quality. You can stop sharing at any time.</p>
                 <p><strong>5.</strong> Tap Enable Camera + Microphone and allow the browser's native camera/microphone permission prompt.</p>
-                <p><strong>6.</strong> ScenePilot assigns the next available camera slot automatically.</p>
+                <p><strong>6.</strong> Urban Director Studio assigns the next available camera slot automatically.</p>
                 <p><strong>7.</strong> LIVE TO DIRECTOR means the WebRTC media connection is active.</p>
                 <p><strong>8.</strong> Use FLIP to switch between the rear and front camera without leaving the production.</p>
                 <p><strong>9.</strong> Zoom controls use the phone camera's hardware zoom when the browser supports it.</p>
-                <p><strong>10.</strong> If the connection drops, leave the page open while ScenePilot reconnects.</p>
+                <p><strong>10.</strong> If the connection drops, leave the page open while Urban Director Studio reconnects.</p>
               </div>
             </div>
           </div>
@@ -3462,7 +3462,7 @@ async function enableCamera() {
         <div className="brand">
           <div className="brand-mark"><Radio size={25}/></div>
           <div>
-            <h1>SCENEPILOT</h1>
+            <h1>URBAN DIRECTOR STUDIO</h1>
             <span>LIVE PRODUCTION CONSOLE</span>
           </div>
         </div>
@@ -3479,7 +3479,7 @@ async function enableCamera() {
             className={`icon-button director-menu-trigger ${secondaryToolAlert ? "has-alert" : ""}`}
             onClick={() => setDirectorMenuOpen(value => !value)}
             title="Urban Director Studio menu"
-            aria-label="Open ScenePilot menu"
+            aria-label="Open Urban Director Studio menu"
           >
             <Menu size={20}/>
             {secondaryToolAlert && <i className="director-menu-alert-dot"/>}
@@ -3492,13 +3492,13 @@ async function enableCamera() {
           <button
             className="director-menu-backdrop"
             type="button"
-            aria-label="Close ScenePilot menu"
+            aria-label="Close Urban Director Studio menu"
             onClick={() => setDirectorMenuOpen(false)}
           />
           <aside className="director-hamburger-panel" aria-label="Urban Director Studio menu">
             <header>
               <div>
-                <span>SCENEPILOT</span>
+                <span>URBAN DIRECTOR STUDIO</span>
                 <strong>DIRECTOR MENU</strong>
               </div>
               <button type="button" onClick={() => setDirectorMenuOpen(false)} aria-label="Close menu">
@@ -3508,7 +3508,7 @@ async function enableCamera() {
 
             <div className="director-menu-account">
               <small>SIGNED IN</small>
-              <strong>{user?.displayName || user?.email || "SCENEPILOT USER"}</strong>
+              <strong>{user?.displayName || user?.email || "URBAN DIRECTOR STUDIO USER"}</strong>
               <span>{String(user?.role || "user").toUpperCase()} • {String(user?.plan || "beta").toUpperCase()}</span>
             </div>
 
@@ -3682,7 +3682,7 @@ async function enableCamera() {
                 <div className="program-standby-screen" role="status" aria-label="Program is on standby">
                   <div className="program-standby-grid"/>
                   <div className="program-standby-content">
-                    <span className="program-standby-brand">SCENEPILOT</span>
+                    <span className="program-standby-brand">URBAN DIRECTOR STUDIO</span>
                     <i/>
                     <strong>PLEASE STAND BY</strong>
                     <small>Live production will resume shortly</small>
@@ -4468,7 +4468,7 @@ async function enableCamera() {
             <p className="record-help">
               {isOwner
                 ? "Owner controls: Program, ISO, or Both. No customer recording restrictions apply."
-                : "This recorder is for your raw camera sources only. Each connected camera is saved separately for download and editing. Finished Program masters are handled by ScenePilot's protected Program workflow, not by this local recorder."}
+                : "This recorder is for your raw camera sources only. Each connected camera is saved separately for download and editing. Finished Program masters are handled by Urban Director Studio's protected Program workflow, not by this local recorder."}
             </p>
           </div>
 
@@ -4539,7 +4539,7 @@ async function enableCamera() {
       </main>
 
       <footer>
-        <span>SCENEPILOT ENGINE</span>
+        <span>URBAN DIRECTOR STUDIO ENGINE</span>
         <span><i/> SYSTEM READY</span>
         <span>ROOM {roomCode}</span>
         <span>00:00:00</span>
@@ -4582,7 +4582,7 @@ async function enableCamera() {
           <div className="join-modal tips-modal" onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setShowTips(false)}><X/></button>
             <div className="join-icon"><CircleHelp size={29}/></div>
-            <span className="eyebrow">SCENEPILOT QUICK TIPS</span>
+            <span className="eyebrow">URBAN DIRECTOR STUDIO QUICK TIPS</span>
             <h2>Run the production</h2>
             <div className="tips-list">
               <p><strong>1. Set Names:</strong> Use SET NAMES above Camera Multiview to label one or all nine camera slots. A saved name follows that slot everywhere in the Director console.</p>
@@ -4597,8 +4597,8 @@ async function enableCamera() {
               <p><strong>10. Director Cam:</strong> Enable the Director device camera from the dedicated Director Cam panel. Use SWITCH CAMERA for front/rear, then drag it to Preview, tap PREVIEW, or use ADD AS PiP. It never consumes one of the nine remote camera slots.</p>
               <p><strong>11. Camera phones:</strong> Connected phones can use flip, press-and-hold smooth zoom, camera light/torch when the browser exposes it, Live Shield, telemetry, and camera communications. The Director can remotely hold zoom and toggle the camera light on supported devices.</p>
               <p><strong>12. Standby / Hold:</strong> Press STANDBY / HOLD to immediately replace Program with the built-in PLEASE STAND BY screen while the production stays connected. Program audio is muted on the composed output until RETURN TO PROGRAM is pressed.</p>
-              <p><strong>13. Instant Replay:</strong> ScenePilot keeps the Program source buffered for replay when browser MediaRecorder support is available. Replay returns to the live Program automatically when it ends.</p>
-              <p><strong>14. If a feed drops:</strong> Leave the camera page open while ScenePilot reconnects. The Multiview tile resumes from the same source slot when its WebRTC stream returns.</p>
+              <p><strong>13. Instant Replay:</strong> Urban Director Studio keeps the Program source buffered for replay when browser MediaRecorder support is available. Replay returns to the live Program automatically when it ends.</p>
+              <p><strong>14. If a feed drops:</strong> Leave the camera page open while Urban Director Studio reconnects. The Multiview tile resumes from the same source slot when its WebRTC stream returns.</p>
             </div>
           </div>
         </div>
