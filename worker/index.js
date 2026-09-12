@@ -219,7 +219,7 @@ async function verifyTurnstile(request, env, token, expectedAction) {
 
   if (!secret) {
     return json({
-      error: "Cloudflare Turnstile is not configured for ScenePilot yet."
+      error: "Cloudflare Turnstile is not configured for Urban Director Studio yet."
     }, 503);
   }
 
@@ -311,7 +311,7 @@ async function ensureScenePilotProduct(env) {
 
 async function handleRegister(request, env) {
   if (!env.DB) {
-    return json({ error: "ICA D1 database is not bound to ScenePilot yet." }, 503);
+    return json({ error: "ICA D1 database is not bound to Urban Director Studio yet." }, 503);
   }
 
   const body = await readJson(request);
@@ -398,7 +398,7 @@ async function handleRegister(request, env) {
       user: null,
       firstOwner: false,
       pendingApproval: true,
-      message: "Account created. ScenePilot beta access is waiting for administrator approval."
+      message: "Account created. Urban Director Studio beta access is waiting for administrator approval."
     }, 201);
   }
 
@@ -422,7 +422,7 @@ async function handleRegister(request, env) {
 
 async function handleLogin(request, env) {
   if (!env.DB) {
-    return json({ error: "ICA D1 database is not bound to ScenePilot yet." }, 503);
+    return json({ error: "ICA D1 database is not bound to Urban Director Studio yet." }, 503);
   }
 
   const body = await readJson(request);
@@ -484,7 +484,7 @@ async function handleLogin(request, env) {
     return json({
       error:
         user?.accessStatus === "pending"
-          ? "Your ScenePilot account is waiting for beta approval."
+          ? "Your Urban Director Studio account is waiting for beta approval."
           : "Urban Director Studio access is suspended for this account."
     }, 403);
   }
@@ -515,7 +515,7 @@ async function handleLogout(request, env) {
 
 async function handleMe(request, env) {
   if (!env.DB) {
-    return json({ error: "ICA D1 database is not bound to ScenePilot yet." }, 503);
+    return json({ error: "ICA D1 database is not bound to Urban Director Studio yet." }, 503);
   }
 
   const user = await getCurrentUser(request, env);
@@ -982,7 +982,7 @@ export class ScenePilotRoom {
       if (!session.canDirect || session.role === "camera") {
         this.send(session, "director:denied", {
           reason: "auth_required",
-          message: "A signed-in ScenePilot account is required for Director mode."
+          message: "A signed-in Urban Director Studio account is required for Director mode."
         });
         return;
       }
@@ -1706,7 +1706,7 @@ async function loadBroadcastTargets(env, networkId, destinationIds) {
 
     const row = byId.get(id);
     if (!row?.rtmp_url || !row?.stream_key_ciphertext) {
-      throw new Error(`${id} is not configured for this ScenePilot network.`);
+      throw new Error(`${id} is not configured for this Urban Director Studio network.`);
     }
 
     targets.push({
@@ -1941,7 +1941,7 @@ async function handleRealtimePublish(request, env) {
 
   const body = await readJson(request);
   const room = validRealtimeRoom(body.room);
-  if (!room) return json({ error: "Enter a valid ScenePilot room." }, 400);
+  if (!room) return json({ error: "Enter a valid Urban Director Studio room." }, 400);
   if (!realtimeConfig(env).ready) {
     return json({ error: "Cloudflare Realtime is not configured yet." }, 503);
   }
@@ -1999,7 +1999,7 @@ async function handleRealtimePublish(request, env) {
 async function handleRealtimeSubscribe(request, env) {
   const body = await readJson(request);
   const room = validRealtimeRoom(body.room);
-  if (!room) return json({ error: "Enter a valid ScenePilot room." }, 400);
+  if (!room) return json({ error: "Enter a valid Urban Director Studio room." }, 400);
   if (!realtimeConfig(env).ready) {
     return json({ error: "Cloudflare Realtime is not configured yet." }, 503);
   }
@@ -2251,7 +2251,7 @@ export default {
 
       if (!memberAccess && !cameraAccess) {
         return json({
-          error: "This ScenePilot network link is invalid or no longer active."
+          error: "This Urban Director Studio network link is invalid or no longer active."
         }, 403);
       }
 
@@ -2304,7 +2304,7 @@ export default {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ScenePilot</title>
+  <title>Urban Director Studio</title>
   <style>
     body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0d0b;color:#eef1ea;font-family:Arial,sans-serif}
     main{max-width:640px;padding:32px;text-align:center}
@@ -2315,8 +2315,8 @@ export default {
 </head>
 <body>
   <main>
-    <h1>ScenePilot</h1>
-    <p>The ScenePilot Worker is online, but the static asset binding is unavailable in this environment.</p>
+    <h1>Urban Director Studio</h1>
+    <p>The Urban Director Studio Worker is online, but the static asset binding is unavailable in this environment.</p>
     <p>API health remains available at <code>/api/health</code>.</p>
   </main>
 </body>
