@@ -4,6 +4,61 @@ const PASSWORD_ITERATIONS = 100000;
 const TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
+const NATIVE_APP_ORIGINS = new Set([
+  "capacitor://localhost",
+  "ionic://localhost",
+  "http://localhost",
+  "https://localhost"
+]);
+
+function requestOrigin(request) {
+  return String(request.headers.get("Origin") || "").trim();
+}
+
+function isNativeAppRequest(request) {
+  const platform = String(
+    request.headers.get("X-Urban-Director-Platform") || ""
+  ).toLowerCase();
+  return (
+    (platform === "ios" || platform === "android") &&
+    NATIVE_APP_ORIGINS.has(requestOrigin(request))
+  );
+}
+
+function bearerToken(request) {
+  const authorization = String(request.headers.get("Authorization") || "");
+  return authorization.toLowerCase().startsWith("bearer ")
+    ? authorization.slice(7).trim()
+    : "";
+}
+
+function corsHeadersFor(request) {
+  const origin = requestOrigin(request);
+  if (!NATIVE_APP_ORIGINS.has(origin)) return {};
+
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Urban-Director-Platform",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+    "Vary": "Origin"
+  };
+}
+
+function withCors(response, request) {
+  const cors = corsHeadersFor(request);
+  if (!Object.keys(cors).length) return response;
+
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(cors)) headers.set(key, value);
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
@@ -131,7 +186,7 @@ function publicUser(row) {
     role: row.role || "user",
     status: row.status || "active",
     marketingOptIn: Boolean(row.marketing_opt_in),
-    plan: row.plan || "beta",
+    plan: row.plan || "free",
     accessStatus: row.access_status || "active",
     createdAt: row.created_at || null,
     lastLoginAt: row.last_login_at || null
@@ -141,7 +196,9 @@ function publicUser(row) {
 async function getCurrentUser(request, env) {
   if (!env.DB) return null;
 
-  const token = parseCookies(request)[SESSION_COOKIE];
+  const token =
+    bearerToken(request) ||
+    parseCookies(request)[SESSION_COOKIE];
   if (!token) return null;
 
   const sessionId = await sha256(token);
@@ -157,7 +214,7 @@ async function getCurrentUser(request, env) {
       u.marketing_opt_in,
       u.created_at,
       u.last_login_at,
-      COALESCE(up.plan, 'beta') AS plan,
+      COALESCE(up.plan, 'free') AS plan,
       COALESCE(up.access_status, 'active') AS access_status
     FROM sessions s
     JOIN users u ON u.id = s.user_id
@@ -215,6 +272,8 @@ async function readJson(request) {
 }
 
 async function verifyTurnstile(request, env, token, expectedAction) {
+  if (isNativeAppRequest(request)) return null;
+
   const secret = String(env.TURNSTILE_SECRET_KEY || "").trim();
 
   if (!secret) {
@@ -302,7 +361,7 @@ async function ensureScenePilotProduct(env) {
     ) VALUES (
       'product_scenepilot',
       'scenepilot',
-      'ScenePilot',
+      'Urban Director Studio',
       'active',
       ?
     )`
@@ -362,7 +421,7 @@ async function handleRegister(request, env) {
 
   const isFirstUser = Number(countRow?.count || 0) === 0;
   const role = isFirstUser ? "owner" : "user";
-  const plan = isFirstUser ? "pro" : "beta";
+  const plan = isFirstUser ? "pro" : "free";
   const accessStatus = isFirstUser ? "active" : "pending";
   const id = crypto.randomUUID();
   const now = Date.now();
@@ -392,7 +451,7 @@ async function handleRegister(request, env) {
       id,
       plan,
       accessStatus,
-      isFirstUser ? "owner-bootstrap" : "beta-signup",
+      isFirstUser ? "owner-bootstrap" : "signup",
       now
     )
   ]);
@@ -402,7 +461,7 @@ async function handleRegister(request, env) {
       user: null,
       firstOwner: false,
       pendingApproval: true,
-      message: "Account created. Urban Director Studio beta access is waiting for administrator approval."
+      message: "Account created. Urban Director Studio access is waiting for administrator approval."
     }, 201);
   }
 
@@ -418,7 +477,12 @@ async function handleRegister(request, env) {
   );
 
   return json(
-    { user, firstOwner: true, pendingApproval: false },
+    {
+      user,
+      firstOwner: true,
+      pendingApproval: false,
+      ...(isNativeAppRequest(request) ? { sessionToken: token } : {})
+    },
     201,
     { "Set-Cookie": cookieForSession(token) }
   );
@@ -488,20 +552,25 @@ async function handleLogin(request, env) {
     return json({
       error:
         user?.accessStatus === "pending"
-          ? "Your Urban Director Studio account is waiting for beta approval."
+          ? "Your Urban Director Studio account is waiting for approval."
           : "Urban Director Studio access is suspended for this account."
     }, 403);
   }
 
   return json(
-    { user },
+    {
+      user,
+      ...(isNativeAppRequest(request) ? { sessionToken: token } : {})
+    },
     200,
     { "Set-Cookie": cookieForSession(token) }
   );
 }
 
 async function handleLogout(request, env) {
-  const token = parseCookies(request)[SESSION_COOKIE];
+  const token =
+    bearerToken(request) ||
+    parseCookies(request)[SESSION_COOKIE];
 
   if (env.DB && token) {
     const sessionId = await sha256(token);
@@ -659,7 +728,7 @@ async function handleAdminUsers(request, env) {
       u.marketing_opt_in,
       u.created_at,
       u.last_login_at,
-      COALESCE(up.plan, 'beta') AS plan,
+      COALESCE(up.plan, 'free') AS plan,
       COALESCE(up.access_status, 'active') AS access_status
     FROM users u
     LEFT JOIN user_products up
@@ -682,7 +751,7 @@ async function handleAdminAccess(request, env, userId) {
   const allowedAccess = new Set(["pending", "active", "suspended"]);
   const allowedRoles = new Set(["user", "admin"]);
 
-  const plan = allowedPlans.has(body.plan) ? body.plan : "beta";
+  const plan = allowedPlans.has(body.plan) ? body.plan : "free";
   const accessStatus = allowedAccess.has(body.accessStatus) ? body.accessStatus : "pending";
   const role = allowedRoles.has(body.role) ? body.role : "user";
   const now = Date.now();
