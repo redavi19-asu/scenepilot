@@ -218,7 +218,7 @@ export default function ReplayStudio({
     const duration = await getMediaDuration(programMaster.blob, url);
     const asset = {
       id: uid("program"),
-      name: programMaster.filename || "ScenePilot Program Master",
+      name: programMaster.filename || "Urban Director Studio Program Master",
       file: programMaster.blob,
       url,
       kind: "video",
@@ -412,7 +412,7 @@ export default function ReplayStudio({
     }));
     const payload = {
       version: 1,
-      product: "ScenePilot Edit",
+      product: "Urban Director Studio Edit",
       roomCode,
       aspectRatio,
       savedAt: new Date().toISOString(),
@@ -435,7 +435,7 @@ export default function ReplayStudio({
 
     const payload = {
       version: 1,
-      product: "ScenePilot Edit",
+      product: "Urban Director Studio Edit",
       roomCode,
       aspectRatio,
       exportedAt: new Date().toISOString(),
@@ -987,7 +987,7 @@ export default function ReplayStudio({
               <button
                 onClick={downloadProject}
                 disabled={!projectExportAllowed}
-                title={!projectExportAllowed ? "Protected ScenePilot Program masters cannot be exported by customer accounts." : "Export project"}
+                title={!projectExportAllowed ? "Protected Urban Director Studio Program masters cannot be exported by customer accounts." : "Export project"}
                 className={!projectExportAllowed ? "nle-export-protected" : ""}
               >
                 <FileDown size={16}/>
