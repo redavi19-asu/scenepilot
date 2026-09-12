@@ -256,7 +256,11 @@ async function createSession(env, userId, request) {
 async function requireAdmin(request, env) {
   const user = await getCurrentUser(request, env);
 
-  if (!user || (user.role !== "owner" && user.role !== "admin")) {
+  if (
+    !user ||
+    user.accessStatus !== "active" ||
+    (user.role !== "owner" && user.role !== "admin")
+  ) {
     return { user: null, response: json({ error: "Admin access required." }, 403) };
   }
 
