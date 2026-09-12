@@ -662,6 +662,7 @@ function LandingPage() {
         </div>
         <div>
           <button onClick={() => go("/privacy")}>PRIVACY</button>
+          <button onClick={() => go("/support")}>SUPPORT</button>
           <button onClick={() => window.location.assign("https://icomputeranything.com")}>I COMPUTER ANYTHING</button>
           <button onClick={() => go("/app")}>LOGIN</button>
         </div>
@@ -744,6 +745,41 @@ function PrivacyPage() {
         <p>
           Questions about Urban Director Studio privacy can be sent through I Computer Anything at
           icomputeranything.com.
+        </p>
+      </section>
+    </main>
+  );
+}
+
+function SupportPage() {
+  return (
+    <main className="sp-privacy-shell">
+      <section className="sp-privacy-card">
+        <button className="sp-auth-back sp-privacy-back" onClick={() => go("/")}>← Urban Director Studio home</button>
+        <span className="sp-kicker">SUPPORT</span>
+        <h1>Urban Director Studio Support</h1>
+        <p>
+          Need help with account access, camera connections, live production, recording,
+          broadcast setup, or another Urban Director Studio feature? Contact I Computer Anything.
+        </p>
+
+        <h2>Email support</h2>
+        <p>
+          <a className="sp-support-link" href="mailto:ryanedavis@gmail.com?subject=Urban%20Director%20Studio%20Support">
+            ryanedavis@gmail.com
+          </a>
+        </p>
+
+        <h2>Product and business support</h2>
+        <p>
+          Visit <a className="sp-support-link" href="https://icomputeranything.com">icomputeranything.com</a>
+          for I Computer Anything contact options and product information.
+        </p>
+
+        <h2>When contacting support</h2>
+        <p>
+          Include the device you are using, the production room or feature involved, and a short
+          description of what happened. Do not send passwords, stream keys, or other account secrets.
         </p>
       </section>
     </main>
@@ -2052,6 +2088,10 @@ export default function ScenePilotPortal() {
 
   if (cleanPath === "/privacy") {
     return <PrivacyPage/>;
+  }
+
+  if (cleanPath === "/support") {
+    return <SupportPage/>;
   }
 
   if (cleanPath === "/camera-open") {
