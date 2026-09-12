@@ -28,27 +28,31 @@ function openScenePilotUrl(value, allowRepeat = false) {
     window.sessionStorage.setItem(launchKey, "handled");
     window.location.replace(target);
   } catch (error) {
-    console.warn("ScenePilot ignored an invalid app link", error);
+    console.warn("Urban Director Studio ignored an invalid app link", error);
   }
 }
 
 if (Capacitor.isNativePlatform()) {
+  if ((window.location.pathname === "/" || !window.location.pathname) && !window.location.search) {
+    window.history.replaceState({}, "", "/app");
+  }
+
   void CapacitorApp.addListener("appUrlOpen", event => openScenePilotUrl(event.url, true));
   void CapacitorApp.getLaunchUrl()
     .then(result => {
       if (result?.url) openScenePilotUrl(result.url);
     })
-    .catch(error => console.warn("ScenePilot could not read its launch URL", error));
+    .catch(error => console.warn("Urban Director Studio could not read its launch URL", error));
 }
 
 createRoot(document.getElementById("root")).render(
   <ScenePilotPortal />
 );
 
-if ("serviceWorker" in navigator) {
+if (!Capacitor.isNativePlatform() && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
       .register("/sw.js")
-      .catch(error => console.warn("ScenePilot PWA service worker failed", error));
+      .catch(error => console.warn("Urban Director Studio PWA service worker failed", error));
   });
 }
