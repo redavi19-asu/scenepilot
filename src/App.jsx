@@ -3548,6 +3548,12 @@ async function enableCamera() {
               }}>
                 <CircleHelp size={17}/> TIPS / HELP
               </button>
+              <button type="button" onClick={() => window.location.assign("/support")}>
+                <CircleHelp size={17}/> SUPPORT
+              </button>
+              <button type="button" onClick={() => window.location.assign("/privacy")}>
+                <ShieldCheck size={17}/> PRIVACY POLICY
+              </button>
             </div>
 
             {(user?.role === "owner" || user?.role === "admin") && (
