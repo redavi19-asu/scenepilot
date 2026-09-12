@@ -307,6 +307,10 @@ async function ensureScenePilotProduct(env) {
       ?
     )`
   ).bind(Date.now()).run();
+
+  await env.DB.prepare(
+    "UPDATE products SET name = ? WHERE id = 'product_scenepilot'"
+  ).bind("Urban Director Studio").run();
 }
 
 async function handleRegister(request, env) {
