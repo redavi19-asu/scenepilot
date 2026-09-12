@@ -6,6 +6,7 @@ import {
   Copy, Share2, QrCode, ExternalLink
 } from "lucide-react";
 import { publishProgramToRealtime } from "./cloudflareRealtime";
+import { apiFetch, publicOrigin } from "./runtimeApi";
 import "./BroadcastPanel.css";
 
 const DESTINATIONS = [
@@ -26,7 +27,7 @@ const EMPTY_SETTINGS = Object.fromEntries(
 );
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
@@ -61,7 +62,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const publicWatchUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
     const safeRoom = encodeURIComponent(String(roomCode || "live").trim());
-    return `${window.location.origin}/watch/${safeRoom}`;
+    return `${publicOrigin()}/watch/${safeRoom}`;
   }, [roomCode]);
 
   useEffect(() => {
