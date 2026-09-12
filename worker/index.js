@@ -253,7 +253,7 @@ async function verifyTurnstile(request, env, token, expectedAction) {
 
     if (!verification.ok) {
       console.error(
-        "ScenePilot Turnstile HTTP error",
+        "Urban Director Studio Turnstile HTTP error",
         verification.status
       );
 
@@ -273,7 +273,7 @@ async function verifyTurnstile(request, env, token, expectedAction) {
       )
     ) {
       console.warn(
-        "ScenePilot Turnstile verification failed",
+        "Urban Director Studio Turnstile verification failed",
         result["error-codes"] || []
       );
 
@@ -285,7 +285,7 @@ async function verifyTurnstile(request, env, token, expectedAction) {
     return null;
   } catch (error) {
     console.error(
-      "ScenePilot Turnstile verification error",
+      "Urban Director Studio Turnstile verification error",
       error
     );
 
@@ -485,7 +485,7 @@ async function handleLogin(request, env) {
       error:
         user?.accessStatus === "pending"
           ? "Your ScenePilot account is waiting for beta approval."
-          : "ScenePilot access is suspended for this account."
+          : "Urban Director Studio access is suspended for this account."
     }, 403);
   }
 
@@ -636,7 +636,7 @@ async function handleDcLiveVerifyTicket(request, env) {
     },
     network: {
       id: row.network_id || "",
-      name: row.network_name || "ScenePilot Network"
+      name: row.network_name || "Urban Director Studio Network"
     }
   });
 }
@@ -785,7 +785,7 @@ export class ScenePilotRoom {
 
   async fetch(request) {
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
-      return new Response("ScenePilot WebSocket endpoint", { status: 426 });
+      return new Response("Urban Director Studio WebSocket endpoint", { status: 426 });
     }
 
     const pair = new WebSocketPair();
@@ -1376,7 +1376,7 @@ async function ensureUserScenePilotNetwork(env, user) {
   const baseName =
     user.role === "owner"
       ? "ICA Owner Network"
-      : `${user.displayName || user.email || "ScenePilot"} Network`;
+      : `${user.displayName || user.email || "Urban Director Studio"} Network`;
   const slug = `${slugifyNetwork(baseName)}-${id.slice(0, 6)}`;
   const joinToken = randomToken(24);
 
@@ -1398,12 +1398,12 @@ async function ensureUserScenePilotNetwork(env, user) {
 
 async function handleNetwork(request, env) {
   if (!env.DB) {
-    return json({ error: "ScenePilot database is unavailable." }, 503);
+    return json({ error: "Urban Director Studio database is unavailable." }, 503);
   }
 
   const user = await getCurrentUser(request, env);
   if (!user || user.status !== "active" || user.accessStatus !== "active") {
-    return json({ error: "ScenePilot account access required." }, 401);
+    return json({ error: "Urban Director Studio account access required." }, 401);
   }
 
   const network = await ensureUserScenePilotNetwork(env, user);
@@ -1525,7 +1525,7 @@ async function requireScenePilotNetworkMember(request, env) {
     return {
       user: null,
       network: null,
-      response: json({ error: "ScenePilot account access required." }, 401)
+      response: json({ error: "Urban Director Studio account access required." }, 401)
     };
   }
 
@@ -1535,7 +1535,7 @@ async function requireScenePilotNetworkMember(request, env) {
     return {
       user,
       network: null,
-      response: json({ error: "ScenePilot network not found." }, 404)
+      response: json({ error: "Urban Director Studio network not found." }, 404)
     };
   }
 
@@ -1572,7 +1572,7 @@ async function handleBroadcastDestinations(request, env) {
     if (!destinations.some(item => item.id === "self")) {
       destinations.push({
         id: "self",
-        label: "ScenePilot Self-Hosted",
+        label: "Urban Director Studio Self-Hosted",
         url: "",
         configured: Boolean(String(env.ENCODER_API_URL || "").trim()),
         status: "configured",
@@ -1697,7 +1697,7 @@ async function loadBroadcastTargets(env, networkId, destinationIds) {
     if (id === "self") {
       targets.push({
         id: "self",
-        label: "ScenePilot Self-Hosted",
+        label: "Urban Director Studio Self-Hosted",
         url: "",
         streamKey: ""
       });
@@ -1733,7 +1733,7 @@ async function callEncoder(env, path, payload) {
       pending: true,
       status: 503,
       data: {
-        error: "ScenePilot encoder backend is not connected yet."
+        error: "Urban Director Studio encoder backend is not connected yet."
       }
     };
   }
@@ -2080,7 +2080,7 @@ async function handleApi(request, env, url) {
         await ensureScenePilotProduct(env);
         databaseReady = true;
       } catch (error) {
-        console.error("ScenePilot D1 health check failed", error);
+        console.error("Urban Director Studio D1 health check failed", error);
       }
     }
 
@@ -2092,7 +2092,7 @@ async function handleApi(request, env, url) {
       turnstileConfigured: Boolean(
         String(env.TURNSTILE_SECRET_KEY || "").trim()
       ),
-      service: "ScenePilot"
+      service: "Urban Director Studio"
     }, Boolean(env.DB) && databaseReady ? 200 : 503);
   }
 
@@ -2188,10 +2188,10 @@ export default {
       try {
         return await handleApi(request, env, url);
       } catch (error) {
-        console.error("ScenePilot health endpoint error", error);
+        console.error("Urban Director Studio health endpoint error", error);
         return json({
           ok: false,
-          service: "ScenePilot",
+          service: "Urban Director Studio",
           error: error instanceof Error ? error.message : String(error)
         }, 500);
       }
@@ -2202,12 +2202,12 @@ export default {
         return await handleApi(request, env, url);
       } catch (error) {
         console.error(
-          "ScenePilot API unhandled error",
+          "Urban Director Studio API unhandled error",
           error
         );
 
         return json({
-          error: "ScenePilot account service error.",
+          error: "Urban Director Studio account service error.",
           detail:
             error instanceof Error
               ? error.message
@@ -2226,7 +2226,7 @@ export default {
 
       if (!env.DB || !networkId) {
         return json({
-          error: "ScenePilot network information is required."
+          error: "Urban Director Studio network information is required."
         }, 400);
       }
 
@@ -2235,7 +2235,7 @@ export default {
       try {
         user = await getCurrentUser(request, env);
       } catch (error) {
-        console.error("ScenePilot auth lookup failed", error);
+        console.error("Urban Director Studio auth lookup failed", error);
       }
 
       const memberAccess = Boolean(
@@ -2332,7 +2332,7 @@ export default {
     }
 
     return json({
-      error: "ScenePilot route not found.",
+      error: "Urban Director Studio route not found.",
       path: url.pathname
     }, 404);
   }
