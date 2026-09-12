@@ -43,7 +43,7 @@ function extractDatabaseId(info) {
   return null;
 }
 
-console.log("ScenePilot: locating Cloudflare D1 database...");
+console.log("Urban Director Studio: locating Cloudflare D1 database...");
 
 const rawInfo = run("npx", [
   "wrangler",
@@ -79,10 +79,10 @@ writeFileSync(
 );
 
 console.log(
-  `ScenePilot: bound ${DATABASE_NAME} to env.DB (${databaseId})`
+  `Urban Director Studio: bound ${DATABASE_NAME} to env.DB (${databaseId})`
 );
 
-console.log("ScenePilot: applying D1 schema...");
+console.log("Urban Director Studio: applying D1 schema...");
 
 execFileSync(
   "npx",
@@ -101,5 +101,5 @@ execFileSync(
   }
 );
 
-console.log("ScenePilot: D1 setup complete.");
+console.log("Urban Director Studio: D1 setup complete.");
 console.log("Next: git add wrangler.jsonc && git commit && git push");
