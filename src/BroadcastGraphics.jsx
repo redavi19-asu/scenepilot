@@ -15,10 +15,10 @@ const INITIAL = {
   logo: true,
   headline: "COMING UP",
   subheadline: "Live coverage continues shortly",
-  tickerText: "ScenePilot live production • Add updates, headlines, alerts, or event information here",
+  tickerText: "Urban Director Studio live production • Add updates, headlines, alerts, or event information here",
   countdownLabel: "NEWS CONFERENCE",
   countdownMinutes: 10,
-  logoText: "SP",
+  logoText: "UDS",
   topicSide: "right"
 };
 
