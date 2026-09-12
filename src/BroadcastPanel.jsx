@@ -126,7 +126,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     }
 
     if (typeof MediaRecorder === "undefined" || typeof WebSocket === "undefined") {
-      throw new Error("This browser cannot send the Program feed to ScenePilot.");
+      throw new Error("This browser cannot send the Program feed to Urban Director Studio.");
     }
 
     const mimeType = chooseIngestMimeType();
