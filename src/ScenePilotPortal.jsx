@@ -3,7 +3,7 @@ import {
   Radio, LogIn, UserPlus, LockKeyhole, MessageSquare,
   Send, ShieldCheck, Users, ArrowRight, LogOut, Crown, Mail,
   X, Camera, RadioTower, Mic, Headphones, Cast, Maximize2, Smartphone,
-  Monitor, Film, Layers3, Server, Globe2, CheckCircle2
+  Monitor, Film, Layers3, Server, Globe2, CheckCircle2, Trash2, RefreshCw
 } from "lucide-react";
 import App from "./App.jsx";
 import TurnstileWidget from "./TurnstileWidget.jsx";
@@ -836,16 +836,17 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
         }
       );
 
-      if (mode === "register" && data.pendingApproval) {
-        setStatus("ACCOUNT CREATED — ACCESS PENDING. You can log in after the Urban Director Studio administrator activates your access.");
-        setMode("login");
-        setPassword("");
-        setTurnstileToken("");
-        setTurnstileResetKey(value => value + 1);
+      if (data.user) {
+        onAuthenticated(data.user);
         return;
       }
 
-      onAuthenticated(data.user);
+      setStatus(
+        data.message ||
+        (mode === "register"
+          ? "Account created. Sign in to continue."
+          : "Sign in could not be completed.")
+      );
     } catch (error) {
       setStatus(error.message);
       setTurnstileToken("");
@@ -943,6 +944,45 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
             {busy ? "PLEASE WAIT..." : mode === "register" ? "CREATE ACCOUNT" : "LOGIN"}
           </button>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function AccessStatusPage({ user, onLogout, onDeleteAccount }) {
+  const pending = user?.accessStatus === "pending";
+  const suspended = user?.accessStatus === "suspended";
+
+  return (
+    <div className="sp-auth-shell">
+      <div className="sp-auth-card sp-access-status-card">
+        <div className="sp-auth-logo"><LockKeyhole size={26}/></div>
+        <span className="sp-kicker">URBAN DIRECTOR STUDIO ACCOUNT</span>
+        <h1>{pending ? "Access pending." : suspended ? "Access suspended." : "Account access."}</h1>
+        <p>
+          {pending
+            ? "Your account is signed in and waiting for Director access approval. You can check again, sign out, or permanently delete your account."
+            : suspended
+              ? "Director access is currently suspended. You can sign out or permanently delete your account."
+              : "Your account is signed in, but Director access is not currently available."}
+        </p>
+
+        <div className="sp-access-status-actions">
+          {pending && (
+            <button className="sp-auth-submit" type="button" onClick={() => window.location.reload()}>
+              <RefreshCw size={17}/> CHECK ACCESS
+            </button>
+          )}
+          <button className="sp-secondary" type="button" onClick={onLogout}>
+            <LogOut size={17}/> LOG OUT
+          </button>
+          <button className="sp-delete-account-button" type="button" onClick={onDeleteAccount}>
+            <Trash2 size={17}/> DELETE ACCOUNT
+          </button>
+          <button className="sp-access-privacy" type="button" onClick={() => go("/privacy")}>
+            PRIVACY POLICY
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2127,13 +2167,22 @@ export default function ScenePilotPortal() {
 
   if (cleanPath === "/register") {
     if (loading) return <div className="sp-portal-loading"><Radio size={28}/> LOADING ICA ACCOUNT...</div>;
-    if (user) return <AuthPanel onAuthenticated={setUser} initialMode="register"/>;
+    if (user?.accessStatus !== "active") {
+      return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount}/>;
+    }
+    if (user) {
+      window.location.replace("/app");
+      return <div className="sp-portal-loading"><Radio size={28}/> OPENING URBAN DIRECTOR STUDIO...</div>;
+    }
     return <AuthPanel onAuthenticated={setUser} initialMode="register"/>;
   }
 
   if (cleanPath === "/app") {
     if (loading) return <div className="sp-portal-loading"><Radio size={28}/> LOADING ICA ACCOUNT...</div>;
     if (!user) return <AuthPanel onAuthenticated={setUser}/>;
+    if (user.accessStatus !== "active") {
+      return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount}/>;
+    }
 
     return (
       <>
