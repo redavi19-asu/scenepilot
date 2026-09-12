@@ -1,4 +1,4 @@
-const CACHE_NAME = "scenepilot-shell-v1";
+const CACHE_NAME = "scenepilot-shell-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/favicon.svg"];
 
 self.addEventListener("install", event => {
@@ -32,6 +32,8 @@ self.addEventListener("fetch", event => {
 
   if (
     url.pathname === "/signal" ||
+    url.pathname === "/health" ||
+    url.pathname.startsWith("/api/") ||
     request.headers.get("upgrade") === "websocket"
   ) {
     return;
