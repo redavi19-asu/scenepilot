@@ -456,15 +456,6 @@ async function handleRegister(request, env) {
     )
   ]);
 
-  if (!isFirstUser) {
-    return json({
-      user: null,
-      firstOwner: false,
-      pendingApproval: true,
-      message: "Account created. Urban Director Studio access is waiting for administrator approval."
-    }, 201);
-  }
-
   const token = await createSession(env, id, request);
 
   const user = await getCurrentUser(
@@ -479,8 +470,11 @@ async function handleRegister(request, env) {
   return json(
     {
       user,
-      firstOwner: true,
-      pendingApproval: false,
+      firstOwner: isFirstUser,
+      pendingApproval: !isFirstUser,
+      message: isFirstUser
+        ? "Account created."
+        : "Account created. Urban Director Studio access is waiting for administrator approval.",
       ...(isNativeAppRequest(request) ? { sessionToken: token } : {})
     },
     201,
@@ -548,18 +542,15 @@ async function handleLogin(request, env) {
     env
   );
 
-  if (user?.accessStatus !== "active") {
-    return json({
-      error:
-        user?.accessStatus === "pending"
-          ? "Your Urban Director Studio account is waiting for approval."
-          : "Urban Director Studio access is suspended for this account."
-    }, 403);
-  }
-
   return json(
     {
       user,
+      accessMessage:
+        user?.accessStatus === "pending"
+          ? "Your Urban Director Studio access is waiting for approval."
+          : user?.accessStatus === "suspended"
+            ? "Urban Director Studio access is suspended for this account."
+            : "",
       ...(isNativeAppRequest(request) ? { sessionToken: token } : {})
     },
     200,
