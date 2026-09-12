@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Radio, LogIn, UserPlus, Download, LockKeyhole, MessageSquare,
+  Radio, LogIn, UserPlus, LockKeyhole, MessageSquare,
   Send, ShieldCheck, Users, ArrowRight, LogOut, Crown, Mail,
-  X, Camera, RadioTower, Mic, Headphones, Cast, Maximize2, Smartphone
+  X, Camera, RadioTower, Mic, Headphones, Cast, Maximize2, Smartphone,
+  Monitor, Film, Layers3, Server, Globe2, CheckCircle2
 } from "lucide-react";
 import App from "./App.jsx";
 import TurnstileWidget from "./TurnstileWidget.jsx";
@@ -318,106 +319,346 @@ function go(path) {
 
 function LandingPage() {
   return (
-    <div className="sp-landing">
+    <div className="sp-landing sp-product-site">
       <header className="sp-landing-nav">
-        <div className="sp-landing-brand">
+        <button className="sp-landing-brand sp-brand-button" onClick={() => go("/")} aria-label="Urban Director Studio home">
           <span className="sp-landing-mark"><Radio size={24}/></span>
           <div>
             <strong>URBAN DIRECTOR STUDIO</strong>
             <small>BY I COMPUTER ANYTHING</small>
           </div>
-        </div>
+        </button>
+
+        <nav className="sp-public-nav" aria-label="Product navigation">
+          <a href="#features">FEATURES</a>
+          <a href="#workflow">HOW IT WORKS</a>
+          <a href="#use-cases">USE CASES</a>
+          <a href="#pricing">PRICING</a>
+        </nav>
 
         <div className="sp-nav-account-actions">
           <button className="sp-nav-create" onClick={() => go("/register")}>
             <UserPlus size={17}/> CREATE ACCOUNT
           </button>
           <button className="sp-nav-login" onClick={() => go("/app")}>
-            <LogIn size={17}/> LOGIN
+            <LogIn size={17}/> OPEN STUDIO
           </button>
         </div>
       </header>
 
       <main>
-        <section className="sp-hero">
+        <section className="sp-hero sp-product-hero">
           <div className="sp-hero-copy">
-            <span className="sp-kicker">LIVE PRODUCTION • PHONES • CAMERAS • EVENTS</span>
-            <h1>Your production switcher can fit in a browser.</h1>
+            <span className="sp-kicker">LIVE PRODUCTION • MULTI-CAMERA • REMOTE CREW</span>
+            <h1>Direct the whole production from one control room.</h1>
             <p>
-              Urban Director Studio turns phones, tablets, capture devices and computers into a
-              coordinated live-production system with a dedicated Director and wireless
-              camera operators.
+              Urban Director Studio turns phones, tablets, cameras, capture devices, and external audio
+              sources into one coordinated live-production system. Switch cameras, communicate with operators,
+              add graphics, record, replay, and broadcast from a single Director console.
             </p>
 
             <div className="sp-hero-actions">
-              <button className="sp-primary" onClick={() => go("/app")}>
-                <LogIn size={18}/> LOGIN
+              <button className="sp-primary sp-hero-primary" onClick={() => go("/app")}>
+                <RadioTower size={18}/> OPEN URBAN DIRECTOR STUDIO
               </button>
               <button className="sp-secondary" onClick={() => go("/register")}>
                 <UserPlus size={18}/> CREATE ACCOUNT
               </button>
-              <button className="sp-secondary" disabled title="Desktop download will unlock after release packaging is complete.">
-                <Download size={18}/> DOWNLOAD — COMING SOON
-              </button>
             </div>
 
-            <div className="sp-beta-note">
-              <ShieldCheck size={17}/>
-              <span>Create an account to request beta access. Director access is granted separately by the Urban Director Studio administrator.</span>
+            <div className="sp-hero-proof">
+              <span><CheckCircle2 size={15}/> Wireless phone cameras</span>
+              <span><CheckCircle2 size={15}/> Director-to-crew comms</span>
+              <span><CheckCircle2 size={15}/> Replay, graphics & recording</span>
             </div>
           </div>
 
-          <div className="sp-hero-console">
+          <div className="sp-hero-console sp-product-console" aria-label="Urban Director Studio console preview">
             <div className="sp-console-top">
               <span><i/> DIRECTOR ONLINE</span>
-              <span>ROOM SP-4827</span>
+              <span>ROOM UDS-4827</span>
             </div>
+
             <div className="sp-console-screens">
-              <div><Camera size={34}/><strong>PREVIEW</strong><small>CAM 07</small></div>
-              <div><RadioTower size={34}/><strong>PROGRAM</strong><small>LIVE</small></div>
+              <div className="sp-screen-preview">
+                <Camera size={38}/>
+                <strong>PREVIEW</strong>
+                <small>CAM 07 • STAGE LEFT</small>
+              </div>
+              <div className="sp-screen-program">
+                <RadioTower size={38}/>
+                <strong>PROGRAM</strong>
+                <small>LIVE • CAM 02</small>
+              </div>
             </div>
+
             <div className="sp-console-cams">
-              {[1,2,3,4,5,6].map(cam => <span key={cam}>CAM {String(cam).padStart(2,"0")}</span>)}
+              {[1,2,3,4,5,6].map(cam => (
+                <span key={cam} className={cam === 2 ? "live" : cam === 7 ? "preview" : ""}>
+                  CAM {String(cam).padStart(2,"0")}
+                </span>
+              ))}
+            </div>
+
+            <div className="sp-console-tools">
+              <span>MASTER AUDIO</span>
+              <span>INSTANT REPLAY</span>
+              <span>GRAPHICS</span>
+              <span>BROADCAST</span>
             </div>
           </div>
         </section>
 
-        <section className="sp-feature-strip">
+        <section className="sp-feature-strip sp-public-proof-strip">
           <article>
-            <Users size={22}/>
-            <strong>ONE DIRECTOR</strong>
-            <p>One authorized Director controls the room. QR-code users join as camera operators only.</p>
+            <Camera size={22}/>
+            <strong>MULTI-CAMERA</strong>
+            <p>Connect phones, tablets, capture devices, and camera sources to one production room.</p>
+          </article>
+          <article>
+            <RadioTower size={22}/>
+            <strong>LIVE DIRECTING</strong>
+            <p>Preview sources, take cameras to Program, and manage the production from one console.</p>
           </article>
           <article>
             <MessageSquare size={22}/>
-            <strong>OPERATOR COMMS</strong>
-            <p>Camera operators can text the Director when a loud venue makes voice communication difficult.</p>
+            <strong>CREW COMMS</strong>
+            <p>Use private text and walkie-talkie communication between the Director and camera operators.</p>
           </article>
           <article>
-            <LockKeyhole size={22}/>
-            <strong>ICA ACCOUNT</strong>
-            <p>Your login is designed to become one account for Urban Director Studio and future I Computer Anything SaaS products.</p>
+            <ShieldCheck size={22}/>
+            <strong>CONTROLLED ACCESS</strong>
+            <p>Director access stays protected while camera operators join the room through controlled links.</p>
           </article>
         </section>
 
-        <section className="sp-plans">
-          <div>
-            <span className="sp-kicker">EARLY ACCESS</span>
-            <h2>Get the account system in place now. Billing comes next.</h2>
+        <section className="sp-public-section" id="features">
+          <div className="sp-section-heading">
+            <span className="sp-kicker">THE PRODUCTION TOOLKIT</span>
+            <h2>Everything the Director needs, without dragging a control room everywhere.</h2>
             <p>
-              Stripe purchasing and desktop downloads are intentionally disabled until
-              the commercial release flow is connected.
+              Urban Director Studio is built around the actual production workflow: get sources connected,
+              communicate with the crew, cut the show, capture the Program feed, and get it out to an audience.
             </p>
           </div>
-          <button className="sp-disabled-pay" disabled>
-            STRIPE CHECKOUT — COMING SOON
-          </button>
+
+          <div className="sp-feature-grid">
+            <article>
+              <Camera size={24}/>
+              <h3>Wireless Camera Operators</h3>
+              <p>Turn compatible phones and tablets into remote camera sources with operator controls and room assignment.</p>
+            </article>
+            <article>
+              <Monitor size={24}/>
+              <h3>Director Multiview</h3>
+              <p>See connected sources, prepare Preview, take Program, manage camera names, and control the production layout.</p>
+            </article>
+            <article>
+              <Mic size={24}/>
+              <h3>Master Audio & External Sources</h3>
+              <p>Use camera audio, the Director device, or connected audio interfaces and capture hardware as production sources.</p>
+            </article>
+            <article>
+              <Film size={24}/>
+              <h3>Recording & Instant Replay</h3>
+              <p>Capture production recordings, maintain replay buffers, and move recorded material into the edit workflow.</p>
+            </article>
+            <article>
+              <Layers3 size={24}/>
+              <h3>Graphics & Overlays</h3>
+              <p>Run lower thirds, tickers, countdowns, topic graphics, logo bugs, and other on-air visual elements.</p>
+            </article>
+            <article>
+              <Globe2 size={24}/>
+              <h3>Broadcast & Remote Viewing</h3>
+              <p>Publish the Program feed to configured destinations and provide viewers with a dedicated live watch experience.</p>
+            </article>
+          </div>
+        </section>
+
+        <section className="sp-workflow-section" id="workflow">
+          <div className="sp-section-heading">
+            <span className="sp-kicker">HOW IT WORKS</span>
+            <h2>Scan. Connect. Direct. Broadcast.</h2>
+          </div>
+
+          <div className="sp-workflow-grid">
+            <article>
+              <b>01</b>
+              <Smartphone size={25}/>
+              <h3>Create the production room</h3>
+              <p>The Director opens a room and prepares the production from the main console.</p>
+            </article>
+            <article>
+              <b>02</b>
+              <Camera size={25}/>
+              <h3>Connect camera operators</h3>
+              <p>Crew members use the production link or QR workflow to join with their camera devices.</p>
+            </article>
+            <article>
+              <b>03</b>
+              <RadioTower size={25}/>
+              <h3>Run the show</h3>
+              <p>Preview, switch, communicate, control audio, trigger graphics, and manage the live Program feed.</p>
+            </article>
+            <article>
+              <b>04</b>
+              <Cast size={25}/>
+              <h3>Record or publish</h3>
+              <p>Capture the production, use replay and editing tools, or send the Program feed to your audience.</p>
+            </article>
+          </div>
+        </section>
+
+        <section className="sp-showcase-section">
+          <div className="sp-showcase-copy">
+            <span className="sp-kicker">THE DIRECTOR CONSOLE</span>
+            <h2>Built to feel like production software, not a pile of disconnected tools.</h2>
+            <p>
+              The Director stays in one operational view while camera sources, Program/Preview, communication,
+              audio, graphics, replay, and broadcast controls work together around the same room.
+            </p>
+            <button className="sp-secondary" onClick={() => go("/app")}>
+              OPEN THE CONSOLE <ArrowRight size={17}/>
+            </button>
+          </div>
+
+          <div className="sp-showcase-ui">
+            <header>
+              <span><i/> SYSTEM READY</span>
+              <strong>URBAN DIRECTOR STUDIO</strong>
+              <span>DIRECTOR</span>
+            </header>
+            <div className="sp-showcase-program">
+              <div>
+                <span>PREVIEW</span>
+                <Camera size={42}/>
+                <small>CAM 04</small>
+              </div>
+              <div className="program">
+                <span>PROGRAM</span>
+                <RadioTower size={42}/>
+                <small>CAM 01 • LIVE</small>
+              </div>
+            </div>
+            <div className="sp-showcase-bottom">
+              <span>CAM 01</span><span>CAM 02</span><span>CAM 03</span><span>CAM 04</span>
+              <span>REPLAY</span><span>GRAPHICS</span><span>AUDIO</span><span>GO LIVE</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="sp-public-section" id="use-cases">
+          <div className="sp-section-heading">
+            <span className="sp-kicker">BUILT FOR REAL PRODUCTIONS</span>
+            <h2>One platform, a lot of ways to use it.</h2>
+          </div>
+
+          <div className="sp-use-grid">
+            <article><RadioTower size={23}/><h3>Live Events</h3><p>Direct conferences, performances, ceremonies, community events, and multi-camera live coverage.</p></article>
+            <article><Mic size={23}/><h3>Podcasts & Interviews</h3><p>Use multiple angles, external audio, lower thirds, and recorded Program output from one production room.</p></article>
+            <article><Users size={23}/><h3>Sports & Community Coverage</h3><p>Position camera operators around a venue and keep the Director in control of the final live feed.</p></article>
+            <article><Smartphone size={23}/><h3>Field Production</h3><p>Use mobile devices as flexible sources when a traditional truck-sized production setup is not practical.</p></article>
+          </div>
+        </section>
+
+        <section className="sp-platform-section">
+          <div>
+            <span className="sp-kicker">ONE PRODUCT • MULTIPLE SCREENS</span>
+            <h2>Work from the devices your production already uses.</h2>
+            <p>Urban Director Studio is designed around a shared account and production-room workflow across web, mobile, and desktop release channels.</p>
+          </div>
+
+          <div className="sp-platform-grid">
+            <article><Globe2 size={24}/><strong>WEB</strong><span>Director console and account access</span></article>
+            <article><Smartphone size={24}/><strong>iPHONE / iPAD</strong><span>Native mobile production workflow</span></article>
+            <article><Monitor size={24}/><strong>WINDOWS / macOS</strong><span>Desktop production packaging</span></article>
+            <article><Server size={24}/><strong>SELF-HOSTED BACKEND</strong><span>Production services under your control</span></article>
+          </div>
+        </section>
+
+        <section className="sp-pricing-section" id="pricing">
+          <div className="sp-pricing-copy">
+            <span className="sp-kicker">URBAN DIRECTOR STUDIO PRO</span>
+            <h2>Professional production software without production-truck pricing.</h2>
+            <p>One monthly plan built around the complete Director workflow.</p>
+          </div>
+
+          <div className="sp-price-card">
+            <div className="sp-price-line">
+              <span>$</span><strong>29.99</strong><small>/ month</small>
+            </div>
+            <ul>
+              <li><CheckCircle2 size={16}/> Multi-camera Director console</li>
+              <li><CheckCircle2 size={16}/> Wireless camera operators</li>
+              <li><CheckCircle2 size={16}/> Crew messaging & private intercom</li>
+              <li><CheckCircle2 size={16}/> Recording, replay & editing workflow</li>
+              <li><CheckCircle2 size={16}/> Broadcast graphics & overlays</li>
+              <li><CheckCircle2 size={16}/> Broadcast / destination controls</li>
+            </ul>
+            <button className="sp-primary" onClick={() => go("/register")}>
+              CREATE YOUR ACCOUNT <ArrowRight size={17}/>
+            </button>
+            <small className="sp-price-note">Platform-specific purchase options are handled through the supported release channel.</small>
+          </div>
+        </section>
+
+        <section className="sp-faq-section">
+          <div className="sp-section-heading">
+            <span className="sp-kicker">QUESTIONS</span>
+            <h2>Urban Director Studio, broken down.</h2>
+          </div>
+
+          <div className="sp-faq-list">
+            <details>
+              <summary>Do all camera operators need the Director login?</summary>
+              <p>No. The Director controls the room while camera operators can join through the controlled production-camera workflow.</p>
+            </details>
+            <details>
+              <summary>Can I use phones as cameras?</summary>
+              <p>Yes. Mobile devices are a core part of the system and can operate as wireless production cameras when supported by the device and browser/app environment.</p>
+            </details>
+            <details>
+              <summary>Can I use external audio or capture hardware?</summary>
+              <p>Urban Director Studio is designed to work with available browser/native media inputs, including compatible external audio and video capture devices.</p>
+            </details>
+            <details>
+              <summary>Can I record and replay?</summary>
+              <p>Yes. The production workflow includes recording, Program-master handling, instant replay support, and an editing/replay workspace.</p>
+            </details>
+            <details>
+              <summary>Who builds and supports Urban Director Studio?</summary>
+              <p>Urban Director Studio is built by I Computer Anything and is part of the ICA software platform.</p>
+            </details>
+          </div>
+        </section>
+
+        <section className="sp-final-cta">
+          <div>
+            <span className="sp-kicker">READY WHEN THE PRODUCTION IS</span>
+            <h2>Put the control room wherever you are.</h2>
+            <p>Create your Urban Director Studio account and open the Director console.</p>
+          </div>
+          <div>
+            <button className="sp-primary" onClick={() => go("/register")}>
+              CREATE ACCOUNT <ArrowRight size={17}/>
+            </button>
+            <button className="sp-secondary" onClick={() => go("/app")}>
+              <LogIn size={17}/> LOGIN
+            </button>
+          </div>
         </section>
       </main>
 
-      <footer className="sp-landing-footer">
-        <span>Urban Director Studio</span>
-        <span>Built by I Computer Anything</span>
+      <footer className="sp-landing-footer sp-product-footer">
+        <div>
+          <strong>URBAN DIRECTOR STUDIO</strong>
+          <span>Built by I Computer Anything</span>
+        </div>
+        <div>
+          <button onClick={() => window.location.assign("https://icomputeranything.com")}>I COMPUTER ANYTHING</button>
+          <button onClick={() => go("/app")}>LOGIN</button>
+        </div>
       </footer>
     </div>
   );
@@ -474,7 +715,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
       );
 
       if (mode === "register" && data.pendingApproval) {
-        setStatus("ACCOUNT CREATED — WAITING FOR BETA APPROVAL. You can log in after the Urban Director Studio administrator activates your access.");
+        setStatus("ACCOUNT CREATED — ACCESS PENDING. You can log in after the Urban Director Studio administrator activates your access.");
         setMode("login");
         setPassword("");
         setTurnstileToken("");
@@ -501,7 +742,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
         <h1>{mode === "register" ? "Create your account." : "Welcome back."}</h1>
         <p>
           {mode === "register"
-            ? "Create your ICA Software account to request Urban Director Studio beta access. Registration does not unlock the Director console until an administrator approves you."
+            ? "Create your ICA Software account. Director access is activated after your account is approved."
             : "Sign in to open the Director console after your Urban Director Studio access has been activated."}
         </p>
 
