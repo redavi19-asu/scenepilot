@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "ScenePilot Live Production",
-  "short_name": "ScenePilot",
+  "name": "Urban Director Studio",
+  "short_name": "Urban Director",
   "description": "Multi-camera live production, switching, instant replay, and editing.",
   "start_url": "/",
   "scope": "/",
