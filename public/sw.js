@@ -1,5 +1,5 @@
-const CACHE_NAME = "scenepilot-shell-v2";
-const SHELL = ["/", "/manifest.webmanifest", "/favicon.svg"];
+const CACHE_NAME = "urban-director-shell-v3";
+const SHELL = ["/", "/manifest.webmanifest", "/urban-director-icon.svg"];
 
 self.addEventListener("install", event => {
   event.waitUntil(
