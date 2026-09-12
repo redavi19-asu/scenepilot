@@ -3906,7 +3906,8 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
   margin-bottom:2px;
 }
 .director-menu-group button,
-.director-menu-logout{
+.director-menu-logout,
+.director-menu-delete-account{
   width:100%;
   min-height:43px;
   border:1px solid #41463e;
@@ -3941,10 +3942,21 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
 }
 .director-menu-logout{
   margin-top:18px;
-  border-color:#643936;
-  background:#321e1c;
-  color:#ffd5cf;
+  border-color:#41463e;
+  background:#20231f;
+  color:#e4e7df;
   justify-content:center;
+}
+.director-menu-delete-account{
+  margin-top:7px;
+  border-color:#6f302c;
+  background:#2b1715;
+  color:#ffb9b0;
+  justify-content:center;
+}
+.director-menu-delete-account:hover{
+  border-color:#984238;
+  background:#3a1d1a;
 }
 .source-feature-row:has(.main-camera-home):not(:has(.director-camera-panel)){
   grid-template-columns:1fr;
