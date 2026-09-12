@@ -1575,7 +1575,7 @@ async function createSignalTicket(env, userId, networkId) {
   const token = randomToken(24);
   const tokenHash = await sha256(token);
   const now = Date.now();
-  const expiresAt = now + 10 * 60 * 1000;
+  const expiresAt = now + 12 * 60 * 60 * 1000;
 
   await env.DB.batch([
     env.DB.prepare(
