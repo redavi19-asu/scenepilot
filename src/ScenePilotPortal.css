@@ -2614,3 +2614,14 @@
   min-height: auto;
   margin: 4px 0 10px;
 }
+
+
+.sp-support-link {
+  color: #d0a365;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sp-support-link:hover {
+  color: #f1c987;
+}
