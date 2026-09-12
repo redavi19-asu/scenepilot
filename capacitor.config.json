@@ -1,6 +1,6 @@
 {
   "appId": "com.icomputeranything.scenepilot",
-  "appName": "ScenePilot",
+  "appName": "Urban Director Studio",
   "webDir": "dist",
   "server": {
     "url": "https://scenepilot.ryanedavis.workers.dev/app",
