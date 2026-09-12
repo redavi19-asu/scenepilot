@@ -30,13 +30,13 @@ const qualityProfiles = {
 
 function ScenePilotSplash({ cameraMode }) {
   return (
-    <div className="scenepilot-splash" role="status" aria-label="ScenePilot loading">
+    <div className="scenepilot-splash" role="status" aria-label="Urban Director Studio loading">
       <div className="splash-orbit splash-orbit-one"/>
       <div className="splash-orbit splash-orbit-two"/>
       <div className="splash-orbit splash-orbit-three"/>
       <div className="splash-core">
         <div className="splash-mark"><Radio size={34}/></div>
-        <strong>SCENEPILOT</strong>
+        <strong>URBAN DIRECTOR STUDIO</strong>
         <span>{cameraMode ? "CAMERA LINK" : "LIVE PRODUCTION CONSOLE"}</span>
         <div className="splash-line"><i/></div>
         <small>{cameraMode ? "CONNECTING CAMERA" : "LOADING CONTROL ROOM"}</small>
@@ -126,7 +126,7 @@ function App({ user = null, onLogout = null }) {
       subheadline: "",
       tickerText: "",
       countdownLabel: "",
-      logoText: "SP",
+      logoText: "UDS",
       topicSide: "right"
     },
     remaining: 0,
@@ -322,7 +322,7 @@ function App({ user = null, onLogout = null }) {
           }, { once: true });
         }
       } catch (error) {
-        console.warn("ScenePilot camera wake lock unavailable", error);
+        console.warn("Urban Director Studio camera wake lock unavailable", error);
       }
     };
 
@@ -376,7 +376,7 @@ function App({ user = null, onLogout = null }) {
       }).then(listener => {
         appStateListener = listener;
       }).catch(error => {
-        console.warn("ScenePilot native app-state listener unavailable", error);
+        console.warn("Urban Director Studio native app-state listener unavailable", error);
       });
     }
 
@@ -408,7 +408,7 @@ function App({ user = null, onLogout = null }) {
       window.localStorage.removeItem(`scenepilot:cameraNames:${roomCode}`);
       window.localStorage.removeItem(`scenepilot:mainCamera:${roomCode}`);
     } catch (error) {
-      console.warn("ScenePilot session reset could not clear saved camera setup", error);
+      console.warn("Urban Director Studio session reset could not clear saved camera setup", error);
     }
   }, [showCamera, roomCode]);
 
@@ -416,7 +416,7 @@ function App({ user = null, onLogout = null }) {
     cameraNetworkId
       ? {
           id: cameraNetworkId,
-          name: "ScenePilot Network",
+          name: "Urban Director Studio Network",
           joinToken: cameraJoinToken
         }
       : null
@@ -444,7 +444,7 @@ function App({ user = null, onLogout = null }) {
         }
       })
       .catch(error => {
-        console.error("ScenePilot network load failed", error);
+        console.error("Urban Director Studio network load failed", error);
         if (!cancelled) {
           setSignalStatus("NETWORK ACCESS ERROR");
         }
@@ -487,7 +487,7 @@ function App({ user = null, onLogout = null }) {
         setSelectedAudioDevice("");
       }
     } catch (error) {
-      console.warn("ScenePilot camera/audio source discovery unavailable", error);
+      console.warn("Urban Director Studio camera/audio source discovery unavailable", error);
     }
   }
 
@@ -583,7 +583,7 @@ function App({ user = null, onLogout = null }) {
           );
           return;
         } catch (error) {
-          console.warn("ScenePilot native battery telemetry unavailable", error);
+          console.warn("Urban Director Studio native battery telemetry unavailable", error);
         }
       }
 
@@ -989,7 +989,7 @@ function App({ user = null, onLogout = null }) {
             source: "webrtc"
           };
         } catch (error) {
-          console.warn("ScenePilot link stats unavailable", camera.socketId, error);
+          console.warn("Urban Director Studio link stats unavailable", camera.socketId, error);
         }
       }
 
@@ -1120,7 +1120,7 @@ function App({ user = null, onLogout = null }) {
         ? new MediaRecorder(programStream, { mimeType })
         : new MediaRecorder(programStream);
     } catch (error) {
-      console.error("ScenePilot replay recorder unavailable", error);
+      console.error("Urban Director Studio replay recorder unavailable", error);
       setInstantReplayStatus("REPLAY UNSUPPORTED");
       return;
     }
@@ -1143,7 +1143,7 @@ function App({ user = null, onLogout = null }) {
     };
 
     recorder.onerror = error => {
-      console.error("ScenePilot instant replay recorder error", error);
+      console.error("Urban Director Studio instant replay recorder error", error);
       setInstantReplayStatus("REPLAY ERROR");
     };
 
@@ -1152,7 +1152,7 @@ function App({ user = null, onLogout = null }) {
       replayRecorderRef.current = recorder;
       setInstantReplayStatus("BUFFERING 30S");
     } catch (error) {
-      console.error("ScenePilot instant replay start failed", error);
+      console.error("Urban Director Studio instant replay start failed", error);
       setInstantReplayStatus("REPLAY ERROR");
     }
 
@@ -1566,7 +1566,7 @@ function App({ user = null, onLogout = null }) {
         ? new MediaRecorder(stream, { mimeType })
         : new MediaRecorder(stream);
     } catch (error) {
-      console.error("ScenePilot production recorder unavailable", label, error);
+      console.error("Urban Director Studio production recorder unavailable", label, error);
       return null;
     }
 
@@ -1576,7 +1576,7 @@ function App({ user = null, onLogout = null }) {
       if (event.data?.size) chunks.push(event.data);
     };
     recorder.onerror = error => {
-      console.error("ScenePilot production recording error", label, error);
+      console.error("Urban Director Studio production recording error", label, error);
       setRecordStatus("RECORDING ERROR");
     };
     recorder.onstop = () => {
@@ -1685,7 +1685,7 @@ function App({ user = null, onLogout = null }) {
       try {
         if (recorder?.state !== "inactive") recorder.stop();
       } catch (error) {
-        console.warn("ScenePilot recorder stop failed", error);
+        console.warn("Urban Director Studio recorder stop failed", error);
       }
     });
 
@@ -1728,7 +1728,7 @@ function App({ user = null, onLogout = null }) {
     const filename = pendingProgramMaster.filename || "scenepilot-program.webm";
     const mimeType = blob.type || (filename.toLowerCase().endsWith(".mp4") ? "video/mp4" : "video/webm");
     const defaultTitle =
-      `${network?.name || user?.displayName || "ScenePilot"} • ${new Date().toLocaleString([], {
+      `${network?.name || user?.displayName || "Urban Director Studio"} • ${new Date().toLocaleString([], {
         year: "numeric",
         month: "short",
         day: "numeric",
@@ -1860,7 +1860,7 @@ function App({ user = null, onLogout = null }) {
 
       setRecordStatus("DC LIVE • SUBMITTED • PENDING REVIEW");
     } catch (error) {
-      console.error("ScenePilot DC Live submission failed", error);
+      console.error("Urban Director Studio DC Live submission failed", error);
       setPendingProgramMaster(current =>
         current ? { ...current, status: isOwner ? "owner" : "ready" } : current
       );
@@ -2025,7 +2025,7 @@ function App({ user = null, onLogout = null }) {
       }
     }
 
-    console.warn("ScenePilot zoom unavailable", lastError);
+    console.warn("Urban Director Studio zoom unavailable", lastError);
     return false;
   }
 
@@ -2067,7 +2067,7 @@ function App({ user = null, onLogout = null }) {
       setTorchOn(Boolean(enabled));
       return true;
     } catch (error) {
-      console.warn("ScenePilot camera light unavailable", error);
+      console.warn("Urban Director Studio camera light unavailable", error);
       return false;
     }
   }
@@ -2235,7 +2235,7 @@ function App({ user = null, onLogout = null }) {
           : "CAMERA READY"
       );
     } catch (error) {
-      console.error("ScenePilot camera flip failed", error);
+      console.error("Urban Director Studio camera flip failed", error);
       setSignalStatus("CAMERA SWITCH FAILED");
     }
   }
@@ -2248,7 +2248,7 @@ function App({ user = null, onLogout = null }) {
         wakeLock.current = await navigator.wakeLock.request("screen");
       }
     } catch (error) {
-      console.warn("ScenePilot wake lock unavailable", error);
+      console.warn("Urban Director Studio wake lock unavailable", error);
     }
 
     setShowCallShield(true);
@@ -2260,7 +2260,7 @@ function App({ user = null, onLogout = null }) {
     try {
       await wakeLock.current?.release?.();
     } catch (error) {
-      console.warn("ScenePilot wake lock release failed", error);
+      console.warn("Urban Director Studio wake lock release failed", error);
     }
 
     wakeLock.current = null;
@@ -2310,7 +2310,7 @@ async function completeCameraStartup() {
 async function enableCamera() {
     try {
       if (!networkId || !cameraJoinToken) {
-        throw new Error("This camera link is missing its ScenePilot network access token. Scan the company's current QR code again.");
+        throw new Error("This camera link is missing its Urban Director Studio network access token. Scan the company's current QR code again.");
       }
       setSignalStatus("REQUESTING CAMERA");
 
@@ -2370,7 +2370,7 @@ async function enableCamera() {
           wakeLock.current = await navigator.wakeLock.request("screen");
         }
       } catch (error) {
-        console.warn("ScenePilot automatic camera wake lock unavailable", error);
+        console.warn("Urban Director Studio automatic camera wake lock unavailable", error);
       }
       await refreshVideoInputs();
 
@@ -2581,7 +2581,7 @@ async function enableCamera() {
         facing === "environment" ? "REAR CAMERA READY" : "FRONT CAMERA READY"
       );
     } catch (error) {
-      console.error("ScenePilot Director Cam failed", error);
+      console.error("Urban Director Studio Director Cam failed", error);
       setDirectorCameraStatus("CAMERA BLOCKED");
     }
   }
@@ -2630,7 +2630,7 @@ async function enableCamera() {
           String(fallbackMain)
         );
       } catch (error) {
-        console.warn("ScenePilot Main Cam fallback could not be saved", error);
+        console.warn("Urban Director Studio Main Cam fallback could not be saved", error);
       }
     }
   }
@@ -3478,7 +3478,7 @@ async function enableCamera() {
           <button
             className={`icon-button director-menu-trigger ${secondaryToolAlert ? "has-alert" : ""}`}
             onClick={() => setDirectorMenuOpen(value => !value)}
-            title="ScenePilot menu"
+            title="Urban Director Studio menu"
             aria-label="Open ScenePilot menu"
           >
             <Menu size={20}/>
@@ -3495,7 +3495,7 @@ async function enableCamera() {
             aria-label="Close ScenePilot menu"
             onClick={() => setDirectorMenuOpen(false)}
           />
-          <aside className="director-hamburger-panel" aria-label="ScenePilot menu">
+          <aside className="director-hamburger-panel" aria-label="Urban Director Studio menu">
             <header>
               <div>
                 <span>SCENEPILOT</span>
