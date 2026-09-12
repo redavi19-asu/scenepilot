@@ -2426,35 +2426,45 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    if (
+      request.method === "OPTIONS" &&
+      NATIVE_APP_ORIGINS.has(requestOrigin(request))
+    ) {
+      return new Response(null, {
+        status: 204,
+        headers: corsHeadersFor(request)
+      });
+    }
+
     if (url.pathname === "/health") {
       try {
-        return await handleApi(request, env, url);
+        return withCors(await handleApi(request, env, url), request);
       } catch (error) {
         console.error("Urban Director Studio health endpoint error", error);
-        return json({
+        return withCors(json({
           ok: false,
           service: "Urban Director Studio",
           error: error instanceof Error ? error.message : String(error)
-        }, 500);
+        }, 500), request);
       }
     }
 
     if (url.pathname.startsWith("/api/")) {
       try {
-        return await handleApi(request, env, url);
+        return withCors(await handleApi(request, env, url), request);
       } catch (error) {
         console.error(
           "Urban Director Studio API unhandled error",
           error
         );
 
-        return json({
+        return withCors(json({
           error: "Urban Director Studio account service error.",
           detail:
             error instanceof Error
               ? error.message
               : String(error)
-        }, 500);
+        }, 500), request);
       }
     }
 
