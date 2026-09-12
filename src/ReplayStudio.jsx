@@ -575,7 +575,7 @@ export default function ReplayStudio({
     <section className="replay-studio nle-studio">
       <div className="replay-head">
         <div>
-          <span className="eyebrow">SCENEPILOT EDIT</span>
+          <span className="eyebrow">URBAN DIRECTOR STUDIO EDIT</span>
           <strong>PRO EDITOR + REPLAY STUDIO</strong>
         </div>
         <div className="replay-head-actions">
@@ -1082,7 +1082,7 @@ export default function ReplayStudio({
             {projectStatus && <div className="nle-project-status">{projectStatus}</div>}
 
             <div className="editor-note">
-              <strong>SCENEPILOT EDIT ACTIVE:</strong>
+              <strong>URBAN DIRECTOR STUDIO EDIT ACTIVE:</strong>
               Multi-track editing, trim/split, speed, transform, color, opacity, audio levels/fades,
               titles, lower thirds, captions, aspect presets, local project save and project export are active.
               Uploaded media and raw/ISO footage remain exportable. Protected customer Program masters
