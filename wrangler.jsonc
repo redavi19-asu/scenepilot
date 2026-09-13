@@ -10,7 +10,9 @@
   "vars": {
     "REALTIME_APP_ID": "88e4a5e7cbc552d693f50fd676b66b21",
     "STREAM_INCLUDED_MINUTES": 1500,
-    "STREAM_MAX_SESSION_MINUTES": 240
+    "STREAM_MAX_SESSION_MINUTES": 240,
+    "APP_STORE_BUNDLE_ID": "com.icomputeranything.scenepilot",
+    "APP_STORE_SUBSCRIPTION_PRODUCT_ID": "com.icomputeranything.scenepilot.pro.monthly"
   },
   "assets": {
     "directory": "./dist",
