@@ -606,7 +606,11 @@ function LandingPage() {
             <button className="sp-primary" onClick={() => go("/register")}>
               CREATE YOUR ACCOUNT <ArrowRight size={17}/>
             </button>
-            <small className="sp-price-note">Platform-specific purchase options are handled through the supported release channel.</small>
+            <small className="sp-price-note">
+              $29.99 per month. Auto-renews monthly until canceled. Platform-specific purchase options are handled through the supported release channel.
+              {" "}<button type="button" onClick={() => go("/terms")}>Terms of Use</button>
+              {" "}·{" "}<button type="button" onClick={() => go("/privacy")}>Privacy Policy</button>
+            </small>
           </div>
         </section>
 
@@ -664,6 +668,7 @@ function LandingPage() {
         </div>
         <div>
           <button onClick={() => go("/privacy")}>PRIVACY</button>
+          <button onClick={() => go("/terms")}>TERMS</button>
           <button onClick={() => go("/support")}>SUPPORT</button>
           <button onClick={() => window.location.assign("https://icomputeranything.com")}>I COMPUTER ANYTHING</button>
           <button onClick={() => go("/app")}>LOGIN</button>
@@ -747,6 +752,39 @@ function PrivacyPage() {
         <p>
           Questions about Urban Director Studio privacy can be sent through I Computer Anything at
           icomputeranything.com.
+        </p>
+      </section>
+    </main>
+  );
+}
+
+function TermsPage() {
+  return (
+    <main className="sp-privacy-shell">
+      <section className="sp-privacy-card">
+        <button className="sp-auth-back sp-privacy-back" onClick={() => go("/")}>← Urban Director Studio home</button>
+        <span className="sp-kicker">TERMS</span>
+        <h1>Urban Director Studio Terms of Use</h1>
+        <p>
+          Urban Director Studio distributed through Apple uses Apple&apos;s Standard Licensed Application
+          End User License Agreement unless a custom agreement is provided in App Store Connect.
+        </p>
+        <p>
+          <a
+            className="sp-support-link"
+            href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            View Apple Standard EULA
+          </a>
+        </p>
+        <h2>Subscription</h2>
+        <p>
+          Urban Director Studio Pro is offered as a monthly auto-renewable subscription. The subscription
+          renews automatically unless canceled through the applicable platform account settings before renewal.
+          Included service limits, such as hosted broadcast minutes and maximum live-session duration, are
+          displayed before purchase and within the product.
         </p>
       </section>
     </main>
@@ -955,7 +993,9 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
           )}
 
           <p className="sp-auth-legal">
-            By continuing, you agree to the account terms and acknowledge the
+            By continuing, you agree to the
+            <button type="button" onClick={() => go("/terms")}> Terms of Use</button>
+            {" "}and acknowledge the
             <button type="button" onClick={() => go("/privacy")}> Urban Director Studio Privacy Policy</button>.
           </p>
 
@@ -2152,6 +2192,10 @@ export default function ScenePilotPortal() {
 
   if (cleanPath === "/support") {
     return <SupportPage/>;
+  }
+
+  if (cleanPath === "/terms") {
+    return <TermsPage/>;
   }
 
   if (cleanPath === "/camera-open") {
