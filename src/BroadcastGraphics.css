@@ -6,6 +6,8 @@
 }
 .sp-graphics-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .sp-graphics-head>div:first-child{display:flex;flex-direction:column;gap:3px}
+.sp-graphics-head-actions{display:flex;align-items:center;gap:7px}
+.sp-mobile-collapse-toggle{display:none}
 .sp-graphics-head strong{font-size:14px;letter-spacing:1px}
 .sp-graphics-head small{font-size:8px;color:#7d8279}
 .sp-graphics-status{border:1px solid #444940;background:#1b1e1a;min-height:32px;padding:0 10px;display:flex;align-items:center;gap:7px;font-size:7px;font-weight:900}
@@ -65,4 +67,24 @@
 @keyframes spTicker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 @keyframes spLivePulse{0%,100%{opacity:1}50%{opacity:.35}}
 @media(max-width:1000px){.sp-graphics-toggles{grid-template-columns:repeat(3,1fr)}.sp-graphics-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:700px){.sp-graphics-head{flex-direction:column}.sp-graphics-toggles{grid-template-columns:repeat(2,1fr)}.sp-graphics-grid{grid-template-columns:1fr}}
+@media(max-width:700px){
+  .sp-graphics-head{flex-direction:column}
+  .sp-graphics-head-actions{width:100%;align-items:stretch}
+  .sp-graphics-status{flex:1}
+  .sp-mobile-collapse-toggle{
+    display:flex;
+    min-height:34px;
+    border:1px solid #4a4f47;
+    background:#20231f;
+    color:#dfe2dc;
+    padding:0 10px;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    font-size:7px;
+    font-weight:900
+  }
+  .sp-graphics-panel.mobile-collapsed > :not(.sp-graphics-head){display:none!important}
+  .sp-graphics-toggles{grid-template-columns:repeat(2,1fr)}
+  .sp-graphics-grid{grid-template-columns:1fr}
+}
