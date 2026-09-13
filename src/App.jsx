@@ -30,6 +30,13 @@ const qualityProfiles = {
 };
 
 function ScenePilotSplash({ cameraMode }) {
+  const recordingBufferLevel =
+    recordBufferedBytes >= 1280 * 1024 * 1024
+      ? "critical"
+      : recordBufferedBytes >= 640 * 1024 * 1024
+        ? "warning"
+        : "normal";
+
   return (
     <div className="scenepilot-splash" role="status" aria-label="Urban Director Studio loading">
       <div className="splash-orbit splash-orbit-one"/>
@@ -103,12 +110,15 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [recording, setRecording] = useState(false);
   const [recordMode, setRecordMode] = useState(isOwner ? "both" : "iso");
   const [recordStatus, setRecordStatus] = useState("READY");
+  const [recordBufferedBytes, setRecordBufferedBytes] = useState(0);
   const [pendingProgramMaster, setPendingProgramMaster] = useState(null);
   const [standby, setStandby] = useState(false);
   const standbyRef = useRef(false);
   const programCompositeAudioTracksRef = useRef([]);
   const productionRecordersRef = useRef([]);
   const productionChunksRef = useRef([]);
+  const recordingBufferedBytesRef = useRef(0);
+  const recordingBufferUiAtRef = useRef(0);
   const programCanvasRef = useRef(null);
   const programCompositeStreamRef = useRef(null);
   const programRenderFrameRef = useRef(0);
@@ -1528,6 +1538,13 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     return mimeType.includes("mp4") ? "mp4" : "webm";
   }
 
+  function formatRecordingBytes(bytes = 0) {
+    const value = Math.max(0, Number(bytes) || 0);
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(value ? 1 : 0)} KB`;
+    if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+    return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  }
+
   function safeRecordingName(value = "camera") {
     return String(value)
       .trim()
@@ -1574,7 +1591,26 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     const chunks = [];
     const startedAt = new Date();
     recorder.ondataavailable = event => {
-      if (event.data?.size) chunks.push(event.data);
+      if (!event.data?.size) return;
+      chunks.push(event.data);
+      recordingBufferedBytesRef.current += event.data.size;
+
+      const now = Date.now();
+      const crossedWarning =
+        recordingBufferedBytesRef.current >= 640 * 1024 * 1024 &&
+        recordBufferedBytes < 640 * 1024 * 1024;
+      const crossedCritical =
+        recordingBufferedBytesRef.current >= 1280 * 1024 * 1024 &&
+        recordBufferedBytes < 1280 * 1024 * 1024;
+
+      if (
+        crossedWarning ||
+        crossedCritical ||
+        now - recordingBufferUiAtRef.current >= 3000
+      ) {
+        recordingBufferUiAtRef.current = now;
+        setRecordBufferedBytes(recordingBufferedBytesRef.current);
+      }
     };
     recorder.onerror = error => {
       console.error("Urban Director Studio production recording error", label, error);
@@ -1632,6 +1668,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
 
   function startProductionRecording() {
     if (recording) return;
+
+    recordingBufferedBytesRef.current = 0;
+    recordingBufferUiAtRef.current = Date.now();
+    setRecordBufferedBytes(0);
 
     if (typeof MediaRecorder === "undefined") {
       setRecordStatus("RECORDING UNSUPPORTED");
@@ -1694,6 +1734,9 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     productionChunksRef.current = [];
     stopProgramCompositor();
     setRecording(false);
+    recordingBufferedBytesRef.current = 0;
+    recordingBufferUiAtRef.current = 0;
+    window.setTimeout(() => setRecordBufferedBytes(0), 1200);
     setRecordStatus(
       isOwner && (recordMode === "program" || recordMode === "both")
         ? "OWNER RECORDING SAVED • NO CUSTOMER RESTRICTIONS"
@@ -4419,6 +4462,40 @@ async function enableCamera() {
             <div className="record-status-line">
               <i className={recording ? "live" : ""}/>
               <strong>{recordStatus}</strong>
+            </div>
+
+            <div
+              className={`record-capacity-notice ${recordingBufferLevel}`}
+              aria-live="polite"
+            >
+              <div className="record-capacity-title">
+                <div>
+                  <Save size={16}/>
+                  <strong>ACTIVE RECORDING BUFFER</strong>
+                </div>
+                <span>{formatRecordingBytes(recordBufferedBytes)}</span>
+              </div>
+
+              <small>
+                {recordingBufferLevel === "critical"
+                  ? "Large active recording detected. Stop & Save now, confirm the files are saved, then start a fresh recording segment to release the current recording buffer."
+                  : recordingBufferLevel === "warning"
+                    ? "This recording is getting large. For long events, save in shorter segments so the device does not have to hold one huge recording in memory."
+                    : recording
+                      ? "Recording data is temporarily buffered on this device until you Stop & Save."
+                      : "For long productions, record in segments and keep enough free device storage for the finished files."}
+              </small>
+
+              <details>
+                <summary>How to free space and keep recording</summary>
+                <ul>
+                  <li>Stop & Save periodically, then begin a fresh recording segment.</li>
+                  <li>Confirm finished files are saved before removing anything.</li>
+                  <li>Move completed videos to Files, Photos, cloud storage, or an external drive, then delete old local copies.</li>
+                  <li>When storage is tight, avoid recording camera feeds you do not need. Owner mode can use PROGRAM or ISO instead of BOTH.</li>
+                  <li>Local / ISO recording does not use your monthly hosted streaming minutes.</li>
+                </ul>
+              </details>
             </div>
 
             <div className="output-data">
