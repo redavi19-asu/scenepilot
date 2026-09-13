@@ -1592,11 +1592,11 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
 
       const now = Date.now();
       const crossedWarning =
-        previousBytes < 640 * 1024 * 1024 &&
-        recordingBufferedBytesRef.current >= 640 * 1024 * 1024;
+        previousBytes < 256 * 1024 * 1024 &&
+        recordingBufferedBytesRef.current >= 256 * 1024 * 1024;
       const crossedCritical =
-        previousBytes < 1280 * 1024 * 1024 &&
-        recordingBufferedBytesRef.current >= 1280 * 1024 * 1024;
+        previousBytes < 512 * 1024 * 1024 &&
+        recordingBufferedBytesRef.current >= 512 * 1024 * 1024;
 
       if (
         crossedWarning ||
