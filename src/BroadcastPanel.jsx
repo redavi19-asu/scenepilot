@@ -3,7 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   RadioTower, Users, Camera, Video,
   Server, Settings2, Eye, EyeOff, Play, Square, Globe2, Save, CheckCircle2,
-  Copy, Share2, QrCode, ExternalLink
+  Copy, Share2, QrCode, ExternalLink, ChevronDown, ChevronUp
 } from "lucide-react";
 import { publishProgramToRealtime } from "./cloudflareRealtime";
 import { apiFetch, publicOrigin } from "./runtimeApi";
@@ -56,6 +56,10 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const [shareStatus, setShareStatus] = useState("");
   const [showShare, setShowShare] = useState(false);
   const [settings, setSettings] = useState(EMPTY_SETTINGS);
+  const [collapsed, setCollapsed] = useState(() => (
+    typeof window !== "undefined" &&
+    Boolean(window.matchMedia?.("(max-width: 760px)").matches)
+  ));
   const ingestRef = useRef({ recorder: null, socket: null });
   const realtimeRef = useRef(null);
 
@@ -64,6 +68,16 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     const safeRoom = encodeURIComponent(String(roomCode || "live").trim());
     return `${publicOrigin()}/watch/${safeRoom}`;
   }, [roomCode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+    const media = window.matchMedia("(max-width: 760px)");
+    const handleViewportChange = event => {
+      if (!event.matches) setCollapsed(false);
+    };
+    media.addEventListener?.("change", handleViewportChange);
+    return () => media.removeEventListener?.("change", handleViewportChange);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -377,7 +391,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   }
 
   return (
-    <section className="broadcast-panel">
+    <section className={`broadcast-panel ${collapsed ? "mobile-collapsed" : ""}`}>
       <div className="broadcast-head">
         <div>
           <span className="eyebrow">OUTPUT ROUTING</span>
@@ -395,6 +409,16 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           <button onClick={() => setShowSettings(value => !value)}>
             <Settings2 size={15}/>
             {showSettings ? "HIDE SETTINGS" : "STREAM SETTINGS"}
+          </button>
+          <button
+            type="button"
+            className="broadcast-mobile-collapse-toggle"
+            onClick={() => setCollapsed(value => !value)}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "Open broadcast multistream" : "Close broadcast multistream"}
+          >
+            {collapsed ? <ChevronDown size={15}/> : <ChevronUp size={15}/>}
+            {collapsed ? "OPEN" : "CLOSE"}
           </button>
         </div>
       </div>
