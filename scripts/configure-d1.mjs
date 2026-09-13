@@ -3,7 +3,6 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const DATABASE_NAME = "ica-saas-db";
 const CONFIG_PATH = "wrangler.jsonc";
-const MIGRATION_PATH = "migrations/0001_ica_saas.sql";
 
 function run(command, args) {
   return execFileSync(command, args, {
@@ -82,19 +81,17 @@ console.log(
   `Urban Director Studio: bound ${DATABASE_NAME} to env.DB (${databaseId})`
 );
 
-console.log("Urban Director Studio: applying D1 schema...");
+console.log("Urban Director Studio: applying all pending D1 migrations...");
 
 execFileSync(
   "npx",
   [
     "wrangler",
     "d1",
-    "execute",
+    "migrations",
+    "apply",
     DATABASE_NAME,
-    "--remote",
-    "--file",
-    MIGRATION_PATH,
-    "--yes"
+    "--remote"
   ],
   {
     stdio: "inherit"
