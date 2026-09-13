@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   BadgeInfo, Clock3, ImagePlus, Layers3, Radio,
-  RotateCcw, Save, ScrollText, Upload, X
+  RotateCcw, Save, ScrollText, Upload, X, ChevronDown, ChevronUp
 } from "lucide-react";
 import "./BroadcastGraphics.css";
 
@@ -38,6 +38,20 @@ export default function BroadcastGraphics() {
   const [logoImage, setLogoImage] = useState("");
   const topicUrl = useRef("");
   const logoUrl = useRef("");
+  const [collapsed, setCollapsed] = useState(() => (
+    typeof window !== "undefined" &&
+    Boolean(window.matchMedia?.("(max-width: 700px)").matches)
+  ));
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return undefined;
+    const media = window.matchMedia("(max-width: 700px)");
+    const handleViewportChange = event => {
+      if (!event.matches) setCollapsed(false);
+    };
+    media.addEventListener?.("change", handleViewportChange);
+    return () => media.removeEventListener?.("change", handleViewportChange);
+  }, []);
 
   useEffect(() => {
     const findTarget = () => {
@@ -181,16 +195,28 @@ export default function BroadcastGraphics() {
     <>
       {programTarget && createPortal(overlay, programTarget)}
 
-      <section className="sp-graphics-panel">
+      <section className={`sp-graphics-panel ${collapsed ? "mobile-collapsed" : ""}`}>
         <div className="sp-graphics-head">
           <div>
             <span className="eyebrow">ON-AIR GRAPHICS</span>
             <strong>BROADCAST GRAPHICS</strong>
             <small>TV-style overlays placed directly on the Program output.</small>
           </div>
-          <div className="sp-graphics-status">
-            <i className={activeCount ? "active" : ""}/>
-            {activeCount} ACTIVE
+          <div className="sp-graphics-head-actions">
+            <div className="sp-graphics-status">
+              <i className={activeCount ? "active" : ""}/>
+              {activeCount} ACTIVE
+            </div>
+            <button
+              type="button"
+              className="sp-mobile-collapse-toggle"
+              onClick={() => setCollapsed(value => !value)}
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? "Open broadcast graphics" : "Close broadcast graphics"}
+            >
+              {collapsed ? <ChevronDown size={15}/> : <ChevronUp size={15}/>}
+              {collapsed ? "OPEN" : "CLOSE"}
+            </button>
           </div>
         </div>
 
