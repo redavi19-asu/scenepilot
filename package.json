@@ -23,7 +23,8 @@
     "mobile:sync": "npm run build && cap sync",
     "mobile:android": "npm run mobile:sync && cap open android",
     "mobile:ios": "npm run mobile:sync && cap open ios",
-    "ios:repair": "bash scripts/repair-ios.sh"
+    "ios:repair": "bash scripts/repair-ios.sh",
+    "ios:icon": "xcrun swift scripts/generate-ios-icon.swift"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
