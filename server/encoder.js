@@ -289,10 +289,24 @@ const server = createServer(async (request, response) => {
       const eventId = String(body.eventId || crypto.randomUUID());
       const input = `${INPUT_BASE}/${room}`;
       const destinations = Array.isArray(body.destinations) ? body.destinations : [];
+      const networkId = String(body.networkId || "").trim();
       const requestedMaxDurationSeconds = Number(body.maxDurationSeconds);
       const maxDurationSeconds = Number.isFinite(requestedMaxDurationSeconds)
         ? Math.max(60, Math.min(24 * 60 * 60, Math.floor(requestedMaxDurationSeconds)))
         : 4 * 60 * 60;
+
+      if (networkId) {
+        for (const [existingRoom, existingJob] of jobs.entries()) {
+          if (existingRoom !== room && existingJob?.networkId === networkId) {
+            stopJob(existingJob, 4009, "Another production started");
+            if (existingJob.retentionClass === "owner") {
+              await new Promise(resolve => setTimeout(resolve, 500));
+              await archiveOwnerRecordings(existingJob);
+            }
+            jobs.delete(existingRoom);
+          }
+        }
+      }
 
       if (jobs.has(room)) stopJob(jobs.get(room));
 
@@ -320,7 +334,7 @@ const server = createServer(async (request, response) => {
         eventId,
         room,
         input,
-        networkId: String(body.networkId || ""),
+        networkId,
         ownerUserId: String(body.ownerUserId || ""),
         ownerRole: String(body.ownerRole || "user"),
         retentionClass: body.retentionClass === "owner" ? "owner" : "temporary",
