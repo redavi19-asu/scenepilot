@@ -30,13 +30,6 @@ const qualityProfiles = {
 };
 
 function ScenePilotSplash({ cameraMode }) {
-  const recordingBufferLevel =
-    recordBufferedBytes >= 1280 * 1024 * 1024
-      ? "critical"
-      : recordBufferedBytes >= 640 * 1024 * 1024
-        ? "warning"
-        : "normal";
-
   return (
     <div className="scenepilot-splash" role="status" aria-label="Urban Director Studio loading">
       <div className="splash-orbit splash-orbit-one"/>
@@ -3501,6 +3494,13 @@ async function enableCamera() {
       </div>
     );
   };
+
+  const recordingBufferLevel =
+    recordBufferedBytes >= 512 * 1024 * 1024
+      ? "critical"
+      : recordBufferedBytes >= 256 * 1024 * 1024
+        ? "warning"
+        : "normal";
 
   return (
     <div className="console">
