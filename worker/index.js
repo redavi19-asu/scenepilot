@@ -2257,7 +2257,6 @@ async function handleNetwork(request, env) {
       id: network.id,
       name: network.name,
       slug: network.slug,
-      joinToken: network.join_token,
       memberRole: network.member_role,
       signalTicket: signalTicket.token,
       signalTicketExpiresAt: signalTicket.expiresAt
@@ -2281,19 +2280,109 @@ async function userCanAccessNetwork(env, userId, networkId) {
   return Boolean(row);
 }
 
-async function validCameraJoinToken(env, networkId, joinToken) {
-  if (!networkId || !joinToken) return false;
+async function ensureCameraInviteSchema(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS scenepilot_camera_invites (
+      token_hash TEXT PRIMARY KEY,
+      network_id TEXT NOT NULL,
+      room_code TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (network_id) REFERENCES scenepilot_networks(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+    )`
+  ).run();
+
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS scenepilot_camera_invites_expiry_idx
+     ON scenepilot_camera_invites(expires_at)`
+  ).run();
+}
+
+async function createCameraInvite(env, userId, networkId, roomCode) {
+  await ensureCameraInviteSchema(env);
+
+  const token = randomToken(24);
+  const tokenHash = await sha256(token);
+  const now = Date.now();
+  const expiresAt = now + 8 * 60 * 60 * 1000;
+
+  await env.DB.batch([
+    env.DB.prepare(
+      "DELETE FROM scenepilot_camera_invites WHERE expires_at <= ?"
+    ).bind(now),
+    env.DB.prepare(
+      `INSERT INTO scenepilot_camera_invites (
+        token_hash, network_id, room_code, created_by, expires_at, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(tokenHash, networkId, roomCode, userId, expiresAt, now)
+  ]);
+
+  return { token, expiresAt };
+}
+
+async function validCameraJoinToken(
+  env,
+  networkId,
+  roomCode,
+  joinToken
+) {
+  if (!networkId || !roomCode || !joinToken) return false;
+
+  await ensureCameraInviteSchema(env);
+  const tokenHash = await sha256(joinToken);
 
   const row = await env.DB.prepare(
     `SELECT 1 AS ok
-     FROM scenepilot_networks
-     WHERE id = ?
-       AND join_token = ?
-       AND status = 'active'
+     FROM scenepilot_camera_invites i
+     JOIN scenepilot_networks n ON n.id = i.network_id
+     WHERE i.token_hash = ?
+       AND i.network_id = ?
+       AND i.room_code = ?
+       AND i.expires_at > ?
+       AND n.status = 'active'
      LIMIT 1`
-  ).bind(networkId, joinToken).first();
+  ).bind(
+    tokenHash,
+    networkId,
+    roomCode,
+    Date.now()
+  ).first();
 
   return Boolean(row);
+}
+
+async function handleCameraInvite(request, env) {
+  const auth = await requireScenePilotNetworkMember(request, env);
+  if (auth.response) return auth.response;
+
+  const body = await readJson(request);
+  const roomCode = String(body.room || "")
+    .trim()
+    .replace(/[^A-Za-z0-9_-]/g, "")
+    .slice(0, 80);
+
+  if (!roomCode) {
+    return json({ error: "A production room is required." }, 400);
+  }
+
+  const invite = await createCameraInvite(
+    env,
+    auth.user.id,
+    auth.network.id,
+    roomCode
+  );
+
+  return json({
+    invite: {
+      token: invite.token,
+      expiresAt: invite.expiresAt,
+      networkId: auth.network.id,
+      networkName: auth.network.name,
+      room: roomCode
+    }
+  }, 201);
 }
 
 
@@ -3081,6 +3170,10 @@ async function handleApi(request, env, url) {
     return handleNetwork(request, env);
   }
 
+  if (url.pathname === "/api/camera/invite" && request.method === "POST") {
+    return handleCameraInvite(request, env);
+  }
+
   if (
     url.pathname === "/api/broadcast/destinations" &&
     (request.method === "GET" || request.method === "POST")
@@ -3269,6 +3362,7 @@ export default {
       const cameraAccess = await validCameraJoinToken(
         env,
         networkId,
+        room,
         joinToken
       );
 
