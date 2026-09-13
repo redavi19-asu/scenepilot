@@ -3,7 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   RadioTower, Users, Camera, Video,
   Server, Settings2, Eye, EyeOff, Play, Square, Globe2, Save, CheckCircle2,
-  Copy, Share2, QrCode, ExternalLink, ChevronDown, ChevronUp
+  Copy, Share2, QrCode, ExternalLink, ChevronDown, ChevronUp, AlertTriangle, Clock3
 } from "lucide-react";
 import { publishProgramToRealtime } from "./cloudflareRealtime";
 import { apiFetch, publicOrigin } from "./runtimeApi";
@@ -56,6 +56,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const [shareStatus, setShareStatus] = useState("");
   const [showShare, setShowShare] = useState(false);
   const [settings, setSettings] = useState(EMPTY_SETTINGS);
+  const [usage, setUsage] = useState(null);
   const [collapsed, setCollapsed] = useState(() => (
     typeof window !== "undefined" &&
     Boolean(window.matchMedia?.("(max-width: 760px)")?.matches)
@@ -63,6 +64,17 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const ingestRef = useRef({ recorder: null, socket: null });
   const realtimeRef = useRef(null);
   const limitTimerRef = useRef(null);
+
+  const usagePercent = useMemo(() => {
+    if (!usage?.includedMinutes) return 0;
+    return Math.min(100, Math.round((Number(usage.usedMinutes || 0) / Number(usage.includedMinutes)) * 100));
+  }, [usage]);
+
+  const usageLevel =
+    usagePercent >= 100 ? "critical" :
+    usagePercent >= 90 ? "danger" :
+    usagePercent >= 75 ? "warning" :
+    "normal";
 
   const publicWatchUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -108,6 +120,20 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
       .catch(error => {
         if (!cancelled) setStatus(error.message);
       });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api("/api/broadcast/usage")
+      .then(data => {
+        if (!cancelled) setUsage(data.usage || null);
+      })
+      .catch(() => {});
 
     return () => {
       cancelled = true;
@@ -403,6 +429,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           }, sessionLimitSeconds * 1000);
         }
 
+        if (data.usage) setUsage(data.usage);
         const remaining = data.usage?.remainingMinutes;
         setStatus(
           data.status
@@ -426,6 +453,8 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         });
 
         setBroadcasting(false);
+        const refreshed = await api("/api/broadcast/usage").catch(() => null);
+        if (refreshed?.usage) setUsage(refreshed.usage);
         setStatus(data.status ? `Encoder: ${data.status}` : "Broadcast stop accepted.");
       }
     } catch (error) {
@@ -470,6 +499,42 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           </button>
         </div>
       </div>
+
+      {usage && (
+        <div className={`broadcast-usage-card ${usageLevel}`}>
+          <div className="broadcast-usage-topline">
+            <div>
+              {usageLevel === "normal" ? <Clock3 size={17}/> : <AlertTriangle size={17}/>}
+              <strong>MONTHLY HOSTED STREAMING</strong>
+            </div>
+            <span>{usage.remainingMinutes} / {usage.includedMinutes} MIN REMAINING</span>
+          </div>
+
+          <div className="broadcast-usage-meter" aria-label={`${usagePercent}% of monthly streaming used`}>
+            <i style={{ width: `${usagePercent}%` }}/>
+          </div>
+
+          <small>
+            {usagePercent >= 100
+              ? "Hosted live streaming is paused until the monthly allowance resets. You can still record locally / ISO without using hosted streaming minutes."
+              : usagePercent >= 90
+                ? "You are almost out of hosted streaming time. Finish critical live events first. Local / ISO recording can continue without using hosted streaming minutes."
+                : usagePercent >= 75
+                  ? "Streaming allowance is getting low. For long productions, record locally when you do not need a live audience."
+                  : "Hosted streaming and local recording are separate. Recording locally / ISO does not reduce this monthly streaming allowance."}
+          </small>
+
+          <details className="broadcast-usage-help">
+            <summary>How do I keep working if I am running low?</summary>
+            <p>
+              Stop the hosted broadcast when you do not need to be live and continue recording locally.
+              Save long recordings in shorter segments so the device can release its active recording buffer.
+              Move finished files to Files, Photos, cloud storage, or an external drive and remove old local copies.
+              If your production regularly needs more hosted live time, use a higher-capacity plan when available.
+            </p>
+          </details>
+        </div>
+      )}
 
       <div className="broadcast-destinations">
         {DESTINATIONS.map(destination => {
