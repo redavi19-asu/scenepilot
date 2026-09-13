@@ -3,11 +3,11 @@ import Foundation
 
 let fileManager = FileManager.default
 let root = URL(fileURLWithPath: fileManager.currentDirectoryPath)
-let sourceURL = root.appendingPathComponent("public/favicon.svg")
+let sourceURL = root.appendingPathComponent("public/urban-director-icon.svg")
 let destinationURL = root.appendingPathComponent("ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png")
 
 guard let sourceImage = NSImage(contentsOf: sourceURL) else {
-    fputs("Could not load public/favicon.svg\n", stderr)
+    fputs("Could not load public/urban-director-icon.svg\n", stderr)
     exit(1)
 }
 
@@ -68,7 +68,7 @@ guard let pngData = bitmap.representation(using: .png, properties: [:]) else {
 
 do {
     try pngData.write(to: destinationURL, options: .atomic)
-    print("Updated iOS AppIcon from public/favicon.svg")
+    print("Updated iOS AppIcon from public/urban-director-icon.svg")
 } catch {
     fputs("Could not write iOS AppIcon: \(error)\n", stderr)
     exit(1)
