@@ -400,6 +400,594 @@ async function ensureScenePilotProduct(env) {
   ).bind("Urban Director Studio").run();
 }
 
+
+function appleBillingConfig(env) {
+  const bundleId = String(
+    env.APP_STORE_BUNDLE_ID || "com.icomputeranything.scenepilot"
+  ).trim();
+  const productId = String(
+    env.APP_STORE_SUBSCRIPTION_PRODUCT_ID ||
+    "com.icomputeranything.scenepilot.pro.monthly"
+  ).trim();
+  const issuerId = String(env.APP_STORE_ISSUER_ID || "").trim();
+  const keyId = String(env.APP_STORE_KEY_ID || "").trim();
+  const privateKey = String(env.APP_STORE_PRIVATE_KEY || "")
+    .replace(/\\n/g, "\n")
+    .trim();
+
+  return {
+    bundleId,
+    productId,
+    issuerId,
+    keyId,
+    privateKey,
+    ready: Boolean(bundleId && productId && issuerId && keyId && privateKey)
+  };
+}
+
+function base64UrlEncodeBytes(bytes) {
+  return bytesToBase64(bytes)
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
+
+function base64UrlEncodeText(value) {
+  return base64UrlEncodeBytes(
+    new TextEncoder().encode(String(value || ""))
+  );
+}
+
+function base64UrlDecodeBytes(value) {
+  const normalized = String(value || "")
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+  const padded =
+    normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  return base64ToBytes(padded);
+}
+
+function decodeAppleJwsPayload(jws) {
+  const parts = String(jws || "").split(".");
+  if (parts.length !== 3) return null;
+
+  try {
+    return JSON.parse(
+      new TextDecoder().decode(base64UrlDecodeBytes(parts[1]))
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+function applePrivateKeyBytes(pem) {
+  const base64 = String(pem || "")
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\s+/g, "");
+  return base64ToBytes(base64);
+}
+
+async function appleServerJwt(env) {
+  const config = appleBillingConfig(env);
+  if (!config.ready) {
+    throw new Error(
+      "Apple server billing verification is not configured yet."
+    );
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = {
+    alg: "ES256",
+    kid: config.keyId,
+    typ: "JWT"
+  };
+  const payload = {
+    iss: config.issuerId,
+    iat: now,
+    exp: now + 300,
+    aud: "appstoreconnect-v1",
+    bid: config.bundleId
+  };
+
+  const signingInput =
+    `${base64UrlEncodeText(JSON.stringify(header))}.` +
+    base64UrlEncodeText(JSON.stringify(payload));
+
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    applePrivateKeyBytes(config.privateKey),
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" },
+    key,
+    new TextEncoder().encode(signingInput)
+  );
+
+  return `${signingInput}.${base64UrlEncodeBytes(
+    new Uint8Array(signature)
+  )}`;
+}
+
+async function appleTransactionInfo(env, transactionId) {
+  const token = await appleServerJwt(env);
+  const id = encodeURIComponent(String(transactionId || "").trim());
+
+  if (!id) {
+    throw new Error("Apple transaction ID is required.");
+  }
+
+  const hosts = [
+    {
+      environment: "Production",
+      base: "https://api.storekit.apple.com"
+    },
+    {
+      environment: "Sandbox",
+      base: "https://api.storekit-sandbox.apple.com"
+    }
+  ];
+
+  let lastError = null;
+
+  for (const host of hosts) {
+    const response = await fetch(
+      `${host.base}/inApps/v1/transactions/${id}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json"
+        }
+      }
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (response.ok && data.signedTransactionInfo) {
+      return {
+        environment: host.environment,
+        signedTransactionInfo: data.signedTransactionInfo,
+        payload: decodeAppleJwsPayload(data.signedTransactionInfo)
+      };
+    }
+
+    if (response.status === 404) {
+      lastError = new Error(
+        `Apple transaction was not found in ${host.environment}.`
+      );
+      continue;
+    }
+
+    if (response.status === 401) {
+      throw new Error(
+        "Apple server billing credentials were rejected."
+      );
+    }
+
+    throw new Error(
+      data.errorMessage ||
+      data.error ||
+      `Apple transaction verification failed (HTTP ${response.status}).`
+    );
+  }
+
+  throw lastError || new Error("Apple transaction could not be verified.");
+}
+
+function validateAppleTransaction(env, result, expectedUserId = "") {
+  const config = appleBillingConfig(env);
+  const payload = result?.payload;
+
+  if (!payload) {
+    throw new Error("Apple returned invalid signed transaction data.");
+  }
+
+  if (String(payload.bundleId || "") !== config.bundleId) {
+    throw new Error("Apple transaction belongs to a different app.");
+  }
+
+  if (String(payload.productId || "") !== config.productId) {
+    throw new Error("Apple transaction is not Urban Director Studio Pro.");
+  }
+
+  const transactionId = String(payload.transactionId || "").trim();
+  const originalTransactionId =
+    String(payload.originalTransactionId || "").trim();
+
+  if (!transactionId || !originalTransactionId) {
+    throw new Error("Apple transaction identifiers are incomplete.");
+  }
+
+  const appAccountToken =
+    String(payload.appAccountToken || "").trim().toLowerCase();
+
+  if (
+    expectedUserId &&
+    appAccountToken &&
+    appAccountToken !== String(expectedUserId).toLowerCase()
+  ) {
+    throw new Error(
+      "This Apple subscription is linked to a different Urban Director Studio account."
+    );
+  }
+
+  const purchaseDate = Number(payload.purchaseDate || 0);
+  const expiresAt = Number(payload.expiresDate || 0);
+  const revokedAt = Number(payload.revocationDate || 0);
+  const active =
+    !revokedAt &&
+    Number.isFinite(expiresAt) &&
+    expiresAt > Date.now();
+
+  return {
+    active,
+    productId: config.productId,
+    transactionId,
+    originalTransactionId,
+    appAccountToken,
+    purchaseDate:
+      Number.isFinite(purchaseDate) && purchaseDate > 0
+        ? purchaseDate
+        : null,
+    expiresAt:
+      Number.isFinite(expiresAt) && expiresAt > 0
+        ? expiresAt
+        : null,
+    environment:
+      String(payload.environment || result.environment || ""),
+    revokedAt:
+      Number.isFinite(revokedAt) && revokedAt > 0
+        ? revokedAt
+        : null
+  };
+}
+
+async function ensureAppleSubscriptionSchema(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS apple_subscriptions (
+      user_id TEXT PRIMARY KEY,
+      product_id TEXT NOT NULL,
+      original_transaction_id TEXT NOT NULL UNIQUE,
+      latest_transaction_id TEXT NOT NULL,
+      app_account_token TEXT,
+      environment TEXT NOT NULL DEFAULT '',
+      purchase_date INTEGER,
+      expires_at INTEGER,
+      status TEXT NOT NULL DEFAULT 'active',
+      last_verified_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`
+  ).run();
+
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS apple_subscriptions_original_transaction_idx
+     ON apple_subscriptions(original_transaction_id)`
+  ).run();
+
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS apple_subscriptions_latest_transaction_idx
+     ON apple_subscriptions(latest_transaction_id)`
+  ).run();
+}
+
+async function applyAppleEntitlement(env, user, verified) {
+  await ensureAppleSubscriptionSchema(env);
+
+  const existingLink = await env.DB.prepare(
+    `SELECT user_id
+     FROM apple_subscriptions
+     WHERE original_transaction_id = ?
+     LIMIT 1`
+  ).bind(verified.originalTransactionId).first();
+
+  if (existingLink?.user_id && existingLink.user_id !== user.id) {
+    throw new Error(
+      "This Apple subscription is already linked to another Urban Director Studio account."
+    );
+  }
+
+  const now = Date.now();
+  const status = verified.active ? "active" : "expired";
+
+  await env.DB.prepare(
+    `INSERT INTO apple_subscriptions (
+      user_id,
+      product_id,
+      original_transaction_id,
+      latest_transaction_id,
+      app_account_token,
+      environment,
+      purchase_date,
+      expires_at,
+      status,
+      last_verified_at,
+      created_at,
+      updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      product_id = excluded.product_id,
+      original_transaction_id = excluded.original_transaction_id,
+      latest_transaction_id = excluded.latest_transaction_id,
+      app_account_token = excluded.app_account_token,
+      environment = excluded.environment,
+      purchase_date = excluded.purchase_date,
+      expires_at = excluded.expires_at,
+      status = excluded.status,
+      last_verified_at = excluded.last_verified_at,
+      updated_at = excluded.updated_at`
+  ).bind(
+    user.id,
+    verified.productId,
+    verified.originalTransactionId,
+    verified.transactionId,
+    verified.appAccountToken || null,
+    verified.environment || "",
+    verified.purchaseDate,
+    verified.expiresAt,
+    status,
+    now,
+    now,
+    now
+  ).run();
+
+  if (user.role !== "owner" && user.role !== "admin") {
+    await env.DB.prepare(
+      `INSERT INTO user_products (
+        user_id,
+        product_id,
+        plan,
+        access_status,
+        source,
+        created_at,
+        expires_at
+      ) VALUES (?, 'product_scenepilot', ?, ?, 'apple', ?, ?)
+      ON CONFLICT(user_id, product_id) DO UPDATE SET
+        plan = excluded.plan,
+        access_status = excluded.access_status,
+        source = 'apple',
+        expires_at = excluded.expires_at`
+    ).bind(
+      user.id,
+      verified.active ? "pro" : "free",
+      verified.active ? "active" : "suspended",
+      now,
+      verified.expiresAt
+    ).run();
+  }
+
+  return {
+    active: verified.active,
+    productId: verified.productId,
+    transactionId: verified.transactionId,
+    originalTransactionId: verified.originalTransactionId,
+    environment: verified.environment,
+    purchaseDate: verified.purchaseDate,
+    expiresAt: verified.expiresAt
+  };
+}
+
+async function handleAppleBillingStatus(request, env) {
+  const user = await getCurrentUser(request, env);
+  if (!user) {
+    return json({ error: "Sign in to view subscription status." }, 401);
+  }
+
+  await ensureAppleSubscriptionSchema(env);
+  const row = await env.DB.prepare(
+    `SELECT
+      product_id,
+      original_transaction_id,
+      latest_transaction_id,
+      environment,
+      purchase_date,
+      expires_at,
+      status,
+      last_verified_at
+     FROM apple_subscriptions
+     WHERE user_id = ?
+     LIMIT 1`
+  ).bind(user.id).first();
+
+  const config = appleBillingConfig(env);
+
+  return json({
+    configured: config.ready,
+    productId: config.productId,
+    subscription: row
+      ? {
+          productId: row.product_id,
+          originalTransactionId: row.original_transaction_id,
+          latestTransactionId: row.latest_transaction_id,
+          environment: row.environment,
+          purchaseDate: row.purchase_date,
+          expiresAt: row.expires_at,
+          status: row.status,
+          lastVerifiedAt: row.last_verified_at
+        }
+      : null,
+    user
+  });
+}
+
+async function handleAppleBillingSync(request, env) {
+  const user = await getCurrentUser(request, env);
+  if (!user) {
+    return json({ error: "Sign in before purchasing Urban Director Studio Pro." }, 401);
+  }
+
+  if (!isNativeAppRequest(request)) {
+    return json({
+      error: "Apple purchase verification must start from the iPhone/iPad app."
+    }, 403);
+  }
+
+  const config = appleBillingConfig(env);
+  if (!config.ready) {
+    return json({
+      error: "Apple billing verification is not configured on the server yet.",
+      code: "apple_billing_not_configured"
+    }, 503);
+  }
+
+  const body = await readJson(request);
+  const transactionId = String(body.transactionId || "").trim();
+  if (!/^\d{4,40}$/.test(transactionId)) {
+    return json({ error: "Enter a valid Apple transaction ID." }, 400);
+  }
+
+  try {
+    const result = await appleTransactionInfo(env, transactionId);
+    const verified = validateAppleTransaction(env, result, user.id);
+    const entitlement = await applyAppleEntitlement(env, user, verified);
+    const refreshedUser = await getCurrentUser(request, env);
+
+    return json({
+      ok: true,
+      entitlement,
+      user: refreshedUser
+    });
+  } catch (error) {
+    return json({
+      error:
+        error instanceof Error
+          ? error.message
+          : String(error)
+    }, 400);
+  }
+}
+
+async function handleAppleBillingRefresh(request, env) {
+  const user = await getCurrentUser(request, env);
+  if (!user) {
+    return json({ error: "Sign in to refresh subscription status." }, 401);
+  }
+
+  const config = appleBillingConfig(env);
+  if (!config.ready) {
+    return json({
+      error: "Apple billing verification is not configured on the server yet.",
+      code: "apple_billing_not_configured"
+    }, 503);
+  }
+
+  await ensureAppleSubscriptionSchema(env);
+  const row = await env.DB.prepare(
+    `SELECT latest_transaction_id
+     FROM apple_subscriptions
+     WHERE user_id = ?
+     LIMIT 1`
+  ).bind(user.id).first();
+
+  if (!row?.latest_transaction_id) {
+    return json({
+      ok: true,
+      entitlement: null,
+      user
+    });
+  }
+
+  try {
+    const result = await appleTransactionInfo(
+      env,
+      row.latest_transaction_id
+    );
+    const verified = validateAppleTransaction(env, result, user.id);
+    const entitlement = await applyAppleEntitlement(env, user, verified);
+    const refreshedUser = await getCurrentUser(request, env);
+
+    return json({
+      ok: true,
+      entitlement,
+      user: refreshedUser
+    });
+  } catch (error) {
+    return json({
+      error:
+        error instanceof Error
+          ? error.message
+          : String(error)
+    }, 400);
+  }
+}
+
+async function handleAppleServerNotification(request, env) {
+  const config = appleBillingConfig(env);
+  if (!config.ready) {
+    return json({
+      error: "Apple billing verification is not configured."
+    }, 503);
+  }
+
+  const body = await readJson(request);
+  const notification = decodeAppleJwsPayload(body.signedPayload);
+  const signedTransactionInfo =
+    notification?.data?.signedTransactionInfo;
+
+  if (!signedTransactionInfo) {
+    return json({ ok: true, ignored: true });
+  }
+
+  const hintedTransaction =
+    decodeAppleJwsPayload(signedTransactionInfo);
+  const transactionId = String(
+    hintedTransaction?.transactionId ||
+    hintedTransaction?.originalTransactionId ||
+    ""
+  ).trim();
+
+  if (!transactionId) {
+    return json({ ok: true, ignored: true });
+  }
+
+  try {
+    const result = await appleTransactionInfo(env, transactionId);
+    const verified = validateAppleTransaction(env, result);
+
+    await ensureAppleSubscriptionSchema(env);
+    const linked = await env.DB.prepare(
+      `SELECT u.id, u.email, u.display_name, u.role, u.status,
+              u.marketing_opt_in, u.created_at, u.last_login_at,
+              COALESCE(up.plan, 'free') AS plan,
+              COALESCE(up.access_status, 'active') AS access_status,
+              COALESCE(up.source, '') AS entitlement_source,
+              up.expires_at AS entitlement_expires_at
+       FROM apple_subscriptions a
+       JOIN users u ON u.id = a.user_id
+       LEFT JOIN user_products up
+         ON up.user_id = u.id
+         AND up.product_id = 'product_scenepilot'
+       WHERE a.original_transaction_id = ?
+       LIMIT 1`
+    ).bind(verified.originalTransactionId).first();
+
+    if (!linked) {
+      return json({ ok: true, ignored: true });
+    }
+
+    await applyAppleEntitlement(
+      env,
+      publicUser(linked),
+      verified
+    );
+
+    return json({ ok: true });
+  } catch (error) {
+    console.error(
+      "Urban Director Studio Apple notification verification failed",
+      error
+    );
+    return json({
+      error: "Apple notification could not be verified."
+    }, 400);
+  }
+}
+
 async function handleRegister(request, env) {
   if (!env.DB) {
     return json({ error: "ICA D1 database is not bound to Urban Director Studio yet." }, 503);
