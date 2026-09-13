@@ -1593,15 +1593,17 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     recorder.ondataavailable = event => {
       if (!event.data?.size) return;
       chunks.push(event.data);
+
+      const previousBytes = recordingBufferedBytesRef.current;
       recordingBufferedBytesRef.current += event.data.size;
 
       const now = Date.now();
       const crossedWarning =
-        recordingBufferedBytesRef.current >= 640 * 1024 * 1024 &&
-        recordBufferedBytes < 640 * 1024 * 1024;
+        previousBytes < 640 * 1024 * 1024 &&
+        recordingBufferedBytesRef.current >= 640 * 1024 * 1024;
       const crossedCritical =
-        recordingBufferedBytesRef.current >= 1280 * 1024 * 1024 &&
-        recordBufferedBytes < 1280 * 1024 * 1024;
+        previousBytes < 1280 * 1024 * 1024 &&
+        recordingBufferedBytesRef.current >= 1280 * 1024 * 1024;
 
       if (
         crossedWarning ||
