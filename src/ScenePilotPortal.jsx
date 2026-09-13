@@ -1852,15 +1852,7 @@ function CommsPanel({ mode }) {
   const [draft, setDraft] = useState("");
   const [unread, setUnread] = useState(0);
   const [incomingAlert, setIncomingAlert] = useState(null);
-  const [cameraNames, setCameraNames] = useState(() => {
-    try {
-      return JSON.parse(
-        window.localStorage.getItem(`scenepilot:cameraNames:${roomCode}`) || "{}"
-      );
-    } catch (_) {
-      return {};
-    }
-  });
+  const [cameraNames, setCameraNames] = useState({});
 
   useEffect(() => {
     const openFromMenu = () => openPanel();
