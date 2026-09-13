@@ -465,10 +465,6 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   }, [showCamera]);
 
   async function requestCameraInvite(force = false) {
-    if (!network?.id) {
-      throw new Error("Company network is still loading.");
-    }
-
     if (
       !force &&
       cameraInvite?.token &&
@@ -497,9 +493,19 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       );
     }
 
-    setCameraInvite(data.invite);
+    const invite = data.invite;
+    setNetwork(current => {
+      if (current?.id) return current;
+      return {
+        id: invite.networkId,
+        name: invite.networkName || "Urban Director Studio Network",
+        joinToken: "",
+        signalTicket: ""
+      };
+    });
+    setCameraInvite(invite);
     setCameraInviteStatus("");
-    return data.invite;
+    return invite;
   }
 
   function cameraInviteQuery(invite = cameraInvite) {
@@ -533,12 +539,12 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     : "";
 
   useEffect(() => {
-    if ((!cameraShareMenuOpen && !showJoin) || !network?.id) return;
+    if (!cameraShareMenuOpen && !showJoin) return;
 
     requestCameraInvite().catch(error => {
       setCameraInviteStatus(error.message);
     });
-  }, [cameraShareMenuOpen, showJoin, network?.id, roomCode]);
+  }, [cameraShareMenuOpen, showJoin, roomCode]);
 
   async function shareCameraInvite(method) {
     try {
@@ -4858,7 +4864,7 @@ async function enableCamera() {
               {cameraHandoffUrl ? (
                 <QRCodeSVG value={cameraHandoffUrl} size={190}/>
               ) : (
-                <span>NETWORK QR LOADING…</span>
+                <span>{cameraInviteStatus || "CREATING SECURE CAMERA QR…"}</span>
               )}
             </div>
             <div className="room-code"><span>NETWORK / ROOM</span><strong>{network?.name || "LOADING"} • {roomCode}</strong></div>
