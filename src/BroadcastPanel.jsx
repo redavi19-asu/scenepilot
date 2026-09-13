@@ -58,7 +58,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const [settings, setSettings] = useState(EMPTY_SETTINGS);
   const [collapsed, setCollapsed] = useState(() => (
     typeof window !== "undefined" &&
-    Boolean(window.matchMedia?.("(max-width: 760px)").matches)
+    Boolean(window.matchMedia?.("(max-width: 760px)")?.matches)
   ));
   const ingestRef = useRef({ recorder: null, socket: null });
   const realtimeRef = useRef(null);
