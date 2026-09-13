@@ -234,6 +234,22 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const replayChunksRef = useRef([]);
   const instantReplayVideoRef = useRef(null);
 
+  const queryParams = new URLSearchParams(window.location.search);
+  const roomCode = queryParams.get("room") || "SP-4827";
+  const cameraNetworkId = queryParams.get("network") || "";
+  const cameraJoinToken = queryParams.get("join") || "";
+  const [network, setNetwork] = useState(() => (
+    cameraNetworkId
+      ? {
+          id: cameraNetworkId,
+          name: "Urban Director Studio Network",
+          joinToken: cameraJoinToken
+        }
+      : null
+  ));
+  const networkId = network?.id || cameraNetworkId;
+  const directorSignalTicket = network?.signalTicket || "";
+
   useEffect(() => {
     const timer = window.setTimeout(() => setShowSplash(false), 1650);
     return () => window.clearTimeout(timer);
@@ -388,11 +404,6 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     };
   }, [showCamera, stream, networkId, cameraJoinToken, roomCode]);
 
-  const queryParams = new URLSearchParams(window.location.search);
-  const roomCode = queryParams.get("room") || "SP-4827";
-  const cameraNetworkId = queryParams.get("network") || "";
-  const cameraJoinToken = queryParams.get("join") || "";
-
   useEffect(() => {
     if (showCamera) return;
 
@@ -412,16 +423,6 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       console.warn("Urban Director Studio session reset could not clear saved camera setup", error);
     }
   }, [showCamera, roomCode]);
-
-  const [network, setNetwork] = useState(() => (
-    cameraNetworkId
-      ? {
-          id: cameraNetworkId,
-          name: "Urban Director Studio Network",
-          joinToken: cameraJoinToken
-        }
-      : null
-  ));
 
   useEffect(() => {
     if (showCamera) return;
@@ -456,8 +457,6 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     };
   }, [showCamera]);
 
-  const networkId = network?.id || cameraNetworkId;
-  const directorSignalTicket = network?.signalTicket || "";
   const cameraJoinQuery =
     network?.id && network?.joinToken
       ? new URLSearchParams({
