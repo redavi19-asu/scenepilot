@@ -726,6 +726,100 @@
   font-size: 24px;
 }
 
+
+.sp-readiness-card .sp-admin-card-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+}
+
+.sp-readiness-card .sp-admin-card-head p {
+  margin:8px 0 0;
+  color:#8e9688;
+  line-height:1.6;
+}
+
+.sp-readiness-card .sp-admin-card-head > button {
+  min-height:42px;
+  padding:0 14px;
+  border:1px solid #565e50;
+  background:#ece9df;
+  color:#12150f;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  font-weight:900;
+  font-size:9px;
+  letter-spacing:.06em;
+}
+
+.sp-readiness-grid {
+  margin-top:18px;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
+
+.sp-readiness-grid article {
+  min-height:112px;
+  padding:14px;
+  border:1px solid #40483b;
+  background:#10140e;
+}
+
+.sp-readiness-grid article.ok {
+  border-color:#486343;
+}
+
+.sp-readiness-grid article.blocked {
+  border-color:#7b3f3f;
+  background:#1b1010;
+}
+
+.sp-readiness-grid article.notice {
+  border-color:#756737;
+  background:#19170f;
+}
+
+.sp-readiness-grid article > div {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.sp-readiness-grid article strong {
+  font-size:9px;
+  letter-spacing:.08em;
+}
+
+.sp-readiness-grid article p {
+  margin:10px 0 0;
+  color:#98a092;
+  font-size:9px;
+  line-height:1.55;
+}
+
+.sp-readiness-result {
+  margin-top:12px;
+  padding:11px 12px;
+  border:1px solid #4a5145;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.08em;
+}
+
+.sp-readiness-result.ok {
+  color:#b9d7b1;
+  border-color:#486343;
+}
+
+.sp-readiness-result.blocked {
+  color:#efaaaa;
+  border-color:#7b3f3f;
+  background:#1b1010;
+}
 .sp-review-access-card .sp-admin-card-head {
   display:flex;
   align-items:center;
@@ -974,10 +1068,15 @@
   }
 
   .sp-review-access-card .sp-admin-card-head,
+  .sp-readiness-card .sp-admin-card-head,
   .sp-review-credentials {
     display:grid;
     grid-template-columns:1fr;
     align-items:stretch;
+  }
+
+  .sp-readiness-grid {
+    grid-template-columns:1fr;
   }
 
   .sp-campaign-card {
