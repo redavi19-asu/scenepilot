@@ -36,6 +36,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Validate tenant and release invariants
+        run: npm run validate:release
+
       - name: Build
         run: npm run build
 
