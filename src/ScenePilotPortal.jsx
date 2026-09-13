@@ -2099,6 +2099,8 @@ function AdminPage({ user, onLogout }) {
   const [status, setStatus] = useState("");
   const [reviewAccount, setReviewAccount] = useState(null);
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [readiness, setReadiness] = useState(null);
+  const [readinessBusy, setReadinessBusy] = useState(false);
   const [subject, setSubject] = useState("");
   const [bodyText, setBodyText] = useState("");
 
@@ -2115,8 +2117,21 @@ function AdminPage({ user, onLogout }) {
     }
   }
 
+  async function loadReleaseReadiness() {
+    setReadinessBusy(true);
+    try {
+      const data = await api("/api/admin/release-readiness");
+      setReadiness(data);
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setReadinessBusy(false);
+    }
+  }
+
   useEffect(() => {
     load();
+    loadReleaseReadiness();
   }, []);
 
   async function updateAccess(targetUser, field, value) {
@@ -2205,6 +2220,46 @@ function AdminPage({ user, onLogout }) {
         <article><Users size={20}/><strong>{users.length}</strong><span>ACCOUNTS</span></article>
         <article><Mail size={20}/><strong>{users.filter(item => item.marketingOptIn).length}</strong><span>UPDATE OPT-INS</span></article>
         <article><Crown size={20}/><strong>{users.filter(item => item.plan === "pro").length}</strong><span>PRO</span></article>
+      </section>
+
+      <section className="sp-admin-card sp-readiness-card">
+        <div className="sp-admin-card-head">
+          <div>
+            <span className="sp-kicker">RELEASE READINESS</span>
+            <h2>{readiness?.ready ? "Ready for release checks." : "Release checks"}</h2>
+            <p>
+              Live verification of the services Urban Director Studio needs before submission.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadReleaseReadiness}
+            disabled={readinessBusy}
+          >
+            <RefreshCw size={16}/>
+            {readinessBusy ? "CHECKING..." : "RUN CHECKS"}
+          </button>
+        </div>
+
+        <div className="sp-readiness-grid">
+          {(readiness?.checks || []).map(check => (
+            <article key={check.id} className={check.ok ? "ok" : check.blocking ? "blocked" : "notice"}>
+              <div>
+                {check.ok ? <CheckCircle2 size={18}/> : <X size={18}/>}
+                <strong>{check.id.replaceAll("-", " ").toUpperCase()}</strong>
+              </div>
+              <p>{check.detail}</p>
+            </article>
+          ))}
+        </div>
+
+        {readiness && (
+          <div className={`sp-readiness-result ${readiness.ready ? "ok" : "blocked"}`}>
+            {readiness.ready
+              ? "NO RELEASE BLOCKERS DETECTED"
+              : `BLOCKERS: ${(readiness.blockers || []).join(", ").toUpperCase() || "NONE"}`}
+          </div>
+        )}
       </section>
 
       <section className="sp-admin-card sp-review-access-card">
