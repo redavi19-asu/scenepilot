@@ -1991,6 +1991,99 @@ async function callEncoder(env, path, payload) {
   };
 }
 
+function streamingLimitConfig(env) {
+  const includedRaw = Number(env.STREAM_INCLUDED_MINUTES || 1500);
+  const sessionRaw = Number(env.STREAM_MAX_SESSION_MINUTES || 240);
+
+  return {
+    includedMinutes: Number.isFinite(includedRaw)
+      ? Math.max(60, Math.min(100000, Math.floor(includedRaw)))
+      : 1500,
+    maxSessionMinutes: Number.isFinite(sessionRaw)
+      ? Math.max(15, Math.min(1440, Math.floor(sessionRaw)))
+      : 240
+  };
+}
+
+function utcBillingWindow(now = Date.now()) {
+  const date = new Date(now);
+  const start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+  const resetAt = Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
+  return { start, resetAt };
+}
+
+async function getStreamingAllowance(env, networkId, now = Date.now()) {
+  const { includedMinutes, maxSessionMinutes } = streamingLimitConfig(env);
+  const { start, resetAt } = utcBillingWindow(now);
+
+  const previous = await env.DB.prepare(
+    `SELECT action, created_at
+     FROM scenepilot_broadcast_events
+     WHERE network_id = ?
+       AND status = 'accepted'
+       AND created_at < ?
+     ORDER BY created_at DESC
+     LIMIT 1`
+  ).bind(networkId, start).first();
+
+  const rows = await env.DB.prepare(
+    `SELECT action, created_at
+     FROM scenepilot_broadcast_events
+     WHERE network_id = ?
+       AND status = 'accepted'
+       AND created_at >= ?
+       AND created_at <= ?
+     ORDER BY created_at ASC`
+  ).bind(networkId, start, now).all();
+
+  let activeStart = previous?.action === "start" ? start : null;
+  let usedMs = 0;
+
+  for (const row of rows.results || []) {
+    const createdAt = Number(row?.created_at);
+    if (!Number.isFinite(createdAt)) continue;
+    const timestamp = Math.max(start, Math.min(now, createdAt));
+
+    if (row.action === "start") {
+      if (activeStart !== null) {
+        usedMs += Math.max(0, timestamp - activeStart);
+      }
+      activeStart = timestamp;
+      continue;
+    }
+
+    if (row.action === "stop" && activeStart !== null) {
+      usedMs += Math.max(0, timestamp - activeStart);
+      activeStart = null;
+    }
+  }
+
+  if (activeStart !== null) {
+    usedMs += Math.max(0, now - activeStart);
+  }
+
+  const usedSeconds = Math.max(0, Math.ceil(usedMs / 1000));
+  const includedSeconds = includedMinutes * 60;
+  const remainingSeconds = Math.max(0, includedSeconds - usedSeconds);
+  const sessionLimitSeconds = Math.max(
+    0,
+    Math.min(maxSessionMinutes * 60, remainingSeconds)
+  );
+
+  return {
+    includedMinutes,
+    maxSessionMinutes,
+    usedSeconds,
+    usedMinutes: Math.ceil(usedSeconds / 60),
+    remainingSeconds,
+    remainingMinutes: Math.ceil(remainingSeconds / 60),
+    sessionLimitSeconds,
+    sessionLimitMinutes: Math.ceil(sessionLimitSeconds / 60),
+    active: activeStart !== null,
+    resetAt
+  };
+}
+
 async function handleBroadcastControl(request, env, action) {
   const auth = await requireScenePilotNetworkMember(request, env);
   if (auth.response) return auth.response;
@@ -2006,6 +2099,19 @@ async function handleBroadcastControl(request, env, action) {
 
   if (action === "start" && !destinationIds.length) {
     return json({ error: "Select at least one broadcast destination." }, 400);
+  }
+
+  let allowance = null;
+  if (action === "start") {
+    allowance = await getStreamingAllowance(env, auth.network.id);
+
+    if (allowance.remainingSeconds < 60) {
+      return json({
+        error: "Monthly streaming allowance reached. Streaming will be available again when the monthly allowance resets.",
+        code: "stream_limit_reached",
+        usage: allowance
+      }, 429);
+    }
   }
 
   let targets = [];
@@ -2037,7 +2143,8 @@ async function handleBroadcastControl(request, env, action) {
     ownerRole: auth.user?.role || "user",
     retentionClass,
     room: String(body.room || "SP-4827").slice(0, 80),
-    destinations: targets
+    destinations: targets,
+    maxDurationSeconds: allowance?.sessionLimitSeconds || null
   };
 
   const encoder = await callEncoder(
@@ -2185,6 +2292,21 @@ async function handleRealtimePublish(request, env) {
       "DELETE FROM scenepilot_realtime_publications WHERE room_code = ? AND network_id = ?"
     ).bind(room, auth.network.id).run();
     return json({ ok: true });
+  }
+
+  const allowance = await getStreamingAllowance(env, auth.network.id);
+  if (!allowance.active) {
+    return json({
+      error: "Start a protected broadcast before publishing Realtime video.",
+      code: "broadcast_not_active"
+    }, 409);
+  }
+  if (allowance.remainingSeconds <= 0) {
+    return json({
+      error: "Monthly streaming allowance reached.",
+      code: "stream_limit_reached",
+      usage: allowance
+    }, 429);
   }
 
   const sessionDescription = body.sessionDescription;
