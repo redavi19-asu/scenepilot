@@ -4,7 +4,8 @@ import {
   Settings, Maximize2, MonitorUp, Users, QrCode,
   Type, Layers, PictureInPicture2, Video, Camera,
   Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut, PhoneOff, ShieldCheck, Flashlight,
-  Scissors, Play, Save, Download, SkipBack, Film, Upload, Minimize2, Maximize, Menu, LogOut, MessageSquare, RadioTower, Trash2
+  Scissors, Play, Save, Download, SkipBack, Film, Upload, Minimize2, Maximize, Menu, LogOut, MessageSquare, RadioTower, Trash2,
+  ChevronDown, Copy, Share2, Mail
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Capacitor } from "@capacitor/core";
@@ -138,6 +139,9 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     logoImage: ""
   });
   const [showJoin, setShowJoin] = useState(false);
+  const [cameraShareMenuOpen, setCameraShareMenuOpen] = useState(false);
+  const [cameraInvite, setCameraInvite] = useState(null);
+  const [cameraInviteStatus, setCameraInviteStatus] = useState("");
   const [showCamera, setShowCamera] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("camera") === "1";
@@ -460,21 +464,127 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     };
   }, [showCamera]);
 
-  const cameraJoinQuery =
-    network?.id && network?.joinToken
-      ? new URLSearchParams({
-          camera: "1",
-          network: network.id,
-          room: roomCode,
-          join: network.joinToken
-        }).toString()
-      : "";
+  async function requestCameraInvite(force = false) {
+    if (!network?.id) {
+      throw new Error("Company network is still loading.");
+    }
+
+    if (
+      !force &&
+      cameraInvite?.token &&
+      cameraInvite?.room === roomCode &&
+      Number(cameraInvite.expiresAt || 0) > Date.now() + 60 * 1000
+    ) {
+      return cameraInvite;
+    }
+
+    setCameraInviteStatus("CREATING SECURE CAMERA INVITE...");
+
+    const response = await apiFetch("/api/camera/invite", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({ room: roomCode })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.invite?.token) {
+      throw new Error(
+        data.error || "Could not create a secure camera invitation."
+      );
+    }
+
+    setCameraInvite(data.invite);
+    setCameraInviteStatus("");
+    return data.invite;
+  }
+
+  function cameraInviteQuery(invite = cameraInvite) {
+    return (
+      network?.id &&
+      invite?.token
+        ? new URLSearchParams({
+            camera: "1",
+            network: network.id,
+            room: invite.room || roomCode,
+            join: invite.token
+          }).toString()
+        : ""
+    );
+  }
+
+  function cameraInviteUrl(invite = cameraInvite, handoff = true) {
+    const query = cameraInviteQuery(invite);
+    if (!query) return "";
+    return handoff
+      ? `${publicOrigin()}/camera-open?${query}`
+      : `${publicOrigin()}/app?${query}`;
+  }
+
+  const cameraJoinQuery = cameraInviteQuery();
   const joinUrl = cameraJoinQuery
     ? `${publicOrigin()}/app?${cameraJoinQuery}`
     : "";
   const cameraHandoffUrl = cameraJoinQuery
     ? `${publicOrigin()}/camera-open?${cameraJoinQuery}`
     : "";
+
+  useEffect(() => {
+    if ((!cameraShareMenuOpen && !showJoin) || !network?.id) return;
+
+    requestCameraInvite().catch(error => {
+      setCameraInviteStatus(error.message);
+    });
+  }, [cameraShareMenuOpen, showJoin, network?.id, roomCode]);
+
+  async function shareCameraInvite(method) {
+    try {
+      const invite = await requestCameraInvite();
+      const url = cameraInviteUrl(invite, true);
+      const title = "Urban Director Studio Camera Invite";
+      const message =
+        `Join ${network?.name || "this production"} as a camera for room ${invite.room || roomCode}. This secure invite expires automatically.`;
+
+      if (method === "copy") {
+        await navigator.clipboard.writeText(url);
+        setCameraInviteStatus("CAMERA LINK COPIED");
+        return;
+      }
+
+      if (method === "email") {
+        window.location.href =
+          `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${message}\n\n${url}`)}`;
+        return;
+      }
+
+      if (method === "text") {
+        window.location.href =
+          `sms:?&body=${encodeURIComponent(`${message} ${url}`)}`;
+        return;
+      }
+
+      if (method === "share" && navigator.share) {
+        await navigator.share({
+          title,
+          text: message,
+          url
+        });
+        return;
+      }
+
+      await navigator.clipboard.writeText(url);
+      setCameraInviteStatus("CAMERA LINK COPIED — SHARE IT WITH YOUR CAMERA OPERATOR");
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        setCameraInviteStatus(
+          error?.message || "Camera invitation could not be shared."
+        );
+      }
+    }
+  }
 
   async function refreshVideoInputs() {
     try {
@@ -3520,7 +3630,51 @@ async function enableCamera() {
 
         <div className="top-actions">
           <span className="network"><i/> {signalStatus}</span>
-          <button onClick={() => setShowJoin(true)}><Users size={18}/> ADD CAMERA</button>
+          <div className="camera-share-control">
+            <button
+              className="camera-share-trigger"
+              onClick={() => setCameraShareMenuOpen(value => !value)}
+              aria-expanded={cameraShareMenuOpen}
+              aria-haspopup="menu"
+            >
+              <Users size={18}/> ADD CAMERA <ChevronDown size={14}/>
+            </button>
+
+            {cameraShareMenuOpen && (
+              <div className="camera-share-menu" role="menu">
+                <button type="button" role="menuitem" onClick={() => {
+                  setShowJoin(true);
+                  setCameraShareMenuOpen(false);
+                }}>
+                  <QrCode size={16}/> SHOW QR CODE
+                </button>
+                <button type="button" role="menuitem" onClick={() => {
+                  void shareCameraInvite("copy");
+                  setCameraShareMenuOpen(false);
+                }}>
+                  <Copy size={16}/> COPY CAMERA LINK
+                </button>
+                <button type="button" role="menuitem" onClick={() => {
+                  void shareCameraInvite("text");
+                  setCameraShareMenuOpen(false);
+                }}>
+                  <MessageSquare size={16}/> TEXT INVITE
+                </button>
+                <button type="button" role="menuitem" onClick={() => {
+                  void shareCameraInvite("email");
+                  setCameraShareMenuOpen(false);
+                }}>
+                  <Mail size={16}/> EMAIL INVITE
+                </button>
+                <button type="button" role="menuitem" onClick={() => {
+                  void shareCameraInvite("share");
+                  setCameraShareMenuOpen(false);
+                }}>
+                  <Share2 size={16}/> SHARE...
+                </button>
+              </div>
+            )}
+          </div>
           <button
             className={`icon-button director-menu-trigger ${secondaryToolAlert ? "has-alert" : ""}`}
             onClick={() => setDirectorMenuOpen(value => !value)}
@@ -4715,6 +4869,32 @@ async function enableCamera() {
               )}
             </div>
             <div className="room-code"><span>NETWORK / ROOM</span><strong>{network?.name || "LOADING"} • {roomCode}</strong></div>
+
+            {cameraInvite?.expiresAt && (
+              <div className="camera-invite-expiry">
+                SECURE INVITE EXPIRES {new Date(cameraInvite.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+              </div>
+            )}
+
+            {cameraInviteStatus && (
+              <div className="camera-invite-status" role="status">{cameraInviteStatus}</div>
+            )}
+
+            <div className="camera-invite-actions">
+              <button type="button" onClick={() => void shareCameraInvite("copy")}>
+                <Copy size={15}/> COPY LINK
+              </button>
+              <button type="button" onClick={() => void shareCameraInvite("text")}>
+                <MessageSquare size={15}/> TEXT
+              </button>
+              <button type="button" onClick={() => void shareCameraInvite("email")}>
+                <Mail size={15}/> EMAIL
+              </button>
+              <button type="button" onClick={() => void shareCameraInvite("share")}>
+                <Share2 size={15}/> SHARE
+              </button>
+            </div>
+
             <button
               className="camera-demo"
               disabled={!joinUrl}
