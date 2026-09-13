@@ -2284,6 +2284,18 @@
   text-align: center;
 }
 
+.sp-price-note button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #aeb8aa;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 .sp-faq-list {
   display: grid;
   gap: 9px;
