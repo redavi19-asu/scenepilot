@@ -184,9 +184,14 @@ function outputUrl(destination) {
   return `${base}/${key}`;
 }
 
-function stopJob(job) {
+function stopJob(job, closeCode = 1000, closeReason = "Broadcast stopped") {
+  if (job?.limitTimer) {
+    clearTimeout(job.limitTimer);
+    job.limitTimer = null;
+  }
+
   try {
-    job.socket?.close(1000, "Broadcast stopped");
+    job.socket?.close(closeCode, closeReason);
   } catch (_) {}
 
   try {
@@ -284,6 +289,10 @@ const server = createServer(async (request, response) => {
       const eventId = String(body.eventId || crypto.randomUUID());
       const input = `${INPUT_BASE}/${room}`;
       const destinations = Array.isArray(body.destinations) ? body.destinations : [];
+      const requestedMaxDurationSeconds = Number(body.maxDurationSeconds);
+      const maxDurationSeconds = Number.isFinite(requestedMaxDurationSeconds)
+        ? Math.max(60, Math.min(24 * 60 * 60, Math.floor(requestedMaxDurationSeconds)))
+        : 4 * 60 * 60;
 
       if (jobs.has(room)) stopJob(jobs.get(room));
 
@@ -321,9 +330,29 @@ const server = createServer(async (request, response) => {
         ingestExpiresAt: Date.now() + INGEST_TOKEN_TTL_MS,
         ingestProcess: null,
         socket: null,
-        startedAt: Date.now()
+        startedAt: Date.now(),
+        maxDurationSeconds,
+        streamExpiresAt: Date.now() + maxDurationSeconds * 1000,
+        limitTimer: null
       };
       jobs.set(room, job);
+
+      job.limitTimer = setTimeout(async () => {
+        if (jobs.get(room) !== job) return;
+
+        console.warn(
+          `[limit] Streaming limit reached for room ${room} after ${maxDurationSeconds} seconds.`
+        );
+        stopJob(job, 4008, "Streaming allowance reached");
+
+        if (job.retentionClass === "owner") {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await archiveOwnerRecordings(job);
+        }
+
+        jobs.delete(room);
+      }, maxDurationSeconds * 1000);
+      job.limitTimer.unref?.();
 
       return json(response, 202, {
         ok: true,
@@ -332,6 +361,8 @@ const server = createServer(async (request, response) => {
         room,
         input,
         destinations: accepted,
+        maxDurationSeconds: job.maxDurationSeconds,
+        streamExpiresAt: job.streamExpiresAt,
         ingest: {
           url: `${PUBLIC_INGEST_URL}/ingest/${encodeURIComponent(room)}`,
           protocol: `scenepilot-ingest.${ingestToken}`,
