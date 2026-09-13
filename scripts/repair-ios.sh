@@ -9,7 +9,7 @@ echo "== Urban Director Studio iOS repair =="
 echo "1/3 Syncing Capacitor iOS assets..."
 npm run mobile:sync
 
-echo "2/4 Generating iOS icon from public/favicon.svg..."
+echo "2/4 Generating iOS icon from public/urban-director-icon.svg..."
 npm run ios:icon
 
 echo "3/4 Resolving Swift Package dependencies..."
