@@ -3,7 +3,7 @@ import {
   Radio, LogIn, UserPlus, LockKeyhole, MessageSquare,
   Send, ShieldCheck, Users, ArrowRight, LogOut, Crown, Mail,
   X, Camera, RadioTower, Mic, Headphones, Cast, Maximize2, Smartphone,
-  Monitor, Film, Layers3, Server, Globe2, CheckCircle2, Trash2, RefreshCw
+  Monitor, Film, Layers3, Server, Globe2, CheckCircle2, Trash2, RefreshCw, Copy
 } from "lucide-react";
 import App from "./App.jsx";
 import TurnstileWidget from "./TurnstileWidget.jsx";
