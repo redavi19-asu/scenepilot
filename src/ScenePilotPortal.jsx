@@ -10,6 +10,14 @@ import TurnstileWidget from "./TurnstileWidget.jsx";
 import { socket } from "./socket";
 import { subscribeToRealtimeProgram } from "./cloudflareRealtime";
 import { apiFetch, setNativeSessionToken } from "./runtimeApi";
+import {
+  getAppleSubscriptionProduct,
+  isAppleStoreKitAvailable,
+  manageAppleSubscription,
+  purchaseAppleSubscription,
+  refreshAppleSubscription,
+  restoreAppleSubscription
+} from "./storeKitSubscription";
 import "./ScenePilotPortal.css";
 
 function WatchPage({ roomCode }) {
@@ -1012,23 +1020,151 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
 function AccessStatusPage({ user, onLogout, onDeleteAccount }) {
   const pending = user?.accessStatus === "pending";
   const suspended = user?.accessStatus === "suspended";
+  const appleNative = isAppleStoreKitAvailable();
+  const [appleProduct, setAppleProduct] = useState(null);
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [billingStatus, setBillingStatus] = useState("");
+
+  useEffect(() => {
+    if (!appleNative) return;
+
+    let cancelled = false;
+    getAppleSubscriptionProduct()
+      .then(product => {
+        if (!cancelled) setAppleProduct(product);
+      })
+      .catch(error => {
+        if (!cancelled) setBillingStatus(error.message);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appleNative]);
+
+  async function subscribeWithApple() {
+    setBillingBusy(true);
+    setBillingStatus("");
+
+    try {
+      const result = await purchaseAppleSubscription(user?.id || "");
+
+      if (result?.status === "cancelled") {
+        setBillingStatus("Purchase cancelled.");
+        return;
+      }
+
+      if (result?.status === "pending") {
+        setBillingStatus("Apple is processing this purchase. Access will activate after approval.");
+        return;
+      }
+
+      if (result?.entitlement?.entitlement?.active) {
+        setBillingStatus("Subscription verified. Opening Urban Director Studio...");
+        window.location.reload();
+        return;
+      }
+
+      setBillingStatus("Apple purchase completed. Verifying access...");
+      window.location.reload();
+    } catch (error) {
+      setBillingStatus(error.message);
+    } finally {
+      setBillingBusy(false);
+    }
+  }
+
+  async function restoreWithApple() {
+    setBillingBusy(true);
+    setBillingStatus("");
+
+    try {
+      const result = await restoreAppleSubscription();
+      if (result?.entitlement?.entitlement?.active || result?.active) {
+        setBillingStatus("Purchase restored. Opening Urban Director Studio...");
+        window.location.reload();
+        return;
+      }
+      setBillingStatus("No active Urban Director Studio Pro subscription was found.");
+    } catch (error) {
+      setBillingStatus(error.message);
+    } finally {
+      setBillingBusy(false);
+    }
+  }
+
+  async function manageWithApple() {
+    setBillingStatus("");
+    try {
+      await manageAppleSubscription();
+    } catch (error) {
+      setBillingStatus(error.message);
+    }
+  }
 
   return (
     <div className="sp-auth-shell">
       <div className="sp-auth-card sp-access-status-card">
         <div className="sp-auth-logo"><LockKeyhole size={26}/></div>
         <span className="sp-kicker">URBAN DIRECTOR STUDIO ACCOUNT</span>
-        <h1>{pending ? "Access pending." : suspended ? "Access suspended." : "Account access."}</h1>
+        <h1>{pending ? "Choose your access." : suspended ? "Subscription inactive." : "Account access."}</h1>
         <p>
           {pending
-            ? "Your account is signed in and waiting for Director access approval. You can check again, sign out, or permanently delete your account."
+            ? "Your ICA Software account is ready. Activate Urban Director Studio Pro to open the Director console."
             : suspended
-              ? "Director access is currently suspended. You can sign out or permanently delete your account."
+              ? "Your Urban Director Studio Pro entitlement is not currently active. Renew or restore through Apple to reopen the Director console."
               : "Your account is signed in, but Director access is not currently available."}
         </p>
 
+        {appleNative && (
+          <div className="sp-apple-billing-card">
+            <span className="sp-kicker">APPLE SUBSCRIPTION</span>
+            <strong>
+              Urban Director Studio Pro — {appleProduct?.displayPrice || "$29.99"} / month
+            </strong>
+            <small>
+              Includes 1,500 broadcast minutes per billing period and up to 4 hours per live session.
+              Auto-renews until canceled in your Apple Account settings.
+            </small>
+
+            <button
+              className="sp-auth-submit"
+              type="button"
+              disabled={billingBusy || appleProduct?.available === false}
+              onClick={subscribeWithApple}
+            >
+              <Crown size={17}/>
+              {billingBusy ? "PLEASE WAIT..." : suspended ? "RENEW WITH APPLE" : "SUBSCRIBE WITH APPLE"}
+            </button>
+
+            <button
+              className="sp-secondary"
+              type="button"
+              disabled={billingBusy}
+              onClick={restoreWithApple}
+            >
+              <RefreshCw size={17}/> RESTORE PURCHASES
+            </button>
+
+            {user?.billingSource === "apple" && (
+              <button
+                className="sp-secondary"
+                type="button"
+                disabled={billingBusy}
+                onClick={manageWithApple}
+              >
+                MANAGE APPLE SUBSCRIPTION
+              </button>
+            )}
+
+            {billingStatus && (
+              <div className="sp-billing-status" role="status">{billingStatus}</div>
+            )}
+          </div>
+        )}
+
         <div className="sp-access-status-actions">
-          {pending && (
+          {!appleNative && pending && (
             <button className="sp-auth-submit" type="button" onClick={() => window.location.reload()}>
               <RefreshCw size={17}/> CHECK ACCESS
             </button>
@@ -2147,6 +2283,25 @@ export default function ScenePilotPortal() {
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, [cameraMode]);
+
+  useEffect(() => {
+    if (!user?.id || !isAppleStoreKitAvailable()) return;
+    if (user.role === "owner" || user.role === "admin") return;
+
+    let cancelled = false;
+
+    refreshAppleSubscription()
+      .then(data => {
+        if (!cancelled && data?.user) {
+          setUser(data.user);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.role]);
 
   async function logout() {
     try {
