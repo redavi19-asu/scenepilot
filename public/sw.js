@@ -1,4 +1,4 @@
-const CACHE_NAME = "urban-director-shell-v3";
+const CACHE_NAME = "urban-director-shell-v4";
 const SHELL = ["/", "/manifest.webmanifest", "/urban-director-icon.svg"];
 
 self.addEventListener("install", event => {
