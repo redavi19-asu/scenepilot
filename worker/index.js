@@ -2693,13 +2693,23 @@ async function requireScenePilotNetworkMember(request, env) {
     };
   }
 
-  const network = await getUserScenePilotNetwork(env, user.id);
+  let network = null;
+  try {
+    network = await ensureUserScenePilotNetwork(env, user);
+  } catch (error) {
+    console.error("Urban Director Studio network provisioning failed", error);
+    return {
+      user,
+      network: null,
+      response: json({ error: "Urban Director Studio network could not be prepared." }, 503)
+    };
+  }
 
   if (!network) {
     return {
       user,
       network: null,
-      response: json({ error: "Urban Director Studio network not found." }, 404)
+      response: json({ error: "Urban Director Studio network could not be prepared." }, 503)
     };
   }
 
