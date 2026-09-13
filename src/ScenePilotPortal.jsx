@@ -2097,6 +2097,8 @@ function AdminPage({ user, onLogout }) {
   const [users, setUsers] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [status, setStatus] = useState("");
+  const [reviewAccount, setReviewAccount] = useState(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
   const [subject, setSubject] = useState("");
   const [bodyText, setBodyText] = useState("");
 
@@ -2130,6 +2132,40 @@ function AdminPage({ user, onLogout }) {
       await load();
     } catch (error) {
       setStatus(error.message);
+    }
+  }
+
+  async function generateAppReviewAccess() {
+    setReviewBusy(true);
+    setStatus("");
+
+    try {
+      const data = await api("/api/admin/app-review", {
+        method: "POST",
+        body: "{}"
+      });
+      setReviewAccount(data.reviewAccount || null);
+      setStatus("Apple App Review access generated. Copy the credentials now; regenerating creates a new password.");
+      await load();
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
+  async function copyReviewCredentials() {
+    if (!reviewAccount) return;
+    const text =
+      `Urban Director Studio App Review\nLogin: ${reviewAccount.email}\nPassword: ${reviewAccount.password}\n` +
+      `Access expires: ${new Date(reviewAccount.expiresAt).toLocaleString()}\n` +
+      "Use Add Camera inside the Director console to generate a current secure QR/link for camera testing.";
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatus("App Review credentials copied.");
+    } catch (_) {
+      setStatus("Copy failed. Select the credentials shown below manually.");
     }
   }
 
@@ -2169,6 +2205,47 @@ function AdminPage({ user, onLogout }) {
         <article><Users size={20}/><strong>{users.length}</strong><span>ACCOUNTS</span></article>
         <article><Mail size={20}/><strong>{users.filter(item => item.marketingOptIn).length}</strong><span>UPDATE OPT-INS</span></article>
         <article><Crown size={20}/><strong>{users.filter(item => item.plan === "pro").length}</strong><span>PRO</span></article>
+      </section>
+
+      <section className="sp-admin-card sp-review-access-card">
+        <div className="sp-admin-card-head">
+          <div>
+            <span className="sp-kicker">APPLE APP REVIEW</span>
+            <h2>Temporary reviewer access</h2>
+            <p>
+              Generates or resets a dedicated Pro reviewer account with its own isolated Urban Director Studio network.
+              Access automatically expires after 45 days.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={generateAppReviewAccess}
+            disabled={reviewBusy}
+          >
+            <ShieldCheck size={16}/>
+            {reviewBusy ? "GENERATING..." : reviewAccount ? "REGENERATE REVIEW LOGIN" : "GENERATE REVIEW LOGIN"}
+          </button>
+        </div>
+
+        {reviewAccount && (
+          <div className="sp-review-credentials">
+            <div>
+              <span>LOGIN</span>
+              <strong>{reviewAccount.email}</strong>
+            </div>
+            <div>
+              <span>PASSWORD</span>
+              <strong>{reviewAccount.password}</strong>
+            </div>
+            <div>
+              <span>EXPIRES</span>
+              <strong>{new Date(reviewAccount.expiresAt).toLocaleString()}</strong>
+            </div>
+            <button type="button" onClick={copyReviewCredentials}>
+              <Copy size={15}/> COPY APP REVIEW INFO
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="sp-admin-card">
