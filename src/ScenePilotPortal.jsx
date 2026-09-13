@@ -929,10 +929,24 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
           <TurnstileWidget
             action={mode === "register" ? "register" : "login"}
             onToken={handleTurnstileToken}
+            onError={message => setStatus(message)}
             resetKey={turnstileResetKey}
           />
 
           {status && <div className="sp-auth-error">{status}</div>}
+          {status && !turnstileToken && status.toLowerCase().includes("security check") && (
+            <button
+              type="button"
+              className="sp-secondary"
+              onClick={() => {
+                setStatus("");
+                setTurnstileToken("");
+                setTurnstileResetKey(value => value + 1);
+              }}
+            >
+              RETRY SECURITY CHECK
+            </button>
+          )}
 
           <p className="sp-auth-legal">
             By continuing, you agree to the account terms and acknowledge the
