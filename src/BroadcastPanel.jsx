@@ -57,6 +57,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const [showShare, setShowShare] = useState(false);
   const [settings, setSettings] = useState(EMPTY_SETTINGS);
   const [usage, setUsage] = useState(null);
+  const [broadcastNetworkId, setBroadcastNetworkId] = useState("");
   const [collapsed, setCollapsed] = useState(() => (
     typeof window !== "undefined" &&
     Boolean(window.matchMedia?.("(max-width: 760px)")?.matches)
@@ -77,11 +78,22 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     usagePercent >= 75 ? "warning" :
     "normal";
 
+  const serviceRoomCode = useMemo(() => {
+    const baseRoom = String(roomCode || "live")
+      .trim()
+      .replace(/[^A-Za-z0-9_-]/g, "")
+      .slice(0, 32) || "live";
+    const networkRoom = String(broadcastNetworkId || "")
+      .trim()
+      .replace(/[^A-Za-z0-9_-]/g, "")
+      .slice(0, 40);
+    return networkRoom ? `${baseRoom}-${networkRoom}`.slice(0, 80) : baseRoom;
+  }, [roomCode, broadcastNetworkId]);
+
   const publicWatchUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
-    const safeRoom = encodeURIComponent(String(roomCode || "live").trim());
-    return `${publicOrigin()}/watch/${safeRoom}`;
-  }, [roomCode]);
+    return `${publicOrigin()}/watch/${encodeURIComponent(serviceRoomCode)}`;
+  }, [serviceRoomCode]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return undefined;
@@ -101,6 +113,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         if (cancelled) return;
 
         setEncoderConnected(Boolean(data.encoderConnected));
+        setBroadcastNetworkId(String(data.network?.id || ""));
 
         setSettings(current => {
           const next = { ...current };
@@ -400,6 +413,11 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
 
     try {
       if (!broadcasting) {
+        if (!broadcastNetworkId) {
+          setStatus("Production network is still loading. Try again in a moment.");
+          return;
+        }
+
         if (!selected.length) {
           setStatus("Select at least one destination.");
           return;
@@ -415,7 +433,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         const data = await api("/api/broadcast/start", {
           method: "POST",
           body: JSON.stringify({
-            room: roomCode,
+            room: serviceRoomCode,
             destinations: selected
           })
         });
@@ -425,7 +443,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         } catch (error) {
           await api("/api/broadcast/stop", {
             method: "POST",
-            body: JSON.stringify({ room: roomCode, destinations: selected })
+            body: JSON.stringify({ room: serviceRoomCode, destinations: selected })
           }).catch(() => {});
           throw error;
         }
@@ -433,7 +451,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         if (selected.includes("self")) {
           try {
             realtimeRef.current = await publishProgramToRealtime(
-              roomCode,
+              serviceRoomCode,
               getProgramStream?.()
             );
           } catch (error) {
@@ -459,7 +477,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
             await stopBrowserIngest().catch(() => {});
             await api("/api/broadcast/stop", {
               method: "POST",
-              body: JSON.stringify({ room: roomCode, destinations: selected })
+              body: JSON.stringify({ room: serviceRoomCode, destinations: selected })
             }).catch(() => {});
             setBroadcasting(false);
             setStatus("Streaming session limit reached. Start another session if monthly minutes remain.");
@@ -484,7 +502,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         const data = await api("/api/broadcast/stop", {
           method: "POST",
           body: JSON.stringify({
-            room: roomCode,
+            room: serviceRoomCode,
             destinations: selected
           })
         });
@@ -751,7 +769,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
               title="Urban Director Studio public watch QR code"
             />
             <strong>SCAN TO WATCH</strong>
-            <small>{roomCode}</small>
+            <small>{serviceRoomCode}</small>
           </div>
         </section>
       )}
