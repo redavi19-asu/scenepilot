@@ -783,7 +783,7 @@ function TermsPage() {
         <p>
           Urban Director Studio Pro is offered as a monthly auto-renewable subscription. The subscription
           renews automatically unless canceled through the applicable platform account settings before renewal.
-          Included service limits, such as hosted broadcast minutes and maximum live-session duration, are
+          Included service limits, such as broadcast minutes and maximum live-session duration, are
           displayed before purchase and within the product.
         </p>
       </section>
