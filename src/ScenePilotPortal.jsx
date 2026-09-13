@@ -600,6 +600,8 @@ function LandingPage() {
               <li><CheckCircle2 size={16}/> Recording, replay & editing workflow</li>
               <li><CheckCircle2 size={16}/> Broadcast graphics & overlays</li>
               <li><CheckCircle2 size={16}/> Broadcast / destination controls</li>
+              <li><CheckCircle2 size={16}/> 1,500 broadcast minutes / month</li>
+              <li><CheckCircle2 size={16}/> Up to 4 hours per live session</li>
             </ul>
             <button className="sp-primary" onClick={() => go("/register")}>
               CREATE YOUR ACCOUNT <ArrowRight size={17}/>
