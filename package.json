@@ -22,7 +22,8 @@
     "package:win": "electron-builder --win nsis --x64",
     "mobile:sync": "npm run build && cap sync",
     "mobile:android": "npm run mobile:sync && cap open android",
-    "mobile:ios": "npm run mobile:sync && cap open ios"
+    "mobile:ios": "npm run mobile:sync && cap open ios",
+    "ios:repair": "bash scripts/repair-ios.sh"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
