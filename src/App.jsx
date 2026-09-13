@@ -426,8 +426,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     try {
       window.localStorage.removeItem(`scenepilot:cameraNames:${roomCode}`);
       window.localStorage.removeItem(`scenepilot:mainCamera:${roomCode}`);
-    } catch (error) {
-      console.warn("Urban Director Studio session reset could not clear saved camera setup", error);
+    } catch (_) {
+      // Clear only legacy pre-tenant keys left by older builds.
     }
   }, [showCamera, roomCode]);
 
@@ -2773,14 +2773,6 @@ async function enableCamera() {
     if (mainCamera === DIRECTOR_SOURCE) {
       const fallbackMain = wirelessCameras[0]?.slotId || 1;
       setMainCamera(fallbackMain);
-      try {
-        window.localStorage.setItem(
-          `scenepilot:mainCamera:${roomCode}`,
-          String(fallbackMain)
-        );
-      } catch (error) {
-        console.warn("Urban Director Studio Main Cam fallback could not be saved", error);
-      }
     }
   }
 
