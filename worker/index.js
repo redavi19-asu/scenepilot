@@ -2710,12 +2710,53 @@ function utcBillingWindow(now = Date.now()) {
   const date = new Date(now);
   const start = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
   const resetAt = Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
-  return { start, resetAt };
+  return { start, resetAt, source: "calendar" };
+}
+
+async function billingWindowForNetwork(env, networkId, now = Date.now()) {
+  const calendar = utcBillingWindow(now);
+
+  try {
+    const row = await env.DB.prepare(
+      `SELECT
+        a.purchase_date,
+        a.expires_at,
+        a.status
+       FROM scenepilot_networks n
+       JOIN apple_subscriptions a ON a.user_id = n.created_by
+       WHERE n.id = ?
+       LIMIT 1`
+    ).bind(networkId).first();
+
+    const start = Number(row?.purchase_date || 0);
+    const resetAt = Number(row?.expires_at || 0);
+
+    if (
+      row?.status === "active" &&
+      Number.isFinite(start) &&
+      Number.isFinite(resetAt) &&
+      start > 0 &&
+      resetAt > now &&
+      start <= now &&
+      resetAt > start
+    ) {
+      return {
+        start,
+        resetAt,
+        source: "apple"
+      };
+    }
+  } catch (_) {
+    // Apple subscription schema may not exist yet during first deploy.
+  }
+
+  return calendar;
 }
 
 async function getStreamingAllowance(env, networkId, now = Date.now()) {
   const { includedMinutes, maxSessionMinutes } = streamingLimitConfig(env);
-  const { start, resetAt } = utcBillingWindow(now);
+  const { start, resetAt, source: billingWindowSource } =
+    await billingWindowForNetwork(env, networkId, now);
 
   const previous = await env.DB.prepare(
     `SELECT action, created_at
@@ -2785,7 +2826,8 @@ async function getStreamingAllowance(env, networkId, now = Date.now()) {
     sessionLimitSeconds,
     sessionLimitMinutes: Math.ceil(sessionLimitSeconds / 60),
     active,
-    resetAt
+    resetAt,
+    billingWindowSource
   };
 }
 
