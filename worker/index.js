@@ -236,7 +236,8 @@ async function getCurrentUser(request, env) {
   if (row.status !== "active") return null;
 
   if (
-    row.entitlement_source === "apple" &&
+    (row.entitlement_source === "apple" ||
+      row.entitlement_source === "app-review") &&
     Number(row.entitlement_expires_at || 0) > 0 &&
     Number(row.entitlement_expires_at) <= now &&
     row.access_status === "active"
@@ -1479,6 +1480,101 @@ async function handleAdminAccess(request, env, userId) {
   ]);
 
   return json({ ok: true });
+}
+
+async function handleAppReviewAccount(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (auth.response) return auth.response;
+
+  const email = "appreview@icomputeranything.com";
+  const displayName = "Apple App Review";
+  const password = `UDS-${randomToken(10)}-A7!`;
+  const passwordData = await hashPassword(password);
+  const now = Date.now();
+  const expiresAt = now + 45 * 24 * 60 * 60 * 1000;
+
+  await ensureScenePilotProduct(env);
+
+  const existing = await env.DB.prepare(
+    "SELECT id FROM users WHERE email = ? LIMIT 1"
+  ).bind(email).first();
+
+  const userId = existing?.id || crypto.randomUUID();
+
+  if (existing?.id) {
+    await env.DB.prepare(
+      `UPDATE users
+       SET display_name = ?,
+           password_hash = ?,
+           password_salt = ?,
+           role = 'user',
+           status = 'active'
+       WHERE id = ?`
+    ).bind(
+      displayName,
+      passwordData.hash,
+      passwordData.salt,
+      userId
+    ).run();
+  } else {
+    await env.DB.prepare(
+      `INSERT INTO users (
+        id,
+        email,
+        display_name,
+        password_hash,
+        password_salt,
+        role,
+        status,
+        marketing_opt_in,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, 'user', 'active', 0, ?)`
+    ).bind(
+      userId,
+      email,
+      displayName,
+      passwordData.hash,
+      passwordData.salt,
+      now
+    ).run();
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO user_products (
+      user_id,
+      product_id,
+      plan,
+      access_status,
+      source,
+      created_at,
+      expires_at
+    ) VALUES (?, 'product_scenepilot', 'pro', 'active', 'app-review', ?, ?)
+    ON CONFLICT(user_id, product_id) DO UPDATE SET
+      plan = 'pro',
+      access_status = 'active',
+      source = 'app-review',
+      expires_at = excluded.expires_at`
+  ).bind(userId, now, expiresAt).run();
+
+  const network = await ensureUserScenePilotNetwork(env, {
+    id: userId,
+    email,
+    displayName,
+    role: "user"
+  });
+
+  return json({
+    ok: true,
+    reviewAccount: {
+      email,
+      password,
+      expiresAt,
+      networkId: network?.id || null,
+      networkName: network?.name || null
+    },
+    note:
+      "The password is shown only now. Regenerate this review account if you need a new password."
+  });
 }
 
 async function handleCampaigns(request, env) {
@@ -3429,6 +3525,10 @@ async function handleApi(request, env, url) {
     (request.method === "GET" || request.method === "POST")
   ) {
     return handleCampaigns(request, env);
+  }
+
+  if (url.pathname === "/api/admin/app-review" && request.method === "POST") {
+    return handleAppReviewAccount(request, env);
   }
 
   return json({ error: "API route not found." }, 404);
