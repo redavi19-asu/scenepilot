@@ -7,6 +7,7 @@ const SCRIPT_ID = "scenepilot-turnstile-script";
 export default function TurnstileWidget({
   action = "login",
   onToken,
+  onError,
   resetKey = 0
 }) {
   const containerRef = useRef(null);
@@ -22,59 +23,17 @@ export default function TurnstileWidget({
     }
 
     let cancelled = false;
+    let pollTimer = null;
+    let attempts = 0;
+    let script = document.getElementById(SCRIPT_ID);
 
-    const renderWidget = () => {
-      if (
-        cancelled ||
-        !containerRef.current ||
-        !window.turnstile
-      ) {
-        return;
-      }
-
-      if (widgetIdRef.current !== null) {
-        try {
-          window.turnstile.remove(widgetIdRef.current);
-        } catch (_) {}
-        widgetIdRef.current = null;
-      }
-
-      widgetIdRef.current = window.turnstile.render(
-        containerRef.current,
-        {
-          sitekey: siteKey,
-          theme: "dark",
-          action,
-          callback: token => onToken(token),
-          "expired-callback": () => onToken(""),
-          "error-callback": () => onToken("")
-        }
-      );
+    const reportError = message => {
+      if (cancelled) return;
+      onToken("");
+      if (onError) onError(message);
     };
 
-    if (window.turnstile) {
-      renderWidget();
-    } else {
-      let script = document.getElementById(SCRIPT_ID);
-
-      if (!script) {
-        script = document.createElement("script");
-        script.id = SCRIPT_ID;
-        script.src =
-          "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-        script.async = true;
-        script.defer = true;
-        document.head.appendChild(script);
-      }
-
-      script.addEventListener("load", renderWidget, {
-        once: true
-      });
-    }
-
-    return () => {
-      cancelled = true;
-
+    const removeWidget = () => {
       if (
         widgetIdRef.current !== null &&
         window.turnstile
@@ -86,7 +45,84 @@ export default function TurnstileWidget({
 
       widgetIdRef.current = null;
     };
-  }, [action, onToken, resetKey, siteKey]);
+
+    const renderWidget = () => {
+      if (
+        cancelled ||
+        !containerRef.current ||
+        !window.turnstile
+      ) {
+        return false;
+      }
+
+      removeWidget();
+
+      try {
+        widgetIdRef.current = window.turnstile.render(
+          containerRef.current,
+          {
+            sitekey: siteKey,
+            theme: "dark",
+            action,
+            appearance: "always",
+            callback: token => {
+              if (cancelled) return;
+              onToken(token);
+            },
+            "expired-callback": () => onToken(""),
+            "timeout-callback": () => {
+              reportError("Security check timed out. Tap retry and try again.");
+            },
+            "error-callback": () => {
+              reportError("Security check could not load. Tap retry and try again.");
+            }
+          }
+        );
+        return true;
+      } catch (_) {
+        reportError("Security check could not start. Tap retry and try again.");
+        return false;
+      }
+    };
+
+    const waitForTurnstile = () => {
+      if (cancelled) return;
+
+      if (renderWidget()) return;
+
+      attempts += 1;
+      if (attempts >= 80) {
+        reportError("Security check is taking too long to load. Tap retry and try again.");
+        return;
+      }
+
+      pollTimer = window.setTimeout(waitForTurnstile, 150);
+    };
+
+    const handleScriptError = () => {
+      reportError("Security check could not be downloaded. Check your connection and tap retry.");
+    };
+
+    if (!script) {
+      script = document.createElement("script");
+      script.id = SCRIPT_ID;
+      script.src =
+        "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+
+    script.addEventListener("error", handleScriptError);
+    waitForTurnstile();
+
+    return () => {
+      cancelled = true;
+      if (pollTimer) window.clearTimeout(pollTimer);
+      script?.removeEventListener("error", handleScriptError);
+      removeWidget();
+    };
+  }, [action, onError, onToken, resetKey, siteKey]);
 
   if (Capacitor.isNativePlatform()) {
     return (
