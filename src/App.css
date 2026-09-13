@@ -4036,6 +4036,78 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
 .record-panel .output-data{
   margin-top:7px;
 }
+
+.record-capacity-notice{
+  margin-top:8px;
+  border:1px solid #39443a;
+  background:#111711;
+  padding:10px;
+  display:grid;
+  gap:7px;
+}
+.record-capacity-notice.warning{
+  border-color:#8b6d2f;
+  background:#1b170d;
+}
+.record-capacity-notice.critical{
+  border-color:#9a4343;
+  background:#211010;
+}
+.record-capacity-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.record-capacity-title>div{
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.record-capacity-title strong{
+  font-size:8px;
+  letter-spacing:.13em;
+  color:#dfe6dc;
+}
+.record-capacity-title span{
+  font-size:9px;
+  font-weight:900;
+  color:#a9b6a6;
+}
+.record-capacity-notice.warning .record-capacity-title span{
+  color:#efc56b;
+}
+.record-capacity-notice.critical .record-capacity-title span{
+  color:#ff8585;
+}
+.record-capacity-notice>small{
+  color:#9aa696;
+  font-size:8px;
+  line-height:1.55;
+}
+.record-capacity-notice.warning>small,
+.record-capacity-notice.critical>small{
+  color:#e5dcc5;
+}
+.record-capacity-notice details{
+  border-top:1px solid rgba(255,255,255,.08);
+  padding-top:7px;
+}
+.record-capacity-notice summary{
+  cursor:pointer;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.08em;
+  color:#c9d2c6;
+}
+.record-capacity-notice ul{
+  margin:8px 0 0;
+  padding-left:17px;
+  color:#aeb8ab;
+  font-size:8px;
+  line-height:1.55;
+}
+
 .record-panel .record-help{
   margin-top:6px;
   line-height:1.35;
