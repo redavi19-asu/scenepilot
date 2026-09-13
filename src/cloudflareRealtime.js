@@ -90,9 +90,37 @@ export async function subscribeToRealtimeProgram(room, video) {
       sessionDescription: { type: answer.type, sdp: answer.sdp }
     });
 
+    let heartbeatTimer = null;
+
+    if (subscription.viewerToken) {
+      const heartbeat = () => {
+        realtimeApi("/api/realtime/viewer", {
+          room,
+          sessionId: subscription.sessionId,
+          token: subscription.viewerToken
+        }).catch(() => {});
+      };
+
+      heartbeat();
+      heartbeatTimer = window.setInterval(heartbeat, 30 * 1000);
+    }
+
     return {
       peer,
       stop: () => {
+        if (heartbeatTimer) {
+          window.clearInterval(heartbeatTimer);
+          heartbeatTimer = null;
+        }
+
+        if (subscription.viewerToken) {
+          realtimeApi("/api/realtime/viewer", {
+            room,
+            sessionId: subscription.sessionId,
+            token: subscription.viewerToken
+          }, "DELETE").catch(() => {});
+        }
+
         peer.close();
         video.srcObject = null;
       }
