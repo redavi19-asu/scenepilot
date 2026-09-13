@@ -68,10 +68,17 @@ jobs:
         run: npm run build
 
       - name: Apply pending D1 migrations
+        id: d1_migrations
+        continue-on-error: true
         run: npm run d1:migrate
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Report D1 migration permission warning
+        if: steps.d1_migrations.outcome == 'failure'
+        run: |
+          echo "::warning::Cloudflare token could not apply D1 migrations. Urban Director Studio will bootstrap critical release tables at runtime; update the Cloudflare API token with D1 edit permission before final submission."
 
       - name: Deploy Worker and assets
         run: npx wrangler deploy --config wrangler.jsonc
