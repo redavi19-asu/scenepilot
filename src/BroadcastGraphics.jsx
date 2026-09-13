@@ -40,7 +40,7 @@ export default function BroadcastGraphics() {
   const logoUrl = useRef("");
   const [collapsed, setCollapsed] = useState(() => (
     typeof window !== "undefined" &&
-    Boolean(window.matchMedia?.("(max-width: 700px)").matches)
+    Boolean(window.matchMedia?.("(max-width: 700px)")?.matches)
   ));
 
   useEffect(() => {
