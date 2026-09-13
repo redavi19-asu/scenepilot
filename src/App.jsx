@@ -4777,6 +4777,7 @@ async function enableCamera() {
         />
         <ReplayStudio
           roomCode={roomCode}
+          networkId={networkId}
           isOwner={isOwner}
           programMaster={pendingProgramMaster}
           onPublishProgram={publishPendingProgramMaster}
