@@ -1685,6 +1685,10 @@ async function handleAppReviewAccount(request, env) {
       expires_at = excluded.expires_at`
   ).bind(userId, now, expiresAt).run();
 
+  await env.DB.prepare(
+    "DELETE FROM sessions WHERE user_id = ?"
+  ).bind(userId).run();
+
   const network = await ensureUserScenePilotNetwork(env, {
     id: userId,
     email,
