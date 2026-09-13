@@ -188,6 +188,10 @@ function publicUser(row) {
     marketingOptIn: Boolean(row.marketing_opt_in),
     plan: row.plan || "free",
     accessStatus: row.access_status || "active",
+    billingSource: row.entitlement_source || row.source || "",
+    entitlementExpiresAt: row.entitlement_expires_at
+      ? Number(row.entitlement_expires_at)
+      : null,
     createdAt: row.created_at || null,
     lastLoginAt: row.last_login_at || null
   };
@@ -215,7 +219,9 @@ async function getCurrentUser(request, env) {
       u.created_at,
       u.last_login_at,
       COALESCE(up.plan, 'free') AS plan,
-      COALESCE(up.access_status, 'active') AS access_status
+      COALESCE(up.access_status, 'active') AS access_status,
+      COALESCE(up.source, '') AS entitlement_source,
+      up.expires_at AS entitlement_expires_at
     FROM sessions s
     JOIN users u ON u.id = s.user_id
     LEFT JOIN user_products up
@@ -228,6 +234,24 @@ async function getCurrentUser(request, env) {
 
   if (!row) return null;
   if (row.status !== "active") return null;
+
+  if (
+    row.entitlement_source === "apple" &&
+    Number(row.entitlement_expires_at || 0) > 0 &&
+    Number(row.entitlement_expires_at) <= now &&
+    row.access_status === "active"
+  ) {
+    await env.DB.prepare(
+      `UPDATE user_products
+       SET plan = 'free', access_status = 'suspended'
+       WHERE user_id = ?
+         AND product_id = 'product_scenepilot'
+         AND source = 'apple'`
+    ).bind(row.id).run();
+
+    row.plan = "free";
+    row.access_status = "suspended";
+  }
 
   return publicUser(row);
 }
