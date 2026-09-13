@@ -2038,6 +2038,7 @@ async function getStreamingAllowance(env, networkId, now = Date.now()) {
 
   let activeStart = previous?.action === "start" ? start : null;
   let usedMs = 0;
+  const maxSessionMs = maxSessionMinutes * 60 * 1000;
 
   for (const row of rows.results || []) {
     const createdAt = Number(row?.created_at);
@@ -2046,20 +2047,23 @@ async function getStreamingAllowance(env, networkId, now = Date.now()) {
 
     if (row.action === "start") {
       if (activeStart !== null) {
-        usedMs += Math.max(0, timestamp - activeStart);
+        usedMs += Math.min(maxSessionMs, Math.max(0, timestamp - activeStart));
       }
       activeStart = timestamp;
       continue;
     }
 
     if (row.action === "stop" && activeStart !== null) {
-      usedMs += Math.max(0, timestamp - activeStart);
+      usedMs += Math.min(maxSessionMs, Math.max(0, timestamp - activeStart));
       activeStart = null;
     }
   }
 
+  let active = false;
   if (activeStart !== null) {
-    usedMs += Math.max(0, now - activeStart);
+    const activeElapsedMs = Math.max(0, now - activeStart);
+    usedMs += Math.min(maxSessionMs, activeElapsedMs);
+    active = activeElapsedMs < maxSessionMs;
   }
 
   const usedSeconds = Math.max(0, Math.ceil(usedMs / 1000));
@@ -2079,7 +2083,7 @@ async function getStreamingAllowance(env, networkId, now = Date.now()) {
     remainingMinutes: Math.ceil(remainingSeconds / 60),
     sessionLimitSeconds,
     sessionLimitMinutes: Math.ceil(sessionLimitSeconds / 60),
-    active: activeStart !== null,
+    active,
     resetAt
   };
 }
