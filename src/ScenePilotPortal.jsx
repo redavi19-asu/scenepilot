@@ -802,6 +802,10 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
     if (token) setStatus("");
   }, []);
 
+  const handleTurnstileError = useCallback(message => {
+    setStatus(message || "Security check could not be completed.");
+  }, []);
+
   async function submit(event) {
     event.preventDefault();
     setStatus("");
@@ -929,7 +933,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
           <TurnstileWidget
             action={mode === "register" ? "register" : "login"}
             onToken={handleTurnstileToken}
-            onError={message => setStatus(message)}
+            onError={handleTurnstileError}
             resetKey={turnstileResetKey}
           />
 
