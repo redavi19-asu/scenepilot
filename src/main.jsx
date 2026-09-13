@@ -1,8 +1,65 @@
+import { Component } from "react";
 import { createRoot } from "react-dom/client";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import "./index.css";
 import ScenePilotPortal from "./ScenePilotPortal.jsx";
+
+class UrbanDirectorErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("Urban Director Studio render error", error, info);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          padding: "24px",
+          background: "#090b09",
+          color: "#f3f4ef",
+          fontFamily: "Inter, system-ui, sans-serif"
+        }}
+      >
+        <section style={{ width: "min(560px, 100%)", textAlign: "center" }}>
+          <h1 style={{ marginBottom: "12px" }}>Urban Director Studio hit a loading error.</h1>
+          <p style={{ color: "#aeb5aa", lineHeight: 1.6 }}>
+            Your account is still safe. Reload the studio to start a clean Director session.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: "18px",
+              minHeight: "46px",
+              padding: "0 22px",
+              border: "1px solid #c99555",
+              borderRadius: "10px",
+              background: "#241b10",
+              color: "#f5d7aa",
+              fontWeight: 800
+            }}
+          >
+            RELOAD URBAN DIRECTOR STUDIO
+          </button>
+        </section>
+      </main>
+    );
+  }
+}
 
 function openScenePilotUrl(value, allowRepeat = false) {
   try {
@@ -46,7 +103,9 @@ if (Capacitor.isNativePlatform()) {
 }
 
 createRoot(document.getElementById("root")).render(
-  <ScenePilotPortal />
+  <UrbanDirectorErrorBoundary>
+    <ScenePilotPortal />
+  </UrbanDirectorErrorBoundary>
 );
 
 if (!Capacitor.isNativePlatform() && "serviceWorker" in navigator) {
