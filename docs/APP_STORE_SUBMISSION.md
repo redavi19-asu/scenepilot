@@ -36,6 +36,8 @@ Urban Director Studio is built by I Computer Anything.
 
 **Urban Director Studio Pro — $29.99/month**
 
+Includes **1,500 broadcast minutes per month**, with a **4-hour maximum per live session**. These limits protect hosted streaming capacity and may be adjusted in future subscription tiers.
+
 For iPhone and iPad, the subscription must be configured as an Apple auto-renewable subscription through App Store Connect / StoreKit. Do not place Stripe checkout inside the iOS app.
 
 StoreKit configuration and sandbox purchase testing are intentionally held until the Apple Developer account is fully activated.
