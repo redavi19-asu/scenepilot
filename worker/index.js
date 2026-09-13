@@ -3522,6 +3522,9 @@ async function handleApi(request, env, url) {
         ).first();
         userCount = Number(row?.count || 0);
         await ensureScenePilotProduct(env);
+        await ensureAppleSubscriptionSchema(env);
+        await ensureCameraInviteSchema(env);
+        await ensureRealtimeViewerSchema(env);
         databaseReady = true;
       } catch (error) {
         console.error("Urban Director Studio D1 health check failed", error);
