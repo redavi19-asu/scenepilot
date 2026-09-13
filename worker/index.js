@@ -3072,7 +3072,8 @@ async function handleApi(request, env, url) {
       turnstileConfigured: Boolean(
         String(env.TURNSTILE_SECRET_KEY || "").trim()
       ),
-      service: "Urban Director Studio"
+      service: "Urban Director Studio",
+      appleBillingConfigured: appleBillingConfig(env).ready
     }, Boolean(env.DB) && databaseReady ? 200 : 503);
   }
 
@@ -3120,6 +3121,25 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/realtime/renegotiate" && request.method === "POST") {
     return handleRealtimeRenegotiate(request, env);
+  }
+
+  if (url.pathname === "/api/billing/apple/status" && request.method === "GET") {
+    return handleAppleBillingStatus(request, env);
+  }
+
+  if (url.pathname === "/api/billing/apple/sync" && request.method === "POST") {
+    return handleAppleBillingSync(request, env);
+  }
+
+  if (url.pathname === "/api/billing/apple/refresh" && request.method === "POST") {
+    return handleAppleBillingRefresh(request, env);
+  }
+
+  if (
+    url.pathname === "/api/billing/apple/notifications" &&
+    request.method === "POST"
+  ) {
+    return handleAppleServerNotification(request, env);
   }
 
   if (url.pathname === "/api/auth/register" && request.method === "POST") {
