@@ -1482,6 +1482,135 @@ async function handleAdminAccess(request, env, userId) {
   return json({ ok: true });
 }
 
+async function handleReleaseReadiness(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (auth.response) return auth.response;
+
+  const checks = [];
+  const add = (id, ok, detail, blocking = true) => {
+    checks.push({ id, ok: Boolean(ok), detail, blocking });
+  };
+
+  let databaseReady = false;
+  try {
+    await env.DB.prepare("SELECT 1 AS ok").first();
+    await ensureAppleSubscriptionSchema(env);
+    await ensureCameraInviteSchema(env);
+    await ensureRealtimeViewerSchema(env);
+    databaseReady = true;
+  } catch (error) {
+    add("database", false, error instanceof Error ? error.message : String(error));
+  }
+
+  if (databaseReady) {
+    add("database", true, "D1 is reachable and release tables are available.");
+  }
+
+  const apple = appleBillingConfig(env);
+  add(
+    "apple-billing",
+    apple.ready,
+    apple.ready
+      ? "App Store Server API credentials are configured."
+      : "App Store Server API credentials are still required in Cloudflare.",
+    true
+  );
+
+  const realtime = realtimeConfig(env);
+  add(
+    "realtime",
+    realtime.ready,
+    realtime.ready
+      ? `Cloudflare Realtime is configured with a ${realtime.viewerLimit}-viewer low-latency ceiling.`
+      : "Cloudflare Realtime credentials are not fully configured.",
+    true
+  );
+
+  add(
+    "turnstile",
+    Boolean(String(env.TURNSTILE_SECRET_KEY || "").trim()),
+    String(env.TURNSTILE_SECRET_KEY || "").trim()
+      ? "Turnstile server verification is configured."
+      : "Turnstile secret is missing.",
+    true
+  );
+
+  add(
+    "broadcast-encryption",
+    Boolean(String(env.BROADCAST_CONFIG_KEY || "").trim()),
+    String(env.BROADCAST_CONFIG_KEY || "").trim()
+      ? "Broadcast destination credentials are encrypted with a server secret."
+      : "Broadcast destination encryption secret is missing.",
+    true
+  );
+
+  const encoderBase = String(env.ENCODER_API_URL || "").trim().replace(/\/+$/, "");
+  let encoderOk = false;
+  let encoderDetail = encoderBase
+    ? "Encoder health check did not respond."
+    : "Encoder API URL is not configured.";
+
+  if (encoderBase) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(`${encoderBase}/health`, {
+        headers: String(env.ENCODER_API_TOKEN || "").trim()
+          ? { Authorization: `Bearer ${String(env.ENCODER_API_TOKEN).trim()}` }
+          : {},
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      const data = await response.json().catch(() => ({}));
+      encoderOk = Boolean(response.ok && data?.ok);
+      encoderDetail = encoderOk
+        ? `Encoder online; ${Number(data.activeJobs || 0)} active job(s).`
+        : `Encoder health returned HTTP ${response.status}.`;
+    } catch (error) {
+      encoderDetail =
+        error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  add("encoder", encoderOk, encoderDetail, true);
+
+  let reviewReady = false;
+  if (databaseReady) {
+    try {
+      const row = await env.DB.prepare(
+        `SELECT up.access_status, up.expires_at
+         FROM users u
+         JOIN user_products up ON up.user_id = u.id
+         WHERE u.email = ?
+           AND up.product_id = 'product_scenepilot'
+         LIMIT 1`
+      ).bind("appreview@icomputeranything.com").first();
+      reviewReady = Boolean(
+        row?.access_status === "active" &&
+        Number(row?.expires_at || 0) > Date.now()
+      );
+    } catch (_) {}
+  }
+
+  add(
+    "app-review-account",
+    reviewReady,
+    reviewReady
+      ? "Temporary Apple App Review Pro account is active."
+      : "Generate the Apple App Review login from Admin before submission.",
+    false
+  );
+
+  const blockers = checks.filter(check => check.blocking && !check.ok);
+
+  return json({
+    ok: blockers.length === 0,
+    ready: blockers.length === 0,
+    checkedAt: Date.now(),
+    blockers: blockers.map(check => check.id),
+    checks
+  });
+}
 async function handleAppReviewAccount(request, env) {
   const auth = await requireAdmin(request, env);
   if (auth.response) return auth.response;
@@ -3529,6 +3658,9 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/admin/app-review" && request.method === "POST") {
     return handleAppReviewAccount(request, env);
+  }
+  if (url.pathname === "/api/admin/release-readiness" && request.method === "GET") {
+    return handleReleaseReadiness(request, env);
   }
 
   return json({ error: "API route not found." }, 404);
