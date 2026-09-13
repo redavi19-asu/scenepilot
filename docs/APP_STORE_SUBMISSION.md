@@ -119,3 +119,25 @@ The production iOS configuration bundles the built web application inside the na
 The native app talks to the hosted Urban Director Studio backend for account, realtime, signaling, and production services. Native API authentication uses a bearer session and short-lived signaling tickets. Camera-operator links continue to use controlled production join tokens.
 
 The app includes in-app account deletion, an Urban Director Studio privacy page, an Urban Director Studio support page, camera/microphone usage descriptions, scoped native CORS support, and an iOS 15+ deployment target.
+
+
+## Apple subscription wiring
+
+Urban Director Studio Pro uses an auto-renewable StoreKit 2 subscription.
+
+- **Product ID:** `com.icomputeranything.scenepilot.pro.monthly`
+- **Price target:** $29.99 USD / month (localized by App Store storefront)
+- **Bundle ID:** `com.icomputeranything.scenepilot`
+- **App Store Server Notifications V2 URL:** `https://scenepilot.ryanedavis.workers.dev/api/billing/apple/notifications`
+
+The native app includes **Subscribe with Apple**, **Restore Purchases**, current-entitlement refresh, and Apple subscription management. The Cloudflare Worker verifies transaction IDs with the App Store Server API before activating the ICA account.
+
+Cloudflare production secrets required before the first live purchase:
+
+- `APP_STORE_ISSUER_ID`
+- `APP_STORE_KEY_ID`
+- `APP_STORE_PRIVATE_KEY` — the App Store Connect In-App Purchase private key (.p8). Never commit this value to Git.
+
+Non-secret product identifiers are already configured in `wrangler.jsonc`.
+
+Before App Review, create the auto-renewable subscription in App Store Connect using the exact product ID above, configure the $29.99 monthly price, attach it to a subscription group, and configure the Server Notifications V2 URL above for production and sandbox testing as appropriate.
