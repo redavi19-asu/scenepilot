@@ -2088,6 +2088,14 @@ async function getStreamingAllowance(env, networkId, now = Date.now()) {
   };
 }
 
+async function handleBroadcastUsage(request, env) {
+  const auth = await requireScenePilotNetworkMember(request, env);
+  if (auth.response) return auth.response;
+
+  const usage = await getStreamingAllowance(env, auth.network.id);
+  return json({ ok: true, usage });
+}
+
 async function handleBroadcastControl(request, env, action) {
   const auth = await requireScenePilotNetworkMember(request, env);
   if (auth.response) return auth.response;
@@ -2465,6 +2473,10 @@ async function handleApi(request, env, url) {
     (request.method === "GET" || request.method === "POST")
   ) {
     return handleBroadcastDestinations(request, env);
+  }
+
+  if (url.pathname === "/api/broadcast/usage" && request.method === "GET") {
+    return handleBroadcastUsage(request, env);
   }
 
   if (url.pathname === "/api/broadcast/start" && request.method === "POST") {
