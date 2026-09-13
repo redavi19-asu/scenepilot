@@ -2643,6 +2643,60 @@
   border-color: #514b36;
 }
 
+
+.sp-apple-billing-card {
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid #5a5139;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at top right, rgba(209,163,100,.08), transparent 42%),
+    #11150f;
+  display: grid;
+  gap: 10px;
+}
+
+.sp-apple-billing-card > strong {
+  color: #ece7dc;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.sp-apple-billing-card > small {
+  color: #929a8d;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.sp-apple-billing-card .sp-secondary {
+  width: 100%;
+  min-height: 43px;
+  border: 1px solid #41473d;
+  background: #181c16;
+  color: #d0d5ca;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font: 850 9px Inter, system-ui, sans-serif;
+  letter-spacing: .07em;
+  cursor: pointer;
+}
+
+.sp-apple-billing-card button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.sp-billing-status {
+  border: 1px solid #4b4939;
+  background: #171810;
+  padding: 10px 12px;
+  color: #d6c69e;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
 .sp-access-status-actions {
   margin-top: 22px;
   display: grid;
