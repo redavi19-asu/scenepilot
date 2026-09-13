@@ -2956,7 +2956,96 @@ async function handleBroadcastControl(request, env, action) {
 function realtimeConfig(env) {
   const appId = String(env.REALTIME_APP_ID || "").trim();
   const appSecret = String(env.REALTIME_APP_SECRET || "").trim();
-  return { appId, appSecret, ready: Boolean(appId && appSecret) };
+  const viewerLimitRaw = Number(env.REALTIME_MAX_VIEWERS || 100);
+  const viewerLimit = Number.isFinite(viewerLimitRaw)
+    ? Math.max(1, Math.min(5000, Math.floor(viewerLimitRaw)))
+    : 100;
+  return {
+    appId,
+    appSecret,
+    viewerLimit,
+    ready: Boolean(appId && appSecret)
+  };
+}
+
+async function ensureRealtimeViewerSchema(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS scenepilot_realtime_viewers (
+      session_id TEXT PRIMARY KEY,
+      room_code TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`
+  ).run();
+
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS scenepilot_realtime_viewers_room_idx
+     ON scenepilot_realtime_viewers(room_code)`
+  ).run();
+
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS scenepilot_realtime_viewers_expiry_idx
+     ON scenepilot_realtime_viewers(expires_at)`
+  ).run();
+}
+
+async function realtimeViewerCount(env, room, now = Date.now()) {
+  await ensureRealtimeViewerSchema(env);
+
+  await env.DB.prepare(
+    "DELETE FROM scenepilot_realtime_viewers WHERE expires_at <= ?"
+  ).bind(now).run();
+
+  const row = await env.DB.prepare(
+    `SELECT COUNT(*) AS count
+     FROM scenepilot_realtime_viewers
+     WHERE room_code = ?
+       AND expires_at > ?`
+  ).bind(room, now).first();
+
+  return Number(row?.count || 0);
+}
+
+async function touchRealtimeViewer(env, room, sessionId) {
+  await ensureRealtimeViewerSchema(env);
+  const now = Date.now();
+  const expiresAt = now + 90 * 1000;
+
+  await env.DB.prepare(
+    `INSERT INTO scenepilot_realtime_viewers (
+      session_id, room_code, expires_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(session_id) DO UPDATE SET
+      room_code = excluded.room_code,
+      expires_at = excluded.expires_at,
+      updated_at = excluded.updated_at`
+  ).bind(sessionId, room, expiresAt, now, now).run();
+
+  return expiresAt;
+}
+
+async function handleRealtimeViewer(request, env) {
+  const body = await readJson(request);
+  const room = validRealtimeRoom(body.room);
+  const sessionId = String(body.sessionId || "").trim();
+  const token = String(body.token || "").trim();
+
+  if (!room || !sessionId || !(await validRealtimeToken(env, sessionId, token))) {
+    return json({ error: "Realtime viewer authorization expired." }, 403);
+  }
+
+  await ensureRealtimeViewerSchema(env);
+
+  if (request.method === "DELETE") {
+    await env.DB.prepare(
+      "DELETE FROM scenepilot_realtime_viewers WHERE session_id = ? AND room_code = ?"
+    ).bind(sessionId, room).run();
+    return json({ ok: true });
+  }
+
+  const expiresAt = await touchRealtimeViewer(env, room, sessionId);
+  return json({ ok: true, expiresAt });
 }
 
 function validRealtimeRoom(value) {
@@ -3111,8 +3200,18 @@ async function handleRealtimeSubscribe(request, env) {
   const body = await readJson(request);
   const room = validRealtimeRoom(body.room);
   if (!room) return json({ error: "Enter a valid Urban Director Studio room." }, 400);
-  if (!realtimeConfig(env).ready) {
+  const config = realtimeConfig(env);
+  if (!config.ready) {
     return json({ error: "Cloudflare Realtime is not configured yet." }, 503);
+  }
+
+  const activeViewers = await realtimeViewerCount(env, room);
+  if (activeViewers >= config.viewerLimit) {
+    return json({
+      error: "Realtime audience capacity reached. Continue with the standard live player.",
+      code: "realtime_viewer_limit",
+      viewerLimit: config.viewerLimit
+    }, 429);
   }
 
   const publication = await env.DB.prepare(
@@ -3141,11 +3240,16 @@ async function handleRealtimeSubscribe(request, env) {
     return json({ error: result.data?.errorDescription || result.data?.error || "Realtime subscription failed." }, result.status);
   }
 
-  const expiresAt = Date.now() + 2 * 60 * 1000;
+  const renegotiateExpiresAt = Date.now() + 2 * 60 * 1000;
+  const viewerTokenExpiresAt = Date.now() + 4 * 60 * 60 * 1000;
+  await touchRealtimeViewer(env, room, sessionId);
+
   return json({
     ...result.data,
     sessionId,
-    token: await realtimeToken(env, sessionId, expiresAt)
+    token: await realtimeToken(env, sessionId, renegotiateExpiresAt),
+    viewerToken: await realtimeToken(env, sessionId, viewerTokenExpiresAt),
+    viewerLimit: config.viewerLimit
   });
 }
 
@@ -3252,6 +3356,13 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/realtime/subscribe" && request.method === "POST") {
     return handleRealtimeSubscribe(request, env);
+  }
+
+  if (
+    url.pathname === "/api/realtime/viewer" &&
+    (request.method === "POST" || request.method === "DELETE")
+  ) {
+    return handleRealtimeViewer(request, env);
   }
 
   if (url.pathname === "/api/realtime/renegotiate" && request.method === "POST") {
