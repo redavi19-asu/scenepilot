@@ -62,6 +62,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   ));
   const ingestRef = useRef({ recorder: null, socket: null });
   const realtimeRef = useRef(null);
+  const limitTimerRef = useRef(null);
 
   const publicWatchUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -117,6 +118,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     const { recorder, socket } = ingestRef.current;
     try { if (recorder?.state !== "inactive") recorder.stop(); } catch (_) {}
     try { socket?.close(); } catch (_) {}
+    if (limitTimerRef.current) window.clearTimeout(limitTimerRef.current);
     void realtimeRef.current?.stop?.();
   }, []);
 
@@ -174,7 +176,17 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     };
     recorder.onerror = () => setStatus("Program ingest recorder failed.");
     socket.onclose = event => {
-      if (event.code !== 1000 && ingestRef.current.socket === socket) {
+      if (ingestRef.current.socket !== socket) return;
+
+      if (event.code === 4008) {
+        void realtimeRef.current?.stop?.();
+        realtimeRef.current = null;
+        setStatus("Streaming limit reached. Start another session if monthly minutes remain.");
+        setBroadcasting(false);
+        return;
+      }
+
+      if (event.code !== 1000) {
         setStatus("Program ingest connection closed unexpectedly.");
         setBroadcasting(false);
       }
@@ -356,20 +368,52 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           throw error;
         }
 
-        try {
-          realtimeRef.current = await publishProgramToRealtime(
-            roomCode,
-            getProgramStream?.()
-          );
-        } catch (error) {
-          console.warn("Cloudflare Realtime unavailable; HLS remains active.", error);
+        if (selected.includes("self")) {
+          try {
+            realtimeRef.current = await publishProgramToRealtime(
+              roomCode,
+              getProgramStream?.()
+            );
+          } catch (error) {
+            console.warn("Cloudflare Realtime unavailable; HLS remains active.", error);
+            realtimeRef.current = null;
+          }
+        } else {
           realtimeRef.current = null;
         }
 
         setBroadcasting(true);
         setShowShare(true);
-        setStatus(data.status ? `Encoder: ${data.status}` : "Broadcast start accepted.");
+
+        const sessionLimitSeconds = Number(
+          data.usage?.sessionLimitSeconds || data.encoder?.maxDurationSeconds || 0
+        );
+        if (limitTimerRef.current) window.clearTimeout(limitTimerRef.current);
+        if (sessionLimitSeconds > 0) {
+          limitTimerRef.current = window.setTimeout(async () => {
+            await realtimeRef.current?.stop?.();
+            realtimeRef.current = null;
+            await stopBrowserIngest().catch(() => {});
+            await api("/api/broadcast/stop", {
+              method: "POST",
+              body: JSON.stringify({ room: roomCode, destinations: selected })
+            }).catch(() => {});
+            setBroadcasting(false);
+            setStatus("Streaming session limit reached. Start another session if monthly minutes remain.");
+          }, sessionLimitSeconds * 1000);
+        }
+
+        const remaining = data.usage?.remainingMinutes;
+        setStatus(
+          data.status
+            ? `Encoder: ${data.status}${Number.isFinite(remaining) ? ` · ${remaining} monthly minutes remaining` : ""}`
+            : "Broadcast start accepted."
+        );
       } else {
+        if (limitTimerRef.current) {
+          window.clearTimeout(limitTimerRef.current);
+          limitTimerRef.current = null;
+        }
         await realtimeRef.current?.stop?.();
         realtimeRef.current = null;
         await stopBrowserIngest();
@@ -385,6 +429,10 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         setStatus(data.status ? `Encoder: ${data.status}` : "Broadcast stop accepted.");
       }
     } catch (error) {
+      if (limitTimerRef.current) {
+        window.clearTimeout(limitTimerRef.current);
+        limitTimerRef.current = null;
+      }
       setBroadcasting(false);
       setStatus(error.message);
     }
