@@ -17,7 +17,7 @@
     "dev:signal": "node server/index.js",
     "start:encoder": "node server/encoder.js",
     "setup:d1": "node scripts/configure-d1.mjs",
-    "d1:migrate": "wrangler d1 migrations apply ica-saas-db --remote",
+    "d1:migrate": "npx wrangler d1 migrations apply ica-saas-db --remote",
     "server:update": "bash scripts/update-encoder-server.sh",
     "server:install": "bash scripts/install-encoder-user-service.sh",
     "desktop": "electron .",
