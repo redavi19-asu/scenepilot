@@ -26,6 +26,18 @@ button{cursor:pointer}
 .production-title strong{font-size:13px;letter-spacing:.8px}
 .top-actions{display:flex;align-items:center;gap:9px}
 .top-actions button{height:38px;border:1px solid #8e9089;background:transparent;padding:0 13px;display:flex;align-items:center;gap:7px;font-weight:800;font-size:11px}
+.camera-share-control{position:relative}
+.camera-share-trigger{white-space:nowrap}
+.camera-share-menu{
+  position:absolute;right:0;top:44px;z-index:90;width:220px;
+  background:#171a16;border:1px solid #555a52;box-shadow:0 18px 45px rgba(0,0,0,.32);
+  padding:6px;display:grid;gap:3px
+}
+.top-actions .camera-share-menu button{
+  width:100%;height:38px;border:0;background:transparent;color:#e5e8e1;
+  justify-content:flex-start;padding:0 10px;font-size:9px;letter-spacing:.05em
+}
+.top-actions .camera-share-menu button:hover{background:#272b25}
 .icon-button{width:40px!important;padding:0!important;justify-content:center}
 .network{font-size:10px;font-weight:900;letter-spacing:.8px;margin-right:6px}
 .network i,footer i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#6b9d65;margin-right:6px}
@@ -106,6 +118,26 @@ footer span:last-child{margin-left:auto}
 .qr-wrap{background:white;padding:12px;width:max-content;margin:18px auto}
 .room-code{display:flex;justify-content:center;gap:10px;align-items:center}.room-code span{font-size:8px}.room-code strong{font-size:18px;letter-spacing:2px}
 .camera-demo{margin-top:20px;width:100%;padding:12px;background:#191b18;color:white;border:0;font-size:10px;font-weight:900}
+
+.camera-invite-expiry{
+  margin-top:12px;color:#686a64;font-size:8px;font-weight:900;letter-spacing:.08em
+}
+.camera-invite-status{
+  margin-top:10px;padding:8px 10px;border:1px solid #c6c2b7;background:#f2efe7;
+  color:#3b3e38;font-size:8px;font-weight:900;letter-spacing:.05em
+}
+.camera-invite-actions{
+  margin-top:12px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px
+}
+.camera-invite-actions button{
+  min-height:40px;border:1px solid #aaa89f;background:#f7f4ed;color:#222;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  font-size:8px;font-weight:900
+}
+@media(max-width:520px){
+  .camera-invite-actions{grid-template-columns:repeat(2,1fr)}
+  .camera-share-menu{right:-4px;width:min(240px,85vw)}
+}
 
 .operator-shell{min-height:100vh;background:#111311;color:#eee}
 .operator-header{height:72px;background:#e7e4db;color:#151713;padding:0 18px;display:flex;align-items:center;justify-content:space-between}
