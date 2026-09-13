@@ -168,11 +168,11 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     usageAlertRef.current = nextAlert;
 
     if (nextAlert === "limit") {
-      setStatus("Hosted streaming allowance reached. Local / ISO recording can continue.");
+      setStatus("Monthly broadcast allowance reached. Local / ISO recording can continue.");
     } else if (nextAlert === "urgent") {
-      setStatus(`Streaming warning: only ${usage.remainingMinutes} hosted minutes remain this month.`);
+      setStatus(`Streaming warning: only ${usage.remainingMinutes} broadcast minutes remain this month.`);
     } else {
-      setStatus(`Streaming notice: ${usage.remainingMinutes} hosted minutes remain this month.`);
+      setStatus(`Streaming notice: ${usage.remainingMinutes} broadcast minutes remain this month.`);
     }
   }, [broadcasting, usage, usagePercent]);
 
@@ -543,7 +543,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           <div className="broadcast-usage-topline">
             <div>
               {usageLevel === "normal" ? <Clock3 size={17}/> : <AlertTriangle size={17}/>}
-              <strong>MONTHLY HOSTED STREAMING</strong>
+              <strong>MONTHLY BROADCAST ALLOWANCE</strong>
             </div>
             <span>{usage.remainingMinutes} / {usage.includedMinutes} MIN REMAINING</span>
           </div>
@@ -556,10 +556,10 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
             {usagePercent >= 100
               ? "Hosted live streaming is paused until the monthly allowance resets. You can still record locally / ISO without using hosted streaming minutes."
               : usagePercent >= 90
-                ? "You are almost out of hosted streaming time. Finish critical live events first. Local / ISO recording can continue without using hosted streaming minutes."
+                ? "You are almost out of broadcast time. Finish critical live events first. Local / ISO recording can continue without using hosted streaming minutes."
                 : usagePercent >= 75
                   ? "Streaming allowance is getting low. For long productions, record locally when you do not need a live audience."
-                  : "Hosted streaming and local recording are separate. Recording locally / ISO does not reduce this monthly streaming allowance."}
+                  : "Broadcast allowance and local recording are separate. Recording locally / ISO does not reduce this monthly streaming allowance."}
           </small>
 
           <details className="broadcast-usage-help">
