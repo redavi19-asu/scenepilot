@@ -46,6 +46,7 @@
 .broadcast-backend-badge{
   color:#a5aaa1
 }
+.broadcast-mobile-collapse-toggle{display:none!important}
 .broadcast-destinations{
   display:grid;
   grid-template-columns:repeat(7,minmax(0,1fr));
@@ -267,6 +268,8 @@
 @media(max-width:760px){
   .broadcast-head{flex-direction:column}
   .broadcast-head-actions{width:100%;flex-wrap:wrap}
+  .broadcast-mobile-collapse-toggle{display:flex!important}
+  .broadcast-panel.mobile-collapsed > :not(.broadcast-head){display:none!important}
   .broadcast-destinations{grid-template-columns:repeat(2,1fr)}
   .broadcast-setting-grid{grid-template-columns:1fr}
   .broadcast-control-bar{grid-template-columns:1fr}
