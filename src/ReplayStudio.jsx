@@ -56,6 +56,7 @@ function getMediaDuration(file, url) {
 
 export default function ReplayStudio({
   roomCode,
+  networkId = "",
   isOwner = false,
   programMaster = null,
   onPublishProgram = null,
@@ -421,7 +422,7 @@ export default function ReplayStudio({
     };
 
     window.localStorage.setItem(
-      `scenepilot:edit:${roomCode || "default"}`,
+      `scenepilot:edit:${networkId || "local"}:${roomCode || "default"}`,
       JSON.stringify(payload)
     );
     setProjectStatus("PROJECT EDIT SAVED LOCALLY");
