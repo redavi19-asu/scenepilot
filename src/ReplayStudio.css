@@ -206,3 +206,72 @@
     flex-direction:column
   }
 }
+
+
+/* Keep the editor contained inside narrow phone viewports while preserving timeline scrolling. */
+.nle-studio,
+.nle-shell,
+.nle-sidebar,
+.nle-main,
+.nle-top,
+.nle-inspector,
+.nle-toolbar,
+.nle-timeline-wrap,
+.nle-lane-scroll{
+  min-width:0;
+  max-width:100%
+}
+.nle-studio{
+  width:100%;
+  overflow:hidden
+}
+.nle-sidebar,
+.nle-main,
+.nle-inspector,
+.nle-inspector input,
+.nle-inspector select,
+.nle-aspect-select{
+  box-sizing:border-box
+}
+@media(max-width:760px){
+  .nle-studio{
+    width:100%;
+    max-width:100%;
+    overflow-x:hidden
+  }
+  .nle-shell,
+  .nle-sidebar,
+  .nle-main,
+  .nle-top,
+  .nle-preview,
+  .nle-inspector,
+  .nle-toolbar,
+  .nle-timeline-wrap,
+  .nle-lane-scroll,
+  .nle-protected-policy,
+  .nle-studio .editor-note{
+    min-width:0;
+    max-width:100%
+  }
+  .nle-shell,
+  .nle-sidebar,
+  .nle-main{
+    width:100%
+  }
+  .nle-main{
+    padding:8px
+  }
+  .nle-toolbar{
+    overflow-x:auto;
+    overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch
+  }
+  .nle-lane-scroll{
+    width:100%;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch
+  }
+  .nle-studio .editor-note{
+    overflow-wrap:anywhere
+  }
+}
