@@ -64,6 +64,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const ingestRef = useRef({ recorder: null, socket: null });
   const realtimeRef = useRef(null);
   const limitTimerRef = useRef(null);
+  const usageAlertRef = useRef("");
 
   const usagePercent = useMemo(() => {
     if (!usage?.includedMinutes) return 0;
@@ -139,6 +140,41 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!broadcasting) return undefined;
+
+    const refresh = () => {
+      api("/api/broadcast/usage")
+        .then(data => setUsage(data.usage || null))
+        .catch(() => {});
+    };
+
+    refresh();
+    const interval = window.setInterval(refresh, 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, [broadcasting]); // usage-refresh
+
+  useEffect(() => {
+    if (!broadcasting || !usage) return;
+
+    const nextAlert =
+      usagePercent >= 100 ? "limit" :
+      usagePercent >= 90 ? "urgent" :
+      usagePercent >= 75 ? "warning" :
+      "";
+
+    if (!nextAlert || usageAlertRef.current === nextAlert) return;
+    usageAlertRef.current = nextAlert;
+
+    if (nextAlert === "limit") {
+      setStatus("Hosted streaming allowance reached. Local / ISO recording can continue.");
+    } else if (nextAlert === "urgent") {
+      setStatus(`Streaming warning: only ${usage.remainingMinutes} hosted minutes remain this month.`);
+    } else {
+      setStatus(`Streaming notice: ${usage.remainingMinutes} hosted minutes remain this month.`);
+    }
+  }, [broadcasting, usage, usagePercent]);
 
   useEffect(() => () => {
     const { recorder, socket } = ingestRef.current;
@@ -408,6 +444,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           realtimeRef.current = null;
         }
 
+        usageAlertRef.current = "";
         setBroadcasting(true);
         setShowShare(true);
 
@@ -453,6 +490,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         });
 
         setBroadcasting(false);
+        usageAlertRef.current = "";
         const refreshed = await api("/api/broadcast/usage").catch(() => null);
         if (refreshed?.usage) setUsage(refreshed.usage);
         setStatus(data.status ? `Encoder: ${data.status}` : "Broadcast stop accepted.");
