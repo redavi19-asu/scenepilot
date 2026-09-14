@@ -297,7 +297,7 @@ async function requireAdmin(request, env) {
 async function readJson(request) {
   try {
     return await request.json();
-  } catch (_) {
+  } catch {
     return {};
   }
 }
@@ -458,7 +458,7 @@ function decodeAppleJwsPayload(jws) {
     return JSON.parse(
       new TextDecoder().decode(base64UrlDecodeBytes(parts[1]))
     );
-  } catch (_) {
+  } catch {
     return null;
   }
 }
@@ -1591,7 +1591,7 @@ async function handleReleaseReadiness(request, env) {
         row?.access_status === "active" &&
         Number(row?.expires_at || 0) > Date.now()
       );
-    } catch (_) {}
+    } catch {}
   }
 
   add(
@@ -1830,7 +1830,7 @@ export class ScenePilotRoom {
 
     try {
       session.ws.send(JSON.stringify({ event, payload }));
-    } catch (_) {}
+    } catch {}
   }
 
   getActiveDirector() {
@@ -1959,7 +1959,7 @@ export class ScenePilotRoom {
 
     try {
       message = JSON.parse(raw);
-    } catch (_) {
+    } catch {
       return;
     }
 
@@ -3029,7 +3029,7 @@ async function billingWindowForNetwork(env, networkId, now = Date.now()) {
         source: "apple"
       };
     }
-  } catch (_) {
+  } catch {
     // Apple subscription schema may not exist yet during first deploy.
   }
 
