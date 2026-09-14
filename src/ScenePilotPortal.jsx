@@ -2114,8 +2114,10 @@ function AdminPage({ user, onLogout }) {
   }
 
   useEffect(() => {
-    load();
-    loadReleaseReadiness();
+    queueMicrotask(() => {
+      void load();
+      void loadReleaseReadiness();
+    });
   }, []);
 
   async function updateAccess(targetUser, field, value) {
