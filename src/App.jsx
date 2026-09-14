@@ -431,14 +431,19 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   useEffect(() => {
     if (showCamera) return;
 
+    let cancelled = false;
+
     // A fresh Director page is a fresh production session.
     // Do not carry camera labels or main-camera choices across sessions.
-    setCameraNames({});
-    setDraftCameraNames({});
-    setMainCamera(1);
-    setPreview(1);
-    setProgram(1);
-    setSecondaryPreview(2);
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setCameraNames({});
+      setDraftCameraNames({});
+      setMainCamera(1);
+      setPreview(1);
+      setProgram(1);
+      setSecondaryPreview(2);
+    });
 
     try {
       window.localStorage.removeItem(`scenepilot:cameraNames:${roomCode}`);
@@ -446,6 +451,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     } catch {
       // Clear only legacy pre-tenant keys left by older builds.
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [showCamera, roomCode]);
 
   useEffect(() => {
