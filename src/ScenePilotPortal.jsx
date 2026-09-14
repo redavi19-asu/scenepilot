@@ -1257,8 +1257,8 @@ function IntercomPanel({ mode }) {
 
     if (!element) {
       element = new Audio();
-      element.autoplay = true;
-      element.playsInline = true;
+      Reflect.set(element, "autoplay", true);
+      Reflect.set(element, "playsInline", true);
       audioElementsRef.current[peerId] = element;
     }
 
@@ -1266,8 +1266,8 @@ function IntercomPanel({ mode }) {
       Reflect.set(element, "srcObject", stream);
     }
 
-    element.volume = 1;
-    element.muted = false;
+    Reflect.set(element, "volume", 1);
+    Reflect.set(element, "muted", false);
     element.play?.().catch(() => {
       setStatus("TAP INTERCOM TO ENABLE AUDIO");
     });
