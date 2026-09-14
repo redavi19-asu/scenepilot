@@ -1283,7 +1283,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
         : new MediaRecorder(programStream);
     } catch (error) {
       console.error("Urban Director Studio replay recorder unavailable", error);
-      setInstantReplayStatus("REPLAY UNSUPPORTED");
+      queueMicrotask(() => setInstantReplayStatus("REPLAY UNSUPPORTED"));
       return;
     }
 
