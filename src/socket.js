@@ -117,7 +117,7 @@ class ScenePilotSocket {
               event: "session:heartbeat",
               payload: { ts: Date.now() }
             }));
-          } catch (_) {}
+          } catch {}
         }
       }, 5000);
     });
@@ -187,7 +187,7 @@ class ScenePilotSocket {
     if (this.ws) {
       try {
         this.ws.close(1000, "Urban Director Studio client disconnect");
-      } catch (_) {}
+      } catch {}
     }
 
     this.ws = null;
