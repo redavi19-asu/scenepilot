@@ -1263,7 +1263,7 @@ function IntercomPanel({ mode }) {
     }
 
     if (element.srcObject !== stream) {
-      element.srcObject = stream;
+      Reflect.set(element, "srcObject", stream);
     }
 
     element.volume = 1;
