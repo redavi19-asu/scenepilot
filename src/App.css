@@ -4154,41 +4154,55 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
 }
 
 
-/* Dedicated live-camera power-safe view */
-.operator-shell.controls-collapsed .phone-monitor > video{
-  filter:brightness(.12) saturate(.45)!important;
+/* Clean camera view: hiding controls must never hide or dim the live picture */
+.operator-shell.controls-collapsed{
+  height:100dvh;
+  min-height:100dvh;
+  overflow:hidden;
+  background:#000;
 }
 
-.operator-power-save-status{
-  position:absolute;
-  z-index:24;
+.operator-shell.controls-collapsed .operator-header{
+  display:none!important;
+}
+
+.operator-shell.controls-collapsed .operator-main{
+  position:fixed;
   inset:0;
-  display:grid;
-  place-content:center;
-  justify-items:center;
-  gap:8px;
-  pointer-events:none;
-  background:rgba(0,0,0,.54);
-  text-align:center;
-  letter-spacing:.12em;
+  z-index:20;
+  width:100%;
+  max-width:none;
+  height:100dvh;
+  margin:0;
+  padding:0;
+  background:#000;
 }
 
-.operator-power-save-status i{
-  width:12px;
-  height:12px;
-  border-radius:50%;
-  background:#ef3f3f;
-  box-shadow:0 0 18px rgba(239,63,63,.8);
+.operator-shell.controls-collapsed .phone-monitor{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  aspect-ratio:auto;
+  border:0;
+  background:#000;
 }
 
-.operator-power-save-status strong{
-  font-size:clamp(18px,5vw,34px);
-  color:#f6f7f4;
+.operator-shell.controls-collapsed .phone-monitor > video{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  filter:none!important;
+  opacity:1!important;
 }
 
-.operator-power-save-status span{
-  font-size:11px;
-  color:#9ba49a;
+.operator-shell.controls-collapsed .operator-live,
+.operator-shell.controls-collapsed .on-air-banner,
+.operator-shell.controls-collapsed .camera-live-controls,
+.operator-shell.controls-collapsed .operator-overlay,
+.operator-shell.controls-collapsed .operator-card,
+.operator-shell.controls-collapsed .return-director{
+  display:none!important;
 }
 
 .camera-resume-notice{
