@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   Radio, Circle, Mic2, Volume2, Wifi, BatteryFull,
   Settings, Maximize2, MonitorUp, Users, QrCode,
@@ -2966,7 +2966,7 @@ async function enableCamera() {
 
   const anySolo = Object.values(cameraAudio).some(channel => channel.solo);
 
-  const effectiveCameraVolume = camera => {
+  const effectiveCameraVolume = useCallback(camera => {
     const channel = cameraAudio[camera.socketId] || { volume: 1, muted: true, solo: false };
     const selectedByMaster =
       masterAudioSource === "mix" || masterAudioSource === camera.socketId;
@@ -2974,7 +2974,7 @@ async function enableCamera() {
 
     if (!selectedByMaster || !audibleBySolo || channel.muted) return 0;
     return Math.max(0, Math.min(1, Number(channel.volume ?? 1)));
-  };
+  }, [cameraAudio, masterAudioSource, anySolo]);
 
   const effectiveDirectorVolume = () => {
     const channel = cameraAudio[DIRECTOR_SOURCE] || {
@@ -3021,7 +3021,8 @@ async function enableCamera() {
     masterAudioSource,
     wirelessCameras,
     remoteStreams,
-    directorStream
+    directorStream,
+    effectiveCameraVolume
   ]);
 
   if (showSplash) {
