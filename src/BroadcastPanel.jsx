@@ -65,7 +65,6 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const ingestRef = useRef({ recorder: null, socket: null });
   const realtimeRef = useRef(null);
   const limitTimerRef = useRef(null);
-  const usageAlertRef = useRef("");
 
   const usagePercent = useMemo(() => {
     if (!usage?.includedMinutes) return 0;
