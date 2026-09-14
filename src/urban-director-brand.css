@@ -9,7 +9,8 @@
 
 .topbar{
   position:relative;
-  overflow:hidden;
+  z-index:300;
+  overflow:visible;
   background:
     linear-gradient(90deg,rgba(235,232,223,.96),rgba(232,228,218,.90) 48%,rgba(233,228,216,.94)),
     url('/urban-director-city-strip.svg') center 56%/cover no-repeat;
@@ -90,4 +91,15 @@ footer i{
 .operator-shell.controls-collapsed .operator-main,
 .operator-shell.controls-collapsed .phone-monitor{
   background:#000!important;
+}
+
+
+/* Keep Add Camera dropdown above the production workspace on phone/tablet. */
+.topbar .camera-share-control{
+  position:relative;
+  z-index:320;
+}
+
+.topbar .camera-share-menu{
+  z-index:350;
 }
