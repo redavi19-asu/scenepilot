@@ -1312,10 +1312,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     try {
       recorder.start(1000);
       replayRecorderRef.current = recorder;
-      setInstantReplayStatus("BUFFERING 30S");
+      queueMicrotask(() => setInstantReplayStatus("BUFFERING 30S"));
     } catch (error) {
       console.error("Urban Director Studio instant replay start failed", error);
-      setInstantReplayStatus("REPLAY ERROR");
+      queueMicrotask(() => setInstantReplayStatus("REPLAY ERROR"));
     }
 
     return () => {
