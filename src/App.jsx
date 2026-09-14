@@ -97,7 +97,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const isOwner = user?.role === "owner";
   const [showSplash, setShowSplash] = useState(true);
   const [cameras] = useState(initialCameras);
-  const [program, setProgram] = useState(1);
+  const [_program, setProgram] = useState(1);
   const [preview, setPreview] = useState(2);
   const [transition, setTransition] = useState("DISSOLVE");
   const [duration, setDuration] = useState(500);
@@ -221,7 +221,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [selectedVideoDevice, setSelectedVideoDevice] = useState("");
   const [selectedAudioDevice, setSelectedAudioDevice] = useState("");
   const [cameraSourceMode, setCameraSourceMode] = useState("phone");
-  const [showReplayEditor, setShowReplayEditor] = useState(true);
+  const [_showReplayEditor, setShowReplayEditor] = useState(true);
   const [compositionMode, setCompositionMode] = useState("single");
   const [secondaryPreview, setSecondaryPreview] = useState(8);
   const [programComposition, setProgramComposition] = useState({
@@ -231,7 +231,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   });
   const [draggingCamera, setDraggingCamera] = useState(null);
   const [expandedMonitor, setExpandedMonitor] = useState(null);
-  const [localClip, setLocalClip] = useState(null);
+  const [_localClip, setLocalClip] = useState(null);
   const localClipUrl = useRef(null);
   const [instantReplayMode, setInstantReplayMode] = useState("live");
   const [instantReplayUrl, setInstantReplayUrl] = useState(null);
@@ -2903,7 +2903,7 @@ async function enableCamera() {
     setPreviewDirty(true);
   }
 
-  function loadLocalClip(file) {
+  function _loadLocalClip(file) {
     if (!file) return;
 
     if (localClipUrl.current) {
