@@ -102,9 +102,17 @@ export default function ReplayStudio({
   useEffect(() => {
     if (programMaster?.blob) return;
 
-    setAssets(prev => prev.filter(asset => asset.sourceType !== "program-master"));
-    setClips(prev => prev.filter(clip => clip.sourceType !== "program-master"));
-    setSelectedClipId(null);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setAssets(prev => prev.filter(asset => asset.sourceType !== "program-master"));
+      setClips(prev => prev.filter(clip => clip.sourceType !== "program-master"));
+      setSelectedClipId(null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [programMaster?.blob]);
 
   useEffect(() => {
