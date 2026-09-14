@@ -112,7 +112,7 @@ io.on("connection", socket => {
 
   socket.on(
     "camera:join",
-    ({ room, name, slotId }) => {
+    ({ room }) => {
       socket.join(room);
 
       socket.data.room = room;
