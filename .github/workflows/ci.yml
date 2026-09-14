@@ -67,21 +67,35 @@ jobs:
       - name: Build production assets
         run: npm run build
 
-      - name: Apply pending D1 migrations
-        id: d1_migrations
-        continue-on-error: true
-        run: npm run d1:migrate
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-      - name: Report D1 migration permission warning
-        if: steps.d1_migrations.outcome == 'failure'
-        run: |
-          echo "::warning::Cloudflare token could not apply D1 migrations. Urban Director Studio will bootstrap critical release tables at runtime; update the Cloudflare API token with D1 edit permission before final submission."
-
       - name: Deploy Worker and assets
         run: npx wrangler deploy --config wrangler.jsonc
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Apply and verify D1 migrations through Worker binding
+        run: |
+          set -euo pipefail
+
+          for attempt in 1 2 3 4 5; do
+            response="$(curl --fail --silent --show-error https://scenepilot.ryanedavis.workers.dev/health || true)"
+
+            if [ -n "$response" ]; then
+              echo "$response"
+
+              if HEALTH_JSON="$response" node -e '
+                const data = JSON.parse(process.env.HEALTH_JSON || "{}");
+                if (!data.databaseBound || !data.databaseReady) process.exit(1);
+                if (Number(data.migrationCount || 0) < 9) process.exit(1);
+              '; then
+                echo "Urban Director Studio D1 migrations: PASS"
+                exit 0
+              fi
+            fi
+
+            echo "Waiting for the deployed Worker/D1 schema to become ready (attempt $attempt/5)..."
+            sleep 2
+          done
+
+          echo "::error::Urban Director Studio D1 migrations did not reach the expected release schema."
+          exit 1

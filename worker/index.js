@@ -1,3 +1,5 @@
+import { ensureBundledMigrations } from "./migrations.js";
+
 const SESSION_COOKIE = "sp_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const PASSWORD_ITERATIONS = 100000;
@@ -3566,9 +3568,15 @@ async function handleApi(request, env, url) {
   if (url.pathname === "/api/health" || url.pathname === "/health") {
     let databaseReady = false;
     let userCount = null;
+    let migrationCount = 0;
+    let migrationsApplied = 0;
 
     if (env.DB) {
       try {
+        const migrationState = await ensureBundledMigrations(env.DB);
+        migrationCount = migrationState.count;
+        migrationsApplied = migrationState.applied.length;
+
         const row = await env.DB.prepare(
           "SELECT COUNT(*) AS count FROM users"
         ).first();
@@ -3577,7 +3585,7 @@ async function handleApi(request, env, url) {
         await ensureAppleSubscriptionSchema(env);
         await ensureCameraInviteSchema(env);
         await ensureRealtimeViewerSchema(env);
-        databaseReady = true;
+        databaseReady = migrationCount >= migrationState.expected;
       } catch (error) {
         console.error("Urban Director Studio D1 health check failed", error);
       }
@@ -3587,6 +3595,8 @@ async function handleApi(request, env, url) {
       ok: Boolean(env.DB) && databaseReady,
       databaseBound: Boolean(env.DB),
       databaseReady,
+      migrationCount,
+      migrationsApplied,
       userCount,
       turnstileConfigured: Boolean(
         String(env.TURNSTILE_SECRET_KEY || "").trim()
