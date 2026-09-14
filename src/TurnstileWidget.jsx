@@ -40,7 +40,7 @@ export default function TurnstileWidget({
       ) {
         try {
           window.turnstile.remove(widgetIdRef.current);
-        } catch (_) {}
+        } catch {}
       }
 
       widgetIdRef.current = null;
@@ -79,7 +79,7 @@ export default function TurnstileWidget({
           }
         );
         return true;
-      } catch (_) {
+      } catch {
         reportError("Security check could not start. Tap retry and try again.");
         return false;
       }
