@@ -784,12 +784,16 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   useEffect(() => {
     if (!showCamera || !navigator.mediaDevices) return;
 
-    refreshVideoInputs();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void refreshVideoInputs();
+    });
 
-    const handleDeviceChange = () => refreshVideoInputs();
+    const handleDeviceChange = () => void refreshVideoInputs();
     navigator.mediaDevices.addEventListener?.("devicechange", handleDeviceChange);
 
     return () => {
+      cancelled = true;
       navigator.mediaDevices.removeEventListener?.("devicechange", handleDeviceChange);
     };
   }, [showCamera, refreshVideoInputs]);
