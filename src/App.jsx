@@ -2254,7 +2254,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
 
   function sendDirectorTorch(camera) {
     if (!camera?.socketId) return;
-    const next = !Boolean(remoteTorchState[camera.socketId]);
+    const next = !remoteTorchState[camera.socketId];
     setRemoteTorchState(current => ({
       ...current,
       [camera.socketId]: next
