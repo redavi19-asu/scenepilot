@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Upload, Film, Music2, Image, Type, Play, Pause, Scissors,
-  Trash2, Copy, Undo2, Redo2, ZoomIn, ZoomOut, Download,
-  MonitorUp, Save, Plus, Volume2, Gauge, SlidersHorizontal,
+  Upload, Film, Music2, Image, Type, Play, Scissors,
+  Trash2, Copy, Undo2, Redo2, ZoomIn, ZoomOut,
+  MonitorUp, Save, Plus, Volume2, SlidersHorizontal,
   Captions, Move, Palette, RotateCcw, FileDown
 } from "lucide-react";
 import "./ReplayStudio.css";
@@ -15,7 +15,6 @@ const TRACKS = [
   { id: "a2", label: "AUDIO 2", kind: "audio" }
 ];
 
-const TRACK_HEIGHT = 54;
 const BASE_PIXELS_PER_SECOND = 18;
 
 function uid(prefix = "clip") {
@@ -94,8 +93,9 @@ export default function ReplayStudio({
   const timelineWidth = Math.max(900, projectDuration * pixelsPerSecond);
 
   useEffect(() => {
+    const urls = objectUrls.current;
     return () => {
-      objectUrls.current.forEach(url => URL.revokeObjectURL(url));
+      urls.forEach(url => URL.revokeObjectURL(url));
     };
   }, []);
 
@@ -118,7 +118,7 @@ export default function ReplayStudio({
       Math.max(selectedClip.inPoint + Math.max(0, playhead - selectedClip.start), selectedClip.inPoint),
       selectedClip.outPoint
     );
-  }, [playhead, selectedClipId]);
+  }, [playhead, selectedClip]);
 
   function snapshot(nextClips = clips) {
     setHistory(prev => [...prev.slice(-29), clips.map(clip => ({ ...clip }))]);
@@ -418,7 +418,7 @@ export default function ReplayStudio({
       aspectRatio,
       savedAt: new Date().toISOString(),
       assets: serializableAssets,
-      clips: clips.map(({ file, ...clip }) => ({ ...clip, url: "" }))
+      clips: clips.map(clip => ({ ...clip, url: "" }))
     };
 
     window.localStorage.setItem(
