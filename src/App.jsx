@@ -3073,14 +3073,6 @@ async function enableCamera() {
 
         <main className="operator-main">
           <div className="phone-monitor">
-            {stream && operatorControlsCollapsed && (
-              <div className="operator-power-save-status" aria-live="polite">
-                <i />
-                <strong>{isOnAir ? "LIVE" : "CAMERA READY"}</strong>
-                <span>CAMERA {String(assignedSlot).padStart(2, "0")}</span>
-              </div>
-            )}
-
             {cameraResumeStatus && (
               <div className={`camera-resume-notice ${cameraInterrupted ? "interrupted" : "resumed"}`} role="status" aria-live="polite">
                 <strong>{cameraInterrupted ? "CAMERA INTERRUPTED" : "CAMERA RESTORED"}</strong>
