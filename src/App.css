@@ -4404,3 +4404,66 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
   font-weight:800;
   letter-spacing:1.2px;
 }
+
+
+/* Floating quick switcher: mirrors the Director walkie-talkie footprint on the left. */
+.director-floating-switcher{
+  position:fixed;
+  left:18px;
+  bottom:176px;
+  z-index:121;
+  width:140px;
+  height:38px;
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:8px;
+  background:rgba(15,18,14,.96);
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  overflow:hidden;
+  box-shadow:0 10px 30px rgba(0,0,0,.38);
+  backdrop-filter:blur(10px);
+}
+.director-floating-switcher button{
+  min-width:0;
+  height:38px;
+  padding:0 7px;
+  border:0;
+  border-radius:0;
+  font:900 8px Inter,system-ui,sans-serif;
+  letter-spacing:.055em;
+  cursor:pointer;
+}
+.director-floating-standby{
+  border-right:1px solid rgba(255,255,255,.12)!important;
+  background:#25220f;
+  color:#f4d36f;
+}
+.director-floating-standby:hover,
+.director-floating-standby.active{
+  background:#4a3911;
+  color:#ffe38a;
+}
+.director-floating-take{
+  background:linear-gradient(180deg,#2f6f3b,#204e2a);
+  color:#f2fff3;
+}
+.director-floating-take:hover{
+  background:linear-gradient(180deg,#397f47,#265c32);
+}
+.director-floating-switcher button:focus-visible{
+  position:relative;
+  z-index:1;
+  outline:2px solid #f4d36f;
+  outline-offset:-2px;
+}
+@media(max-width:900px){
+  .director-floating-switcher{
+    left:10px;
+    bottom:158px;
+  }
+}
+@media(max-width:700px){
+  .director-floating-switcher{
+    bottom:148px;
+  }
+}
