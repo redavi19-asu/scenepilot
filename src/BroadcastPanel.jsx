@@ -191,8 +191,8 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
 
   useEffect(() => () => {
     const { recorder, socket } = ingestRef.current;
-    try { if (recorder?.state !== "inactive") recorder.stop(); } catch (_) {}
-    try { socket?.close(); } catch (_) {}
+    try { if (recorder?.state !== "inactive") recorder.stop(); } catch {}
+    try { socket?.close(); } catch {}
     if (limitTimerRef.current) window.clearTimeout(limitTimerRef.current);
     void realtimeRef.current?.stop?.();
   }, []);
@@ -284,12 +284,12 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           window.clearTimeout(timer);
           resolve();
         }, { once: true });
-        try { recorder.stop(); } catch (_) { resolve(); }
+        try { recorder.stop(); } catch { resolve(); }
       });
     }
 
     await new Promise(resolve => window.setTimeout(resolve, 250));
-    try { socket?.close(1000, "Broadcast stopped"); } catch (_) {}
+    try { socket?.close(1000, "Broadcast stopped"); } catch {}
   }
 
   const selectedNames = useMemo(
@@ -370,7 +370,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     try {
       await navigator.clipboard.writeText(publicWatchUrl);
       setShareStatus("WATCH LINK COPIED");
-    } catch (_) {
+    } catch {
       setShareStatus("COPY BLOCKED — USE SHARE");
     }
   }
