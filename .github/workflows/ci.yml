@@ -45,6 +45,15 @@ jobs:
       - name: Validate bundled iOS assets
         run: npx cap copy ios
 
+      - name: Validate iOS privacy manifest
+        run: |
+          test -f ios/App/App/PrivacyInfo.xcprivacy
+          grep -q "NSPrivacyTracking" ios/App/App/PrivacyInfo.xcprivacy
+          grep -q "NSPrivacyCollectedDataTypeEmailAddress" ios/App/App/PrivacyInfo.xcprivacy
+          grep -q "NSPrivacyCollectedDataTypePhotosorVideos" ios/App/App/PrivacyInfo.xcprivacy
+          grep -q "NSPrivacyCollectedDataTypeAudioData" ios/App/App/PrivacyInfo.xcprivacy
+          grep -q "PrivacyInfo.xcprivacy in Resources" ios/App/App.xcodeproj/project.pbxproj
+
   deploy:
     name: Deploy Urban Director Studio to Cloudflare
     if: github.event_name != 'pull_request'
