@@ -567,9 +567,17 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   useEffect(() => {
     if (!cameraShareMenuOpen && !showJoin) return;
 
-    requestCameraInvite().catch(error => {
-      setCameraInviteStatus(error.message);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      requestCameraInvite().catch(error => {
+        if (!cancelled) setCameraInviteStatus(error.message);
+      });
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [cameraShareMenuOpen, showJoin, requestCameraInvite]);
 
   async function shareCameraInvite(method) {
