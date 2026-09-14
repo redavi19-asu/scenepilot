@@ -2962,32 +2962,42 @@ async function enableCamera() {
   }
 
   useEffect(() => {
-    setCameraAudio(current => {
-      const next = { ...current };
+    let cancelled = false;
 
-      wirelessCameras.forEach(camera => {
-        if (!next[camera.socketId]) {
-          next[camera.socketId] = { volume: 1, muted: true, solo: false };
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      setCameraAudio(current => {
+        const next = { ...current };
+
+        wirelessCameras.forEach(camera => {
+          if (!next[camera.socketId]) {
+            next[camera.socketId] = { volume: 1, muted: true, solo: false };
+          }
+        });
+
+        if (directorStream && !next[DIRECTOR_SOURCE]) {
+          next[DIRECTOR_SOURCE] = { volume: 1, muted: true, solo: false };
         }
+
+        Object.keys(next).forEach(id => {
+          const isRemoteCamera =
+            wirelessCameras.some(camera => camera.socketId === id);
+          const isDirectorCamera =
+            id === DIRECTOR_SOURCE && Boolean(directorStream);
+
+          if (!isRemoteCamera && !isDirectorCamera) {
+            delete next[id];
+          }
+        });
+
+        return next;
       });
-
-      if (directorStream && !next[DIRECTOR_SOURCE]) {
-        next[DIRECTOR_SOURCE] = { volume: 1, muted: true, solo: false };
-      }
-
-      Object.keys(next).forEach(id => {
-        const isRemoteCamera =
-          wirelessCameras.some(camera => camera.socketId === id);
-        const isDirectorCamera =
-          id === DIRECTOR_SOURCE && Boolean(directorStream);
-
-        if (!isRemoteCamera && !isDirectorCamera) {
-          delete next[id];
-        }
-      });
-
-      return next;
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [wirelessCameras, directorStream]);
 
   const anySolo = Object.values(cameraAudio).some(channel => channel.solo);
