@@ -1,0 +1,93 @@
+/* Urban Director Studio — approved city/sunset brand pass.
+   Intentionally limited to chrome/dead space so production video stays neutral. */
+
+.console{
+  background:
+    radial-gradient(circle at 76% -12%,rgba(213,145,49,.08),transparent 34%),
+    linear-gradient(180deg,#171916 0%,#111311 100%);
+}
+
+.topbar{
+  position:relative;
+  overflow:hidden;
+  background:
+    linear-gradient(90deg,rgba(235,232,223,.96),rgba(232,228,218,.90) 48%,rgba(233,228,216,.94)),
+    url('/urban-director-city-strip.svg') center 56%/cover no-repeat;
+  border-bottom-color:#a99a7e;
+  box-shadow:0 5px 18px rgba(0,0,0,.16);
+}
+
+.topbar::after{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  height:2px;
+  background:linear-gradient(90deg,transparent,rgba(202,139,48,.7),transparent);
+  pointer-events:none;
+}
+
+.topbar > *{
+  position:relative;
+  z-index:1;
+}
+
+.brand-mark{
+  border:1px solid rgba(47,42,33,.45);
+  border-radius:10px;
+  background:#101312 url('/urban-director-icon.svg') center/cover no-repeat;
+  overflow:hidden;
+  box-shadow:0 4px 12px rgba(0,0,0,.2);
+}
+
+.brand-mark svg{
+  opacity:0;
+}
+
+.top-actions button{
+  border-color:rgba(76,70,58,.42);
+  background:rgba(244,241,232,.26);
+  backdrop-filter:blur(4px);
+}
+
+.workspace{
+  background:
+    linear-gradient(180deg,rgba(217,153,58,.025),transparent 130px);
+}
+
+footer{
+  background:
+    linear-gradient(90deg,rgba(7,10,13,.95),rgba(11,14,17,.86),rgba(25,18,10,.91)),
+    url('/urban-director-city-strip.svg') center 61%/cover no-repeat;
+  color:#f1eee6;
+  border-top:1px solid rgba(217,162,66,.38);
+  box-shadow:0 -5px 18px rgba(0,0,0,.3);
+}
+
+footer i{
+  background:#d9a94a;
+  box-shadow:0 0 8px rgba(217,169,74,.55);
+}
+
+/* Keep the cinematic chrome quiet on smaller production screens. */
+@media(max-width:700px){
+  .topbar{
+    background:
+      linear-gradient(90deg,rgba(235,232,223,.97),rgba(232,228,218,.92)),
+      url('/urban-director-city-strip.svg') 64% 58%/auto 120% no-repeat;
+  }
+  footer{
+    background:
+      linear-gradient(90deg,rgba(7,10,13,.96),rgba(18,14,10,.92)),
+      url('/urban-director-city-strip.svg') center/auto 150% no-repeat;
+  }
+}
+
+/* Do not decorate expanded monitors or the clean camera viewfinder. */
+.screen.monitor-expanded,
+.operator-shell.controls-collapsed,
+.operator-shell.controls-collapsed .operator-main,
+.operator-shell.controls-collapsed .phone-monitor{
+  background:#000!important;
+}
