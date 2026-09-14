@@ -230,6 +230,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     secondary: null
   });
   const [draggingCamera, setDraggingCamera] = useState(null);
+  const [expandedMonitor, setExpandedMonitor] = useState(null);
   const [localClip, setLocalClip] = useState(null);
   const localClipUrl = useRef(null);
   const [instantReplayMode, setInstantReplayMode] = useState("live");
@@ -272,6 +273,22 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       document.body.classList.remove("scenepilot-viewfinder-clean");
     };
   }, [showCamera, operatorControlsCollapsed]);
+
+  useEffect(() => {
+    if (!expandedMonitor) return;
+
+    const handleKeyDown = event => {
+      if (event.key === "Escape") setExpandedMonitor(null);
+    };
+
+    document.body.classList.add("scenepilot-monitor-expanded");
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.classList.remove("scenepilot-monitor-expanded");
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [expandedMonitor]);
 
   useEffect(() => {
     const handleOperatorAlert = event => {
@@ -3786,7 +3803,7 @@ async function enableCamera() {
               <strong>PVW</strong>
             </div>
             <div
-              className={`screen preview-drop-zone ${draggingCamera ? "drag-active" : ""}`}
+              className={`screen preview-drop-zone ${draggingCamera ? "drag-active" : ""} ${expandedMonitor === "preview" ? "monitor-expanded" : ""}`}
               onDragOver={event => event.preventDefault()}
               onDrop={event => {
                 event.preventDefault();
@@ -3861,7 +3878,15 @@ async function enableCamera() {
                       ? `9-CAM • MAIN ${displayNameForCamera(preview)}`
                       : `${compositionMode.toUpperCase()} • ${displayNameForCamera(preview)} + ${displayNameForCamera(secondaryPreview)}`}
               </span>
-              <button className="fullscreen"><Maximize2 size={17}/></button>
+              <button
+                type="button"
+                className="fullscreen"
+                onClick={() => setExpandedMonitor(current => current === "preview" ? null : "preview")}
+                title={expandedMonitor === "preview" ? "Exit full screen preview" : "Expand preview"}
+                aria-label={expandedMonitor === "preview" ? "Exit full screen preview" : "Expand preview"}
+              >
+                {expandedMonitor === "preview" ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}
+              </button>
             </div>
           </div>
 
@@ -3877,7 +3902,7 @@ async function enableCamera() {
             </div>
             <div
               key={`program-${programTransition.key}`}
-              className={`screen program-screen transition-${programTransition.type.toLowerCase()}`}
+              className={`screen program-screen transition-${programTransition.type.toLowerCase()} ${expandedMonitor === "program" ? "monitor-expanded" : ""}`}
               style={{ "--transition-duration": `${programTransition.duration}ms` }}
             >
               {standby ? (
@@ -3964,7 +3989,15 @@ async function enableCamera() {
                       ? `9-CAM • MAIN ${displayNameForCamera(programComposition.primary)}`
                       : `${programComposition.mode.toUpperCase()} • ${displayNameForCamera(programComposition.primary)} + ${displayNameForCamera(programComposition.secondary)}`}
               </span>
-              <button className="fullscreen"><Maximize2 size={17}/></button>
+              <button
+                type="button"
+                className="fullscreen"
+                onClick={() => setExpandedMonitor(current => current === "program" ? null : "program")}
+                title={expandedMonitor === "program" ? "Exit full screen program" : "Expand program"}
+                aria-label={expandedMonitor === "program" ? "Exit full screen program" : "Expand program"}
+              >
+                {expandedMonitor === "program" ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}
+              </button>
             </div>
           </div>
         </section>
