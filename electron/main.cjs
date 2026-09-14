@@ -7,7 +7,7 @@ const APP_ORIGIN = new URL(APP_URL).origin;
 function isScenePilotUrl(value) {
   try {
     return new URL(value).origin === APP_ORIGIN;
-  } catch (_) {
+  } catch {
     return false;
   }
 }
@@ -18,7 +18,7 @@ function openExternal(value) {
     if (url.protocol === "https:" || url.protocol === "mailto:") {
       void shell.openExternal(url.toString());
     }
-  } catch (_) {}
+  } catch {}
 }
 
 function configurePermissions() {
