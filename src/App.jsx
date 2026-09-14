@@ -480,7 +480,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     };
   }, [showCamera]);
 
-  async function requestCameraInvite(force = false) {
+  const requestCameraInvite = useCallback(async (force = false) => {
     if (
       !force &&
       cameraInvite?.token &&
@@ -522,7 +522,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     setCameraInvite(invite);
     setCameraInviteStatus("");
     return invite;
-  }
+  }, [cameraInvite, roomCode]);
 
   function cameraInviteQuery(invite = cameraInvite) {
     return (
@@ -560,7 +560,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     requestCameraInvite().catch(error => {
       setCameraInviteStatus(error.message);
     });
-  }, [cameraShareMenuOpen, showJoin, roomCode]);
+  }, [cameraShareMenuOpen, showJoin, requestCameraInvite]);
 
   async function shareCameraInvite(method) {
     try {
