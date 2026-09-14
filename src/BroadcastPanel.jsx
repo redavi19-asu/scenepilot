@@ -77,6 +77,15 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     usagePercent >= 75 ? "warning" :
     "normal";
 
+  const usageStatus =
+    !broadcasting || !usage || usagePercent < 75
+      ? ""
+      : usagePercent >= 100
+        ? "Monthly broadcast allowance reached. Local / ISO recording can continue."
+        : usagePercent >= 90
+          ? "Streaming warning: only " + usage.remainingMinutes + " broadcast minutes remain this month."
+          : "Streaming notice: " + usage.remainingMinutes + " broadcast minutes remain this month.";
+
   const serviceRoomCode = useMemo(() => {
     const baseRoom = String(roomCode || "live")
       .trim()
@@ -166,27 +175,6 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     const interval = window.setInterval(refresh, 60 * 1000);
     return () => window.clearInterval(interval);
   }, [broadcasting]); // usage-refresh
-
-  useEffect(() => {
-    if (!broadcasting || !usage) return;
-
-    const nextAlert =
-      usagePercent >= 100 ? "limit" :
-      usagePercent >= 90 ? "urgent" :
-      usagePercent >= 75 ? "warning" :
-      "";
-
-    if (!nextAlert || usageAlertRef.current === nextAlert) return;
-    usageAlertRef.current = nextAlert;
-
-    if (nextAlert === "limit") {
-      setStatus("Monthly broadcast allowance reached. Local / ISO recording can continue.");
-    } else if (nextAlert === "urgent") {
-      setStatus(`Streaming warning: only ${usage.remainingMinutes} broadcast minutes remain this month.`);
-    } else {
-      setStatus(`Streaming notice: ${usage.remainingMinutes} broadcast minutes remain this month.`);
-    }
-  }, [broadcasting, usage, usagePercent]);
 
   useEffect(() => () => {
     const { recorder, socket } = ingestRef.current;
@@ -735,7 +723,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         </button>
       </div>
 
-      {status && <div className="broadcast-status-message">{status}</div>}
+      {(usageStatus || status) && <div className="broadcast-status-message">{usageStatus || status}</div>}
 
       {showShare && (
         <section className="broadcast-share-panel">
