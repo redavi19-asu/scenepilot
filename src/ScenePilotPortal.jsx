@@ -1184,22 +1184,6 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount }) {
   );
 }
 
-function AccountBar({ user, onLogout }) {
-  return (
-    <div className="sp-account-bar">
-      <div>
-        {user.role === "owner" ? <Crown size={15}/> : <ShieldCheck size={15}/>}
-        <span>{user.displayName || user.email}</span>
-        <small>{String(user.plan || "free").toUpperCase()}</small>
-      </div>
-      {(user.role === "owner" || user.role === "admin") && (
-        <button onClick={() => go("/admin")}>ADMIN</button>
-      )}
-      <button onClick={onLogout}><LogOut size={14}/> LOGOUT</button>
-    </div>
-  );
-}
-
 function IntercomPanel({ mode }) {
   const roomCode = new URLSearchParams(window.location.search).get("room") || "SP-4827";
   const [open, setOpen] = useState(false);
