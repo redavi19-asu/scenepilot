@@ -1250,7 +1250,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
           : null;
 
     if (!programStream || typeof MediaRecorder === "undefined") {
-      setInstantReplayStatus("BUFFER WAITING");
+      queueMicrotask(() => setInstantReplayStatus("BUFFER WAITING"));
       return;
     }
 
