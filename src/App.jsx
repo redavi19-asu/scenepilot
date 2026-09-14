@@ -3050,7 +3050,7 @@ async function enableCamera() {
     });
 
     if (!directorStream && masterAudioSource === DIRECTOR_SOURCE) {
-      setMasterAudioSource("mix");
+      queueMicrotask(() => setMasterAudioSource("mix"));
     }
   }, [
     cameraAudio,
