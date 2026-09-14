@@ -96,9 +96,9 @@ export async function startSmartGlassesStream({ fps = 24 } = {}) {
 export async function stopSmartGlassesStream() {
   try {
     await SmartGlasses.stopStream();
-  } catch (_) {}
+  } catch {}
   try {
     await frameListener?.remove?.();
-  } catch (_) {}
+  } catch {}
   frameListener = null;
 }
