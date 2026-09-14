@@ -1201,6 +1201,24 @@ function IntercomPanel({ mode }) {
   const talkingTargetsRef = useRef([]);
   const talkingSignalTargetRef = useRef(null);
 
+  const cleanupIntercomResources = useCallback(() => {
+    Object.values(peersRef.current).forEach(peerState => {
+      try {
+        peerState?.sendTrack?.stop?.();
+        peerState?.peer?.close?.();
+      } catch {}
+    });
+
+    Object.values(audioElementsRef.current).forEach(element => {
+      try {
+        element.pause?.();
+        element.srcObject = null;
+      } catch {}
+    });
+
+    micStreamRef.current?.getTracks?.().forEach(track => track.stop());
+  }, []);
+
   useEffect(() => {
     const openFromMenu = () => setOpen(true);
     window.addEventListener("scenepilot:open-intercom", openFromMenu);
@@ -1705,24 +1723,8 @@ function IntercomPanel({ mode }) {
   }, [endTalk]);
 
   useEffect(() => {
-    return () => {
-      Object.values(peersRef.current).forEach(peerState => {
-        try {
-          peerState?.sendTrack?.stop?.();
-          peerState?.peer?.close?.();
-        } catch {}
-      });
-
-      Object.values(audioElementsRef.current).forEach(element => {
-        try {
-          element.pause?.();
-          element.srcObject = null;
-        } catch {}
-      });
-
-      micStreamRef.current?.getTracks?.().forEach(track => track.stop());
-    };
-  }, []);
+    return cleanupIntercomResources;
+  }, [cleanupIntercomResources]);
 
   const targetLabel =
     mode === "director"
