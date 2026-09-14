@@ -192,11 +192,11 @@ function stopJob(job, closeCode = 1000, closeReason = "Broadcast stopped") {
 
   try {
     job.socket?.close(closeCode, closeReason);
-  } catch (_) {}
+  } catch {}
 
   try {
     job.ingestProcess?.stdin?.end();
-  } catch (_) {}
+  } catch {}
 
   if (job.ingestProcess && !job.ingestProcess.killed) {
     job.ingestProcess.kill("SIGTERM");
@@ -452,7 +452,7 @@ server.on("upgrade", (request, socket, head) => {
     websocketServer.handleUpgrade(request, socket, head, ws => {
       websocketServer.emit("connection", ws, request, { room, job, requestedProtocol });
     });
-  } catch (_) {
+  } catch {
     socket.destroy();
   }
 });
@@ -478,7 +478,7 @@ websocketServer.on("connection", (ws, _request, context) => {
   });
 
   ws.on("close", () => {
-    try { ingestProcess.stdin.end(); } catch (_) {}
+    try { ingestProcess.stdin.end(); } catch {}
     job.socket = null;
     job.ingestProcess = null;
   });
