@@ -1740,11 +1740,11 @@
 }
 .sp-intercom-fab{
   right:18px !important;
-  bottom:176px !important;
+  bottom:calc(176px + env(safe-area-inset-bottom, 0px)) !important;
 }
 .sp-intercom-panel{
   right:18px !important;
-  bottom:222px !important;
+  bottom:calc(222px + env(safe-area-inset-bottom, 0px)) !important;
 }
 
 @media(max-width:900px){
@@ -1754,11 +1754,11 @@
   }
   .sp-intercom-fab{
     right:10px !important;
-    bottom:158px !important;
+    bottom:calc(158px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .sp-intercom-panel{
     right:10px !important;
-    bottom:202px !important;
+    bottom:calc(202px + env(safe-area-inset-bottom, 0px)) !important;
   }
 }
 
@@ -1767,10 +1767,10 @@
     bottom:104px !important;
   }
   .sp-intercom-fab{
-    bottom:148px !important;
+    bottom:calc(148px + env(safe-area-inset-bottom, 0px)) !important;
   }
   .sp-intercom-panel{
-    bottom:192px !important;
+    bottom:calc(192px + env(safe-area-inset-bottom, 0px)) !important;
     max-height:calc(100vh - 210px);
     overflow:auto;
   }
