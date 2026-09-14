@@ -19,7 +19,7 @@ export function getNativeSessionToken() {
   if (!isNativeApp()) return "";
   try {
     return window.localStorage.getItem(SESSION_KEY) || "";
-  } catch (_) {
+  } catch {
     return "";
   }
 }
@@ -29,7 +29,7 @@ export function setNativeSessionToken(token) {
   try {
     if (token) window.localStorage.setItem(SESSION_KEY, token);
     else window.localStorage.removeItem(SESSION_KEY);
-  } catch (_) {}
+  } catch {}
 }
 
 export async function apiFetch(path, options = {}) {
