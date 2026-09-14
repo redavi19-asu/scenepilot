@@ -608,7 +608,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     }
   }
 
-  async function refreshVideoInputs() {
+  const refreshVideoInputs = useCallback(async () => {
     try {
       const devices = await navigator.mediaDevices?.enumerateDevices?.();
       const cameras = (devices || []).filter(device => device.kind === "videoinput");
@@ -625,7 +625,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     } catch (error) {
       console.warn("Urban Director Studio camera/audio source discovery unavailable", error);
     }
-  }
+  }, [selectedAudioDevice]);
 
 
   useEffect(() => {
@@ -774,7 +774,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     return () => {
       navigator.mediaDevices.removeEventListener?.("devicechange", handleDeviceChange);
     };
-  }, [showCamera]);
+  }, [showCamera, refreshVideoInputs]);
 
    useEffect(() => {
     if (showCamera || !networkId) return;
