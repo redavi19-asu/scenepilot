@@ -42,7 +42,7 @@ function WatchPage({ roomCode }) {
       if (!Number.isFinite(video.currentTime) || liveEdge - video.currentTime > 2.25) {
         try {
           video.currentTime = target;
-        } catch (_) {}
+        } catch {}
       }
     };
 
@@ -102,7 +102,7 @@ function WatchPage({ roomCode }) {
           if (Number.isFinite(syncPosition)) {
             try {
               video.currentTime = syncPosition;
-            } catch (_) {}
+            } catch {}
           } else {
             seekToLiveEdge();
           }
@@ -206,7 +206,7 @@ function WatchPage({ roomCode }) {
           video.webkitEnterFullscreen();
           return;
         }
-      } catch (_) {}
+      } catch {}
 
       setTvStatus("FULLSCREEN COULD NOT START");
     }
@@ -299,7 +299,7 @@ async function api(path, options = {}) {
   try {
     rawText = await response.text();
     data = rawText ? JSON.parse(rawText) : {};
-  } catch (_) {
+  } catch {
     data = {
       error:
         response.ok
@@ -1299,7 +1299,7 @@ function IntercomPanel({ mode }) {
 
     try {
       current?.peer?.close?.();
-    } catch (_) {}
+    } catch {}
 
     const peer = new RTCPeerConnection({
       iceServers: [
@@ -1543,7 +1543,7 @@ function IntercomPanel({ mode }) {
       try {
         peerState?.peer?.close?.();
         peerState?.sendTrack?.stop?.();
-      } catch (_) {}
+      } catch {}
       delete peersRef.current[socketId];
     };
 
@@ -1726,14 +1726,14 @@ function IntercomPanel({ mode }) {
         try {
           peerState?.sendTrack?.stop?.();
           peerState?.peer?.close?.();
-        } catch (_) {}
+        } catch {}
       });
 
       Object.values(audioElementsRef.current).forEach(element => {
         try {
           element.pause?.();
           element.srcObject = null;
-        } catch (_) {}
+        } catch {}
       });
 
       micStreamRef.current?.getTracks?.().forEach(track => track.stop());
@@ -2179,7 +2179,7 @@ function AdminPage({ user, onLogout }) {
     try {
       await navigator.clipboard.writeText(text);
       setStatus("App Review credentials copied.");
-    } catch (_) {
+    } catch {
       setStatus("Copy failed. Select the credentials shown below manually.");
     }
   }
@@ -2430,7 +2430,7 @@ export default function ScenePilotPortal() {
   async function logout() {
     try {
       await api("/api/auth/logout", { method: "POST", body: "{}" });
-    } catch (_) {}
+    } catch {}
     setNativeSessionToken("");
     setUser(null);
     go("/");
