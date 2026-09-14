@@ -4,7 +4,7 @@ import {
   Settings, Maximize2, MonitorUp, Users, QrCode,
   Type, Layers, PictureInPicture2, Video, Camera,
   Smartphone, X, CircleHelp, RefreshCw, ZoomIn, ZoomOut, PhoneOff, ShieldCheck, Flashlight,
-  Scissors, Play, Save, Download, SkipBack, Film, Upload, Minimize2, Maximize, Menu, LogOut, MessageSquare, RadioTower, Trash2,
+  Play, Save, Film, Minimize2, Maximize, Menu, LogOut, MessageSquare, RadioTower, Trash2,
   ChevronDown, Copy, Share2, Mail
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -96,7 +96,7 @@ function LiveStreamVideo({ stream, className = "", muted = true }) {
 function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const isOwner = user?.role === "owner";
   const [showSplash, setShowSplash] = useState(true);
-  const [cameras, setCameras] = useState(initialCameras);
+  const [cameras] = useState(initialCameras);
   const [program, setProgram] = useState(1);
   const [preview, setPreview] = useState(2);
   const [transition, setTransition] = useState("DISSOLVE");
@@ -142,7 +142,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [cameraShareMenuOpen, setCameraShareMenuOpen] = useState(false);
   const [cameraInvite, setCameraInvite] = useState(null);
   const [cameraInviteStatus, setCameraInviteStatus] = useState("");
-  const [showCamera, setShowCamera] = useState(() => {
+  const [showCamera] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("camera") === "1";
   });
@@ -153,7 +153,6 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [cameraSetupBusy, setCameraSetupBusy] = useState(false);
   const [stream, setStream] = useState(null);
   const cameraVideo = useRef(null);
-  const remoteVideos = useRef({});
   const peers = useRef({});
   const pendingIce = useRef({});
   const [remoteStreams, setRemoteStreams] = useState({});
@@ -3480,9 +3479,6 @@ async function enableCamera() {
       </div>
     );
   }
-
-  const programCam = cameras.find(c => c.id === program);
-  const previewCam = cameras.find(c => c.id === preview);
 
   const cameraForSlot = slotId =>
     wirelessCameras.find(camera => camera.slotId === slotId);
