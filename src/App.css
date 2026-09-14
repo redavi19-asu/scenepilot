@@ -4410,7 +4410,7 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
 .director-floating-switcher{
   position:fixed;
   left:18px;
-  bottom:176px;
+  bottom:calc(176px + env(safe-area-inset-bottom, 0px));
   z-index:121;
   width:140px;
   height:38px;
@@ -4432,6 +4432,8 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
   font:900 8px Inter,system-ui,sans-serif;
   letter-spacing:.055em;
   cursor:pointer;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
 }
 .director-floating-standby{
   border-right:1px solid rgba(255,255,255,.12)!important;
@@ -4459,11 +4461,11 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
 @media(max-width:900px){
   .director-floating-switcher{
     left:10px;
-    bottom:158px;
+    bottom:calc(158px + env(safe-area-inset-bottom, 0px));
   }
 }
 @media(max-width:700px){
   .director-floating-switcher{
-    bottom:148px;
+    bottom:calc(148px + env(safe-area-inset-bottom, 0px));
   }
 }
