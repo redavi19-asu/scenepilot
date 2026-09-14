@@ -104,10 +104,7 @@ export default function ReplayStudio({
 
     setAssets(prev => prev.filter(asset => asset.sourceType !== "program-master"));
     setClips(prev => prev.filter(clip => clip.sourceType !== "program-master"));
-    setSelectedClipId(current => {
-      const selected = clips.find(clip => clip.id === current);
-      return selected?.sourceType === "program-master" ? null : current;
-    });
+    setSelectedClipId(null);
   }, [programMaster?.blob]);
 
   useEffect(() => {
