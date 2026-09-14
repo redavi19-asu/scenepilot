@@ -443,7 +443,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     try {
       window.localStorage.removeItem(`scenepilot:cameraNames:${roomCode}`);
       window.localStorage.removeItem(`scenepilot:mainCamera:${roomCode}`);
-    } catch (_) {
+    } catch {
       // Clear only legacy pre-tenant keys left by older builds.
     }
   }, [showCamera, roomCode]);
@@ -1185,11 +1185,11 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       }
       try {
         replayRecorderRef.current?.stop?.();
-      } catch (_) {}
+      } catch {}
       productionRecordersRef.current.forEach(recorder => {
         try {
           if (recorder?.state !== "inactive") recorder.stop();
-        } catch (_) {}
+        } catch {}
       });
       productionRecordersRef.current = [];
       stopProgramCompositor();
@@ -1237,7 +1237,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       if (replayRecorderRef.current?.state !== "inactive") {
         replayRecorderRef.current?.stop?.();
       }
-    } catch (_) {}
+    } catch {}
 
     replayChunksRef.current = [];
 
@@ -1300,7 +1300,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     return () => {
       try {
         if (recorder.state !== "inactive") recorder.stop();
-      } catch (_) {}
+      } catch {}
 
       if (replayRecorderRef.current === recorder) {
         replayRecorderRef.current = null;
@@ -1628,7 +1628,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
         outputTrack.enabled = !standbyRef.current;
         composite.addTrack(outputTrack);
         compositeAudioTracks.push(outputTrack);
-      } catch (_) {}
+      } catch {}
     });
 
     programCompositeAudioTracksRef.current = compositeAudioTracks;
@@ -1645,7 +1645,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       if (track.kind === "video") track.stop?.();
     });
     programCompositeAudioTracksRef.current.forEach(track => {
-      try { track.stop?.(); } catch (_) {}
+      try { track.stop?.(); } catch {}
     });
     programCompositeAudioTracksRef.current = [];
     programCompositeStreamRef.current = null;
