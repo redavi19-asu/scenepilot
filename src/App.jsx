@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Radio, Circle, Mic2, Volume2, Wifi, BatteryFull,
   Settings, Maximize2, MonitorUp, Users, QrCode,
@@ -19,9 +19,9 @@ import {
   startSmartGlassesStream,
   stopSmartGlassesStream
 } from "./smartGlasses";
-import ReplayStudio from "./ReplayStudio";
-import BroadcastPanel from "./BroadcastPanel";
-import BroadcastGraphics from "./BroadcastGraphics";
+const ReplayStudio = lazy(() => import("./ReplayStudio"));
+const BroadcastPanel = lazy(() => import("./BroadcastPanel"));
+const BroadcastGraphics = lazy(() => import("./BroadcastGraphics"));
 import { apiFetch, publicOrigin } from "./runtimeApi";
 
 const qualityProfiles = {
@@ -4789,19 +4789,21 @@ async function enableCamera() {
           </div>
         </section>
 
-        <BroadcastGraphics />
-        <BroadcastPanel
-          roomCode={roomCode}
-          getProgramStream={() => startProgramCompositor() || currentProgramMediaStream()}
-        />
-        <ReplayStudio
-          roomCode={roomCode}
-          networkId={networkId}
-          isOwner={isOwner}
-          programMaster={pendingProgramMaster}
-          onPublishProgram={publishPendingProgramMaster}
-          onDeleteProgram={deletePendingProgramMaster}
-        />
+        <Suspense fallback={<div className="panel-loading" role="status">LOADING PRODUCTION TOOLS…</div>}>
+          <BroadcastGraphics />
+          <BroadcastPanel
+            roomCode={roomCode}
+            getProgramStream={() => startProgramCompositor() || currentProgramMediaStream()}
+          />
+          <ReplayStudio
+            roomCode={roomCode}
+            networkId={networkId}
+            isOwner={isOwner}
+            programMaster={pendingProgramMaster}
+            onPublishProgram={publishPendingProgramMaster}
+            onDeleteProgram={deletePendingProgramMaster}
+          />
+        </Suspense>
       </main>
 
       <footer>
