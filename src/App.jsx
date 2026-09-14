@@ -3828,6 +3828,26 @@ async function enableCamera() {
         </div>
       )}
 
+      <div className="director-floating-switcher" aria-label="Quick Program controls">
+        <button
+          type="button"
+          className={`director-floating-standby ${standby ? "active" : ""}`}
+          onClick={toggleStandby}
+          aria-pressed={standby}
+          title={standby ? "Return audience to Program" : "Put Program on standby"}
+        >
+          {standby ? "PROGRAM" : "STANDBY"}
+        </button>
+        <button
+          type="button"
+          className="director-floating-take"
+          onClick={take}
+          title="Take Preview to Program"
+        >
+          TAKE
+        </button>
+      </div>
+
       <main className="workspace">
         <section className="monitor-section">
           <div className="monitor preview-monitor">
