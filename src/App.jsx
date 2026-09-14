@@ -3456,6 +3456,1398 @@ async function enableCamera() {
         )}
 
         {showTips && (
+          <div className="modal-backdrop tips-backdrop" onClick={() => setShowTips(false)}>
+            <div className="join-modal tips-modal" onClick={e => e.stopPropagation()}>
+              <button className="modal-close" onClick={() => setShowTips(false)}><X/></button>
+              <div className="join-icon"><CircleHelp size={29}/></div>
+              <span className="eyebrow">URBAN DIRECTOR STUDIO CAMERA HELP</span>
+              <h2>Camera operator tips</h2>
+              <div className="tips-list">
+                <p><strong>1.</strong> Enter a camera name before connecting.</p>
+                <p><strong>2.</strong> Camera Source can use the phone camera, a USB webcam, or an HDMI capture device recognized by the browser.</p>
+                <p><strong>3.</strong> Start with 1080P. Use 720P or Auto if bandwidth gets tight.</p>
+                <p><strong>4.</strong> Choose ALLOW DEVICE TELEMETRY if you want the Director to see battery and browser-reported network quality. You can stop sharing at any time.</p>
+                <p><strong>5.</strong> Tap Enable Camera + Microphone and allow the browser's native camera/microphone permission prompt.</p>
+                <p><strong>6.</strong> Urban Director Studio assigns the next available camera slot automatically.</p>
+                <p><strong>7.</strong> LIVE TO DIRECTOR means the WebRTC media connection is active.</p>
+                <p><strong>8.</strong> Use FLIP to switch between the rear and front camera without leaving the production.</p>
+                <p><strong>9.</strong> Zoom controls use the phone camera's hardware zoom when the browser supports it.</p>
+                <p><strong>10.</strong> If the connection drops, leave the page open while Urban Director Studio reconnects.</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const programCam = cameras.find(c => c.id === program);
+  const previewCam = cameras.find(c => c.id === preview);
+
+  const cameraForSlot = slotId =>
+    wirelessCameras.find(camera => camera.slotId === slotId);
+
+  const networkLabelForCamera = camera => {
+    if (!camera) return "OFFLINE";
+
+    const bars = camera.network?.bars;
+    if (bars === 4) return "EXCELLENT";
+    if (bars === 3) return "GOOD";
+    if (bars === 2) return "FAIR";
+    if (bars === 1) return "WEAK";
+
+    if (camera.network?.source === "webrtc") return "CHECKING";
+    if (camera.telemetryConsent === false) return "CHECKING";
+    if (camera.telemetrySupport?.network === false && !camera.network) return "CHECKING";
+    return camera.network ? "LIMITED" : "CHECKING";
+  };
+
+  const batteryLabelForCamera = camera => {
+    if (!camera) return "OFFLINE";
+    if (Number.isFinite(camera.battery)) {
+      return `${camera.battery}%${camera.charging ? " ⚡" : ""}`;
+    }
+    if (camera.telemetryConsent === false) return "NOT SHARED";
+    if (camera.telemetrySupport?.battery === false) return "DEVICE BLOCKED";
+    return "WAITING";
+  };
+
+  const displayNameForCamera = slotId => {
+    if (slotId === DIRECTOR_SOURCE) return "DIRECTOR CAM";
+
+    const savedName = cameraNames[String(slotId)] || cameraNames[slotId];
+    if (savedName) return savedName;
+
+    return `USER ${String(slotId).padStart(2, "0")}`;
+  };
+
+  const openSetNames = () => {
+    const next = {};
+    cameras.forEach(camera => {
+      next[camera.id] = displayNameForCamera(camera.id);
+    });
+    setDraftCameraNames(next);
+    setShowSetNames(true);
+  };
+
+  const saveCameraNames = event => {
+    event?.preventDefault?.();
+
+    const next = {};
+    cameras.forEach(camera => {
+      const value = String(draftCameraNames[camera.id] || "").trim().slice(0, 80);
+      next[camera.id] = value || `CAM ${String(camera.id).padStart(2, "0")}`;
+    });
+
+    setCameraNames(next);
+
+    window.dispatchEvent(
+      new CustomEvent("scenepilot:camera-names", {
+        detail: { roomCode, names: next }
+      })
+    );
+
+    setShowSetNames(false);
+  };
+
+  const dropCameraOnMain = slotId => {
+    const next =
+      slotId === DIRECTOR_SOURCE ? DIRECTOR_SOURCE : Number(slotId);
+
+    if (next === DIRECTOR_SOURCE) {
+      if (!directorStream) return;
+    } else if (!next || next < 1 || next > 9 || !cameraForSlot(next)) {
+      return;
+    }
+
+    setMainCamera(next);
+
+  };
+
+  const streamForSlot = slotId => {
+    if (slotId === DIRECTOR_SOURCE) return directorStream;
+
+    const camera = cameraForSlot(slotId);
+    return camera ? remoteStreams[camera.socketId] : null;
+  };
+
+  const isProgramSlot = slotId => {
+    if (instantReplayMode === "program") return false;
+
+    if (programComposition.mode === "nine") return true;
+    if (programComposition.mode === "split" || programComposition.mode === "pip") {
+      return [programComposition.primary, programComposition.secondary].includes(slotId);
+    }
+    return programComposition.primary === slotId;
+  };
+
+  const renderSource = (slotId, variant = "preview") => {
+    const liveStream = streamForSlot(slotId);
+    const fallbackCamera = cameras.find(camera => camera.id === slotId);
+    const liveCamera = cameraForSlot(slotId);
+
+    if (liveStream) {
+      return (
+        <LiveStreamVideo
+          stream={liveStream}
+          className="composition-video"
+        />
+      );
+    }
+
+    return (
+      <div className={`fake-feed ${variant === "program" ? "program-feed" : "preview-feed"}`}>
+        <Camera size={44}/>
+        <strong>
+          {slotId === DIRECTOR_SOURCE
+            ? "DIRECTOR CAM"
+            : `CAM ${String(slotId).padStart(2,"0")}`}
+        </strong>
+        <span>
+          {slotId === DIRECTOR_SOURCE
+            ? "LOCAL SELFIE SOURCE"
+            : liveCamera?.name || fallbackCamera?.name || "SOURCE"}
+        </span>
+      </div>
+    );
+  };
+
+  const recordingBufferLevel =
+    recordBufferedBytes >= 512 * 1024 * 1024
+      ? "critical"
+      : recordBufferedBytes >= 256 * 1024 * 1024
+        ? "warning"
+        : "normal";
+
+  return (
+    <div className="console">
+      <header className="topbar">
+        <div className="brand">
+          <div className="brand-mark"><Radio size={25}/></div>
+          <div>
+            <h1>URBAN DIRECTOR STUDIO</h1>
+            <span>LIVE PRODUCTION CONSOLE</span>
+          </div>
+        </div>
+
+        <div className="production-title">
+          <span>PRODUCTION</span>
+          <strong>LIVE COMMAND • DIRECTOR CONTROL</strong>
+        </div>
+
+        <div className="top-actions">
+          <span className="network"><i/> {signalStatus}</span>
+          <div className="camera-share-control">
+            <button
+              className="camera-share-trigger"
+              onClick={() => setCameraShareMenuOpen(value => !value)}
+              aria-expanded={cameraShareMenuOpen}
+              aria-haspopup="menu"
+            >
+              <Users size={18}/> ADD CAMERA <ChevronDown size={14}/>
+            </button>
+
+            {cameraShareMenuOpen && (
+              <div className="camera-share-menu" role="menu">
+                <button type="button" role="menuitem" onClick={() => {
+                  setShowJoin(true);
+                  setCameraShareMenuOpen(false);
+                }}>
+                  <QrCode size={16}/> SHOW QR CODE
+                </button>
+                <button type="button" role="menuitem" onClick={() => {
+                  void shareCameraInvite("copy");
+                  setCameraShareMenuOpen(false);
+                }}>
+                  <Copy size={16}/> COPY CAMERA LINK
+                </button>
+                <button type="button" role="menuitem" onClick={() => {
+                  void shareCameraInvite("text");
+                  setCameraShareMenuOpen(false);
+                }}>
+                  <MessageSquare size={16}/> TEXT INVITE
+                </button>
+                <button type="button" role="menuitem" onClick={() => {
+                  void shareCameraInvite("email");
+                  setCameraShareMenuOpen(false);
+                }}>
+                  <Mail size={16}/> EMAIL INVITE
+                </button>
+                <button type="button" role="menuitem" onClick={() => {
+                  void shareCameraInvite("share");
+                  setCameraShareMenuOpen(false);
+                }}>
+                  <Share2 size={16}/> SHARE...
+                </button>
+              </div>
+            )}
+          </div>
+          <button
+            className={`icon-button director-menu-trigger ${secondaryToolAlert ? "has-alert" : ""}`}
+            onClick={() => setDirectorMenuOpen(value => !value)}
+            title="Urban Director Studio menu"
+            aria-label="Open Urban Director Studio menu"
+          >
+            <Menu size={20}/>
+            {secondaryToolAlert && <i className="director-menu-alert-dot"/>}
+          </button>
+        </div>
+      </header>
+
+      {directorMenuOpen && (
+        <>
+          <button
+            className="director-menu-backdrop"
+            type="button"
+            aria-label="Close Urban Director Studio menu"
+            onClick={() => setDirectorMenuOpen(false)}
+          />
+          <aside className="director-hamburger-panel" aria-label="Urban Director Studio menu">
+            <header>
+              <div>
+                <span>URBAN DIRECTOR STUDIO</span>
+                <strong>DIRECTOR MENU</strong>
+              </div>
+              <button type="button" onClick={() => setDirectorMenuOpen(false)} aria-label="Close menu">
+                <X size={18}/>
+              </button>
+            </header>
+
+            <div className="director-menu-account">
+              <small>SIGNED IN</small>
+              <strong>{user?.displayName || user?.email || "URBAN DIRECTOR STUDIO USER"}</strong>
+              <span>{String(user?.role || "user").toUpperCase()} • {String(user?.plan || "free").toUpperCase()}</span>
+            </div>
+
+            <div className="director-menu-group">
+              <span>PRODUCTION TOOLS</span>
+              <button type="button" onClick={() => {
+                window.dispatchEvent(new CustomEvent("scenepilot:open-intercom"));
+                setSecondaryToolAlert(null);
+                setDirectorMenuOpen(false);
+              }}>
+                <RadioTower size={17}/> WALKIE-TALKIE
+                {secondaryToolAlert?.type === "intercom" && <b>!</b>}
+              </button>
+              <button type="button" onClick={() => {
+                window.dispatchEvent(new CustomEvent("scenepilot:open-comms"));
+                setSecondaryToolAlert(null);
+                setDirectorMenuOpen(false);
+              }}>
+                <MessageSquare size={17}/> CAMERA COMMS
+                {secondaryToolAlert?.type === "comms" && <b>!</b>}
+              </button>
+            </div>
+
+            <div className="director-menu-group">
+              <span>SETTINGS & HELP</span>
+              <button type="button" onClick={() => {
+                openSetNames();
+                setDirectorMenuOpen(false);
+              }}>
+                <Settings size={17}/> CAMERA LABELS / SETTINGS
+              </button>
+              <button type="button" onClick={() => {
+                setShowTips(true);
+                setDirectorMenuOpen(false);
+              }}>
+                <CircleHelp size={17}/> TIPS / HELP
+              </button>
+              <button type="button" onClick={() => window.location.assign("/support")}>
+                <CircleHelp size={17}/> SUPPORT
+              </button>
+              <button type="button" onClick={() => window.location.assign("/privacy")}>
+                <ShieldCheck size={17}/> PRIVACY POLICY
+              </button>
+            </div>
+
+            {(user?.role === "owner" || user?.role === "admin") && (
+              <div className="director-menu-group">
+                <span>ADMINISTRATION</span>
+                <button type="button" onClick={() => window.location.assign("/admin")}>
+                  <ShieldCheck size={17}/> ADMIN
+                </button>
+              </div>
+            )}
+
+            {onLogout && (
+              <button className="director-menu-logout" type="button" onClick={onLogout}>
+                <LogOut size={17}/> LOG OUT
+              </button>
+            )}
+
+            {onDeleteAccount && (
+              <button className="director-menu-delete-account" type="button" onClick={onDeleteAccount}>
+                <Trash2 size={17}/> DELETE ACCOUNT
+              </button>
+            )}
+          </aside>
+        </>
+      )}
+
+      {directorLockMessage && (
+        <div className="director-lock-banner">
+          <ShieldCheck size={16}/>
+          <div>
+            <strong>DIRECTOR SESSION LOCKED</strong>
+            <span>{directorLockMessage}</span>
+          </div>
+        </div>
+      )}
+
+      <main className="workspace">
+        <section className="monitor-section">
+          <div className="monitor preview-monitor">
+            <div className="monitor-head">
+              <span>PREVIEW</span>
+              <strong>PVW</strong>
+            </div>
+            <div
+              className={`screen preview-drop-zone ${draggingCamera ? "drag-active" : ""} ${expandedMonitor === "preview" ? "monitor-expanded" : ""}`}
+              onDragOver={event => event.preventDefault()}
+              onDrop={event => {
+                event.preventDefault();
+                const rawSource =
+                  event.dataTransfer.getData("text/scenepilot-camera") ||
+                  draggingCamera;
+                const sourceId =
+                  rawSource === DIRECTOR_SOURCE
+                    ? DIRECTOR_SOURCE
+                    : Number(rawSource);
+                dropCameraOnPreview(sourceId);
+                setDraggingCamera(null);
+              }}
+            >
+              {instantReplayMode === "preview" && instantReplayUrl ? (
+                <video
+                  src={instantReplayUrl}
+                  className="composition-video instant-replay-video"
+                  controls
+                  playsInline
+                  preload="auto"
+                />
+              ) : compositionMode === "nine" ? (
+                <div className="composition nine-composition">
+                  <div className="nine-main-pane">
+                    {renderSource(preview, "preview")}
+                    <span className="composition-label">MAIN • {displayNameForCamera(preview)}</span>
+                  </div>
+                  <div className="nine-side-grid">
+                    {cameras
+                      .filter(camera => camera.id !== preview)
+                      .map(camera => (
+                        <div className="nine-mini-pane" key={camera.id}>
+                          {renderSource(camera.id, "preview")}
+                          <span className="composition-label">
+                            {displayNameForCamera(camera.id)}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ) : compositionMode === "split" ? (
+                <div className="composition split-composition">
+                  <div className="composition-pane">
+                    {renderSource(preview, "preview")}
+                    <span className="composition-label">{displayNameForCamera(preview)}</span>
+                  </div>
+                  <div className="composition-pane">
+                    {renderSource(secondaryPreview, "preview")}
+                    <span className="composition-label">{displayNameForCamera(secondaryPreview)}</span>
+                  </div>
+                </div>
+              ) : compositionMode === "pip" ? (
+                <div className="composition pip-composition">
+                  <div className="pip-main">
+                    {renderSource(preview, "preview")}
+                  </div>
+                  <div className="pip-window">
+                    {renderSource(secondaryPreview, "preview")}
+                    <span className="composition-label">{displayNameForCamera(secondaryPreview)}</span>
+                  </div>
+                </div>
+              ) : (
+                renderSource(preview, "preview")
+              )}
+              <span className="source-tag">
+                {instantReplayMode === "preview"
+                  ? `REPLAY ${instantReplaySeconds}S`
+                  : compositionMode === "single"
+                    ? displayNameForCamera(preview)
+                    : compositionMode === "nine"
+                      ? `9-CAM • MAIN ${displayNameForCamera(preview)}`
+                      : `${compositionMode.toUpperCase()} • ${displayNameForCamera(preview)} + ${displayNameForCamera(secondaryPreview)}`}
+              </span>
+              <button
+                type="button"
+                className="fullscreen"
+                onClick={() => setExpandedMonitor(current => current === "preview" ? null : "preview")}
+                title={expandedMonitor === "preview" ? "Exit full screen preview" : "Expand preview"}
+                aria-label={expandedMonitor === "preview" ? "Exit full screen preview" : "Expand preview"}
+              >
+                {expandedMonitor === "preview" ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}
+              </button>
+            </div>
+          </div>
+
+          <div className="monitor program-monitor">
+            <div className="monitor-head">
+              <span>PROGRAM</span>
+              <div className="program-head-status">
+                <span className={`program-live-status ${standby ? "standby" : "live"}`}>
+                  <i/> {standby ? "PROGRAM STANDBY" : "PROGRAM LIVE"}
+                </span>
+                <strong>PGM</strong>
+              </div>
+            </div>
+            <div
+              key={`program-${programTransition.key}`}
+              className={`screen program-screen transition-${programTransition.type.toLowerCase()} ${expandedMonitor === "program" ? "monitor-expanded" : ""}`}
+              style={{ "--transition-duration": `${programTransition.duration}ms` }}
+            >
+              {standby ? (
+                <div className="program-standby-screen" role="status" aria-label="Program is on standby">
+                  <div className="program-standby-grid"/>
+                  <div className="program-standby-content">
+                    <span className="program-standby-brand">URBAN DIRECTOR STUDIO</span>
+                    <i/>
+                    <strong>PLEASE STAND BY</strong>
+                    <small>Live production will resume shortly</small>
+                  </div>
+                </div>
+              ) : instantReplayMode === "program" && instantReplayUrl ? (
+                <video
+                  ref={instantReplayVideoRef}
+                  src={instantReplayUrl}
+                  className="composition-video instant-replay-video"
+                  autoPlay
+                  playsInline
+                  defaultPlaybackRate={instantReplayRate}
+                  onLoadedMetadata={event => {
+                    event.currentTarget.playbackRate = instantReplayRate;
+                    event.currentTarget.defaultPlaybackRate = instantReplayRate;
+                    event.currentTarget.preservesPitch = false;
+                  }}
+                  onPlay={event => {
+                    event.currentTarget.playbackRate = instantReplayRate;
+                  }}
+                  onEnded={returnToLive}
+                />
+              ) : programComposition.mode === "nine" ? (
+                <div className="composition nine-composition">
+                  <div className="nine-main-pane">
+                    {renderSource(programComposition.primary, "program")}
+                    <span className="composition-label">
+                      MAIN • {displayNameForCamera(programComposition.primary)}
+                    </span>
+                  </div>
+                  <div className="nine-side-grid">
+                    {cameras
+                      .filter(camera => camera.id !== programComposition.primary)
+                      .map(camera => (
+                        <div className="nine-mini-pane" key={camera.id}>
+                          {renderSource(camera.id, "program")}
+                          <span className="composition-label">
+                            {displayNameForCamera(camera.id)}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ) : programComposition.mode === "split" ? (
+                <div className="composition split-composition">
+                  <div className="composition-pane">
+                    {renderSource(programComposition.primary, "program")}
+                    <span className="composition-label">{displayNameForCamera(programComposition.primary)}</span>
+                  </div>
+                  <div className="composition-pane">
+                    {renderSource(programComposition.secondary, "program")}
+                    <span className="composition-label">{displayNameForCamera(programComposition.secondary)}</span>
+                  </div>
+                </div>
+              ) : programComposition.mode === "pip" ? (
+                <div className="composition pip-composition">
+                  <div className="pip-main">
+                    {renderSource(programComposition.primary, "program")}
+                  </div>
+                  <div className="pip-window">
+                    {renderSource(programComposition.secondary, "program")}
+                    <span className="composition-label">{displayNameForCamera(programComposition.secondary)}</span>
+                  </div>
+                </div>
+              ) : (
+                renderSource(programComposition.primary, "program")
+              )}
+              <span className="source-tag">
+                {standby
+                  ? "HOLD SCREEN • PROGRAM PAUSED"
+                  : instantReplayMode === "program"
+                  ? `INSTANT REPLAY ${instantReplaySeconds}S`
+                  : programComposition.mode === "single"
+                    ? displayNameForCamera(programComposition.primary)
+                    : programComposition.mode === "nine"
+                      ? `9-CAM • MAIN ${displayNameForCamera(programComposition.primary)}`
+                      : `${programComposition.mode.toUpperCase()} • ${displayNameForCamera(programComposition.primary)} + ${displayNameForCamera(programComposition.secondary)}`}
+              </span>
+              <button
+                type="button"
+                className="fullscreen"
+                onClick={() => setExpandedMonitor(current => current === "program" ? null : "program")}
+                title={expandedMonitor === "program" ? "Exit full screen program" : "Expand program"}
+                aria-label={expandedMonitor === "program" ? "Exit full screen program" : "Expand program"}
+              >
+                {expandedMonitor === "program" ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="camera-bank">
+          <div className="section-title">
+            <div><span>SOURCES</span><strong>CAMERA MULTIVIEW</strong></div>
+            <div className="section-title-actions">
+              <span>{
+                cameras.filter(c =>
+                  c.status !== "OFFLINE" ||
+                  Boolean(cameraForSlot(c.id))
+                ).length
+              } / 9 CONNECTED</span>
+              <button className="set-names-button" onClick={openSetNames}>
+                <Type size={14}/> SET NAMES
+              </button>
+            </div>
+          </div>
+
+          <div className="camera-grid">
+            {cameras.map(cam => (
+              <button
+                key={cam.id}
+                draggable={Boolean(cameraForSlot(cam.id))}
+                onDragStart={event => {
+                  if (!cameraForSlot(cam.id)) return;
+                  setDraggingCamera(cam.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData(
+                    "text/scenepilot-camera",
+                    String(cam.id)
+                  );
+                }}
+                onDragEnd={() => setDraggingCamera(null)}
+                disabled={
+                  cam.status === "OFFLINE" &&
+                  !cameraForSlot(cam.id)
+                }
+                onClick={() => {
+                  setPreview(cam.id);
+                  setPreviewDirty(true);
+                }}
+                className={`camera-tile
+                  ${isProgramSlot(cam.id) && cameraForSlot(cam.id) ? "is-program" : ""}
+                  ${cam.id === preview ? "is-preview" : ""}
+                  ${cam.status === "OFFLINE" && !cameraForSlot(cam.id) ? "offline" : ""}`}
+              >
+                <div className="tile-feed">
+                  {streamForSlot(cam.id) ? (
+                    <LiveStreamVideo stream={streamForSlot(cam.id)}/>
+                  ) : (
+                    <>
+                      <Camera size={27}/>
+                      <span>CAM {String(cam.id).padStart(2,"0")}</span>
+                    </>
+                  )}
+                </div>
+
+                <div className="tile-meta">
+                  <strong>{displayNameForCamera(cam.id)}</strong>
+                  {cameraForSlot(cam.id) && (
+                    <span className="drag-hint">DRAG TO PREVIEW OR MAIN CAM</span>
+                  )}
+                  <div>
+                    <span title="Camera operator network telemetry when the phone/browser shares it">
+                      <Wifi size={12}/>
+                      {networkLabelForCamera(cameraForSlot(cam.id))}
+                    </span>
+                    <span title="Battery telemetry is shown only after operator consent and when the browser exposes it">
+                      <BatteryFull size={13}/>
+                      {batteryLabelForCamera(cameraForSlot(cam.id))}
+                    </span>
+                  </div>
+                </div>
+
+                {isProgramSlot(cam.id) && cameraForSlot(cam.id) && <span className="bus-label pgm">PGM</span>}
+                {cam.id === preview && <span className="bus-label pvw">PVW</span>}
+              </button>
+            ))}
+          </div>
+
+          <div className="source-feature-row">
+          <div className="director-camera-panel">
+            <div className="director-camera-copy">
+              <span>LOCAL SOURCE</span>
+              <strong>DIRECTOR CAM</strong>
+              <small>
+                Use the Director device front or rear camera as a production source.
+                It stays separate from the nine remote camera slots.
+              </small>
+
+              <div className="director-camera-actions">
+                {!directorStream ? (
+                  <button onClick={enableDirectorCamera}>
+                    <Camera size={15}/> ENABLE SELFIE CAM
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={putDirectorInPreview}>
+                      <MonitorUp size={15}/> PREVIEW
+                    </button>
+                    <button onClick={putDirectorInPip}>
+                      <PictureInPicture2 size={15}/> ADD AS PiP
+                    </button>
+                    <button onClick={switchDirectorCamera}>
+                      <RefreshCw size={15}/> SWITCH CAMERA
+                    </button>
+                    <button className="director-camera-stop" onClick={stopDirectorCamera}>
+                      <PhoneOff size={15}/> TURN OFF
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <span className={`director-camera-status ${directorStream ? "ready" : ""}`}>
+                <i/> {directorCameraStatus}
+              </span>
+            </div>
+
+            <div
+              className={`director-camera-feed ${directorStream ? "draggable" : ""} ${directorFacingMode === "environment" ? "rear-camera" : "front-camera"}`}
+              draggable={Boolean(directorStream)}
+              onDragStart={event => {
+                if (!directorStream) return;
+                setDraggingCamera(DIRECTOR_SOURCE);
+                event.dataTransfer.effectAllowed = "copy";
+                event.dataTransfer.setData("text/scenepilot-camera", DIRECTOR_SOURCE);
+              }}
+              onDragEnd={() => setDraggingCamera(null)}
+              onClick={() => {
+                if (directorStream) putDirectorInPreview();
+              }}
+              title={directorStream ? "Drag to Preview or tap to preview" : "Enable Director Cam first"}
+            >
+              {directorStream ? (
+                <LiveStreamVideo stream={directorStream}/>
+              ) : (
+                <div className="director-camera-placeholder">
+                  <Camera size={27}/>
+                  <strong>SELFIE CAMERA OFF</strong>
+                  <span>Enable when the Director wants to join the production.</span>
+                </div>
+              )}
+
+              {directorStream && (
+                <>
+                  <span className="director-camera-label">
+                    DIRECTOR CAM • {directorFacingMode === "environment" ? "REAR" : "FRONT"}
+                  </span>
+                  <span className="director-camera-drag">DRAG TO PREVIEW OR MAIN</span>
+                </>
+              )}
+
+              {isProgramSlot(DIRECTOR_SOURCE) && directorStream && (
+                <span className="home-live-badge"><i/> LIVE</span>
+              )}
+            </div>
+          </div>
+
+          <div
+            className={`main-camera-home ${draggingCamera ? "drag-active" : ""}`}
+            onDragOver={event => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={event => {
+              event.preventDefault();
+              const rawSource =
+                event.dataTransfer.getData("text/scenepilot-camera") ||
+                draggingCamera;
+              const sourceId =
+                rawSource === DIRECTOR_SOURCE
+                  ? DIRECTOR_SOURCE
+                  : Number(rawSource);
+
+              dropCameraOnMain(sourceId);
+              setDraggingCamera(null);
+            }}
+          >
+            <div className="main-camera-home-copy">
+              <span>HOME SHOT</span>
+              <strong>MAIN CAM</strong>
+              <small>Drag any connected camera or Director Cam here. TAKE returns to this source when no new Preview shot is selected.</small>
+            </div>
+            <div className="main-camera-home-feed">
+              {streamForSlot(mainCamera) ? (
+                <LiveStreamVideo stream={streamForSlot(mainCamera)}/>
+              ) : (
+                <div className="main-camera-placeholder">
+                  <Camera size={24}/>
+                  <span>
+                    {mainCamera === DIRECTOR_SOURCE
+                      ? "WAITING FOR DIRECTOR CAM"
+                      : `WAITING FOR CAM ${String(mainCamera).padStart(2, "0")}`}
+                  </span>
+                </div>
+              )}
+              <span className="main-camera-name">
+                {mainCamera === DIRECTOR_SOURCE
+                  ? "DIRECTOR CAM • LOCAL SOURCE"
+                  : `${displayNameForCamera(mainCamera)} • CAM ${String(mainCamera).padStart(2, "0")}`}
+              </span>
+              {isProgramSlot(mainCamera) && (
+                <span className="home-live-badge"><i/> HOME LIVE</span>
+              )}
+            </div>
+          </div>
+          </div>
+        </section>
+
+        <section className="control-deck">
+          <div className="transition-panel">
+            <div className="panel-label">TRANSITION</div>
+            <div className="transition-types">
+              {["CUT","DISSOLVE","FADE"].map(type => (
+                <button
+                  key={type}
+                  onClick={() => setTransition(type)}
+                  className={transition === type ? "active" : ""}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+
+            <div className="duration">
+              <span>DURATION</span>
+              {[250,500,1000].map(ms => (
+                <button
+                  key={ms}
+                  className={duration === ms ? "active" : ""}
+                  onClick={() => setDuration(ms)}
+                >
+                  {ms === 1000 ? "1.0s" : `${ms/1000}s`}
+                </button>
+              ))}
+            </div>
+
+            <div className="take-standby-row">
+              <button className="take-button" onClick={take}>
+                <span>TAKE</span>
+                <small>{transition} • {duration}ms</small>
+              </button>
+
+              <button
+                type="button"
+                className={`standby-button ${standby ? "active" : ""}`}
+                onClick={toggleStandby}
+              >
+                <span>{standby ? "RETURN TO PROGRAM" : "STANDBY / HOLD"}</span>
+                <small>{standby ? "Audience returns live" : "Keep stream live • mute program"}</small>
+              </button>
+            </div>
+          </div>
+
+          <div className="audio-panel">
+            <div className="panel-label">MASTER AUDIO</div>
+
+            <label className="audio-master-select">
+              <span>SOURCE</span>
+              <select
+                value={masterAudioSource}
+                onChange={event => setMasterAudioSource(event.target.value)}
+              >
+                <option value="mix">MIX ALL ACTIVE MICS</option>
+                {directorStream && (
+                  <option value={DIRECTOR_SOURCE}>DIRECTOR CAM — LOCAL MIC</option>
+                )}
+                {wirelessCameras.map(camera => (
+                  <option key={camera.socketId} value={camera.socketId}>
+                    CAM {String(camera.slotId || "?").padStart(2, "0")} — {displayNameForCamera(camera.slotId)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="phone-mixer">
+              {directorStream && (() => {
+                const channel = cameraAudio[DIRECTOR_SOURCE] || {
+                  volume: 1,
+                  muted: true,
+                  solo: false
+                };
+                const volume = effectiveDirectorVolume();
+
+                return (
+                  <div className="phone-mixer-channel director-audio-channel">
+                    <div className="phone-mixer-head">
+                      <strong>DIRECTOR CAM</strong>
+                      <span>LOCAL MIC • MONITOR MUTED</span>
+                    </div>
+
+                    <input
+                      className="phone-fader"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={channel.volume}
+                      onChange={event => {
+                        updateCameraAudio(DIRECTOR_SOURCE, {
+                          volume: Number(event.target.value)
+                        });
+                      }}
+                    />
+
+                    <div className="phone-mixer-actions">
+                      <button
+                        className={channel.muted ? "active" : ""}
+                        onClick={() =>
+                          updateCameraAudio(DIRECTOR_SOURCE, {
+                            muted: !channel.muted
+                          })
+                        }
+                      >
+                        MUTE
+                      </button>
+                      <button
+                        className={channel.solo ? "active" : ""}
+                        onClick={() =>
+                          updateCameraAudio(DIRECTOR_SOURCE, {
+                            solo: !channel.solo
+                          })
+                        }
+                      >
+                        SOLO
+                      </button>
+                      <span>
+                        {Math.round(Number(channel.volume || 0) * 100)}%
+                        {volume === 0 ? " • OFF" : ""}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {wirelessCameras.length ? wirelessCameras.map(camera => {
+                const channel = cameraAudio[camera.socketId] || {
+                  volume: 1,
+                  muted: true,
+                  solo: false
+                };
+                const stream = remoteStreams[camera.socketId];
+                const volume = effectiveCameraVolume(camera);
+
+                return (
+                  <div className="phone-mixer-channel" key={camera.socketId}>
+                    <audio
+                      autoPlay
+                      playsInline
+                      ref={el => {
+                        if (!el) {
+                          delete audioElements.current[camera.socketId];
+                          return;
+                        }
+                        audioElements.current[camera.socketId] = el;
+                        if (stream && el.srcObject !== stream) {
+                          el.srcObject = stream;
+                          el.play?.().catch(() => {});
+                        }
+                        el.volume = volume;
+                        el.muted = volume === 0;
+                      }}
+                    />
+
+                    <div className="phone-mixer-head">
+                      <strong>{displayNameForCamera(camera.slotId)}</strong>
+                      <span>CAM {String(camera.slotId || "?").padStart(2, "0")}</span>
+                    </div>
+
+                    <input
+                      className="phone-fader"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={channel.volume}
+                      onChange={event => {
+                        const nextVolume = Number(event.target.value);
+                        updateCameraAudio(camera.socketId, { volume: nextVolume });
+                        const el = audioElements.current[camera.socketId];
+                        if (el) {
+                          el.volume = nextVolume;
+                          el.muted = Boolean(channel.muted);
+                        }
+                      }}
+                    />
+
+                    <div className="phone-mixer-actions">
+                      <button
+                        className={channel.muted ? "active" : ""}
+                        onClick={() => updateCameraAudio(camera.socketId, { muted: !channel.muted })}
+                      >
+                        MUTE
+                      </button>
+                      <button
+                        className={channel.solo ? "active" : ""}
+                        onClick={() => updateCameraAudio(camera.socketId, { solo: !channel.solo })}
+                      >
+                        SOLO
+                      </button>
+                      <span>{Math.round(Number(channel.volume || 0) * 100)}%</span>
+                    </div>
+                  </div>
+                );
+              }) : !directorStream ? (
+                <div className="phone-mixer-empty">
+                  Connect a phone or enable Director Cam to expose a microphone channel.
+                </div>
+              ) : null}
+            </div>
+
+            <div className="audio-footer">
+              <span><Volume2 size={15}/> LIVE AUDIO MIXER</span>
+              <span>{wirelessCameras.length + (directorStream ? 1 : 0)} CH</span>
+            </div>
+          </div>
+
+          <div className="remote-camera-control-panel">
+            <div className="panel-label">REMOTE CAMERA CONTROL</div>
+            <div className="remote-camera-control-head">
+              <strong>SELECT CAMERA</strong>
+              <span>TAP A CAMERA FOR LARGE CONTROLS</span>
+            </div>
+
+            <div className="remote-camera-control-grid remote-camera-selector-grid">
+              {wirelessCameras.length ? wirelessCameras.map(camera => (
+                <button
+                  type="button"
+                  className="remote-camera-select-card"
+                  key={camera.socketId}
+                  onClick={() => setSelectedRemoteCameraId(camera.socketId)}
+                >
+                  <span className="remote-camera-select-copy">
+                    <strong>{displayNameForCamera(camera.slotId)}</strong>
+                    <small>CAM {String(camera.slotId || "?").padStart(2, "0")}</small>
+                  </span>
+                  <span className="remote-camera-select-action">OPEN CONTROLS</span>
+                </button>
+              )) : (
+                <div className="remote-camera-control-empty">
+                  Connect a wireless camera to expose director controls.
+                </div>
+              )}
+            </div>
+
+            {selectedRemoteCameraId && (() => {
+              const camera = wirelessCameras.find(
+                item => item.socketId === selectedRemoteCameraId
+              );
+
+              if (!camera) return null;
+
+              return (
+                <div
+                  className="remote-camera-control-popout"
+                  role="dialog"
+                  aria-label={`Remote controls for ${displayNameForCamera(camera.slotId)}`}
+                >
+                  <div className="remote-camera-popout-head">
+                    <div>
+                      <span>REMOTE CAMERA</span>
+                      <strong>{displayNameForCamera(camera.slotId)}</strong>
+                      <small>CAM {String(camera.slotId || "?").padStart(2, "0")}</small>
+                    </div>
+                    <button
+                      type="button"
+                      className="remote-camera-popout-close"
+                      onClick={() => setSelectedRemoteCameraId(null)}
+                      aria-label="Close remote camera controls"
+                    >
+                      <X size={20}/>
+                    </button>
+                  </div>
+
+                  <div className="remote-camera-popout-controls">
+                    <button
+                      type="button"
+                      onPointerDown={event => {
+                        event.preventDefault();
+                        event.currentTarget.setPointerCapture?.(event.pointerId);
+                        sendDirectorZoom(camera, "start", -1);
+                      }}
+                      onPointerUp={() => sendDirectorZoom(camera, "stop")}
+                      onPointerCancel={() => sendDirectorZoom(camera, "stop")}
+                      onPointerLeave={() => sendDirectorZoom(camera, "stop")}
+                    >
+                      <ZoomOut size={24}/>
+                      <strong>ZOOM OUT</strong>
+                      <span>HOLD</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onPointerDown={event => {
+                        event.preventDefault();
+                        event.currentTarget.setPointerCapture?.(event.pointerId);
+                        sendDirectorZoom(camera, "start", 1);
+                      }}
+                      onPointerUp={() => sendDirectorZoom(camera, "stop")}
+                      onPointerCancel={() => sendDirectorZoom(camera, "stop")}
+                      onPointerLeave={() => sendDirectorZoom(camera, "stop")}
+                    >
+                      <ZoomIn size={24}/>
+                      <strong>ZOOM IN</strong>
+                      <span>HOLD</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={remoteTorchState[camera.socketId] ? "light-active" : ""}
+                      onClick={() => sendDirectorTorch(camera)}
+                    >
+                      <Flashlight size={24}/>
+                      <strong>{remoteTorchState[camera.socketId] ? "LIGHT ON" : "LIGHT"}</strong>
+                      <span>TOGGLE</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="production-tools">
+            <div className="panel-label">LIVE LAYOUT</div>
+
+            <div className="layout-mode-grid">
+              <button
+                className={compositionMode === "single" ? "active" : ""}
+                onClick={() => chooseCompositionMode("single")}
+              >
+                <MonitorUp size={18}/><span>SINGLE</span>
+              </button>
+
+              <button
+                className={compositionMode === "split" ? "active" : ""}
+                onClick={() => chooseCompositionMode("split")}
+              >
+                <Layers size={18}/><span>SPLIT</span>
+              </button>
+
+              <button
+                className={compositionMode === "pip" ? "active" : ""}
+                onClick={() => chooseCompositionMode("pip")}
+              >
+                <PictureInPicture2 size={18}/><span>PiP</span>
+              </button>
+
+              <button
+                className={compositionMode === "nine" ? "active" : ""}
+                onClick={() => chooseCompositionMode("nine")}
+              >
+                <Users size={18}/><span>9-CAM</span>
+              </button>
+            </div>
+
+            {compositionMode !== "single" && compositionMode !== "nine" && (
+              <div className="secondary-source-picker">
+                <label>SECOND CAMERA</label>
+                <select
+                  value={secondaryPreview}
+                  onChange={event => {
+                    const value = event.target.value;
+                    setSecondaryPreview(
+                      value === DIRECTOR_SOURCE ? DIRECTOR_SOURCE : Number(value)
+                    );
+                    setPreviewDirty(true);
+                  }}
+                >
+                  {cameras.map(camera => (
+                    <option key={camera.id} value={camera.id}>
+                      CAM {String(camera.id).padStart(2,"0")} • {displayNameForCamera(camera.id)}
+                    </option>
+                  ))}
+                  {directorStream && (
+                    <option value={DIRECTOR_SOURCE}>DIRECTOR CAM • LOCAL SELFIE</option>
+                  )}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="record-panel">
+            <div className="panel-label">
+              {isOwner ? "OWNER RECORDING" : "RAW / ISO RECORDING"}
+            </div>
+
+            {isOwner ? (
+              <div className="record-mode-grid" role="group" aria-label="Owner recording mode">
+                <button
+                  type="button"
+                  className={recordMode === "program" ? "active" : ""}
+                  disabled={recording}
+                  onClick={() => setRecordMode("program")}
+                >
+                  <strong>PROGRAM</strong>
+                </button>
+                <button
+                  type="button"
+                  className={recordMode === "iso" ? "active" : ""}
+                  disabled={recording}
+                  onClick={() => setRecordMode("iso")}
+                >
+                  <strong>ISO</strong>
+                </button>
+                <button
+                  type="button"
+                  className={recordMode === "both" ? "active" : ""}
+                  disabled={recording}
+                  onClick={() => setRecordMode("both")}
+                >
+                  <strong>BOTH</strong>
+                </button>
+              </div>
+            ) : (
+              <div className="customer-raw-recording">
+                <div>
+                  <Film size={18}/>
+                  <strong>ALL CAMERAS / ISO</strong>
+                </div>
+                <small>
+                  Records each connected camera as a separate raw file. Director Cam is included
+                  when enabled. These source files belong to you and can be downloaded.
+                </small>
+              </div>
+            )}
+
+            <button
+              className={`record-button ${recording ? "recording" : ""}`}
+              onClick={toggleProductionRecording}
+            >
+              <Circle size={19} fill="currentColor"/>
+              {recording
+                ? "STOP & SAVE RECORDING"
+                : isOwner
+                  ? "START RECORDING"
+                  : "START RAW / ISO RECORDING"}
+            </button>
+
+            <div className="record-status-line">
+              <i className={recording ? "live" : ""}/>
+              <strong>{recordStatus}</strong>
+            </div>
+
+            <div
+              className={`record-capacity-notice ${recordingBufferLevel}`}
+              aria-live="polite"
+            >
+              <div className="record-capacity-title">
+                <div>
+                  <Save size={16}/>
+                  <strong>ACTIVE RECORDING BUFFER</strong>
+                </div>
+                <span>{formatRecordingBytes(recordBufferedBytes)}</span>
+              </div>
+
+              <small>
+                {recordingBufferLevel === "critical"
+                  ? "Large active recording detected. Stop & Save now, confirm the files are saved, then start a fresh recording segment to release the current recording buffer."
+                  : recordingBufferLevel === "warning"
+                    ? "This recording is getting large. For long events, save in shorter segments so the device does not have to hold one huge recording in memory."
+                    : recording
+                      ? "Recording data is temporarily buffered on this device until you Stop & Save."
+                      : "For long productions, record in segments and keep enough free device storage for the finished files."}
+              </small>
+
+              <details>
+                <summary>How to free space and keep recording</summary>
+                <ul>
+                  <li>Stop & Save periodically, then begin a fresh recording segment.</li>
+                  <li>Confirm finished files are saved before removing anything.</li>
+                  <li>Move completed videos to Files, Photos, cloud storage, or an external drive, then delete old local copies.</li>
+                  <li>When storage is tight, avoid recording camera feeds you do not need. Owner mode can use PROGRAM or ISO instead of BOTH.</li>
+                  <li>Local / ISO recording does not use your monthly hosted streaming minutes.</li>
+                </ul>
+              </details>
+            </div>
+
+            <div className="output-data">
+              {isOwner ? (
+                <>
+                  <span>{recordMode === "program" ? "PROGRAM" : recordMode === "iso" ? "ISO" : "PROGRAM + ISO"}</span>
+                  <span>OWNER • UNRESTRICTED</span>
+                </>
+              ) : (
+                <>
+                  <span>RAW SOURCE TRACKS</span>
+                  <span>DOWNLOADABLE • CUSTOMER OWNED</span>
+                </>
+              )}
+            </div>
+
+            {pendingProgramMaster && (
+              <div className={`program-master-policy ${isOwner ? "owner" : ""}`}>
+                <div>
+                  <strong>{isOwner ? "ICA OWNER PROGRAM MASTER" : "FINISHED PROGRAM MASTER"}</strong>
+                  <small>
+                    {isOwner
+                      ? "Owner Program ready: download, keep, publish, or delete."
+                      : "This composed production is not downloadable. Raw ISO camera files remain yours to download."}
+                  </small>
+                </div>
+                <div className="program-master-actions">
+                  {isOwner && (
+                    <button
+                      type="button"
+                      className="program-download"
+                      onClick={downloadPendingProgramMaster}
+                    >
+                      DOWNLOAD MASTER
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="program-delete"
+                    onClick={deletePendingProgramMaster}
+                  >
+                    DELETE PROGRAM
+                  </button>
+                  <button
+                    type="button"
+                    className="program-publish"
+                    onClick={publishPendingProgramMaster}
+                    disabled={pendingProgramMaster.status === "uploading" || pendingProgramMaster.status === "submitted"}
+                  >
+                    {pendingProgramMaster.status === "uploading"
+                      ? "UPLOADING TO DC LIVE…"
+                      : pendingProgramMaster.status === "submitted"
+                        ? "PENDING REVIEW"
+                        : "PUBLISH TO DC LIVE"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <p className="record-help">
+              {isOwner
+                ? "Owner controls: Program, ISO, or Both. No customer recording restrictions apply."
+                : "This recorder is for your raw camera sources only. Each connected camera is saved separately for download and editing. Finished Program masters are handled by Urban Director Studio's protected Program workflow, not by this local recorder."}
+            </p>
+          </div>
+
+          <div className="instant-replay-panel">
+            <div className="panel-label">INSTANT REPLAY</div>
+
+            <div className="instant-replay-status">
+              <i/>
+              <span>{instantReplayStatus}</span>
+            </div>
+
+            <div className="instant-replay-presets">
+              {[10,20,30].map(seconds => (
+                <button
+                  key={seconds}
+                  onClick={() => buildInstantReplay(seconds)}
+                >
+                  REPLAY {seconds}s
+                </button>
+              ))}
+            </div>
+
+            <div className="instant-replay-speed" role="group" aria-label="Replay speed">
+              {[0.25, 0.5, 1].map(rate => (
+                <button
+                  key={rate}
+                  type="button"
+                  className={instantReplayRate === rate ? "active" : ""}
+                  onClick={() => setReplaySpeed(rate)}
+                  disabled={!instantReplayUrl}
+                >
+                  {rate === 1 ? "NORMAL" : `${rate}X SLOW MO`}
+                </button>
+              ))}
+            </div>
+
+            <div className="instant-replay-actions">
+              <button
+                className="replay-live-button"
+                onClick={playInstantReplay}
+                disabled={!instantReplayUrl}
+              >
+                <Play size={16}/> PLAY REPLAY
+              </button>
+
+              <button
+                onClick={returnToLive}
+                disabled={instantReplayMode === "live"}
+              >
+                RETURN LIVE
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <BroadcastGraphics />
+        <BroadcastPanel
+          roomCode={roomCode}
+          getProgramStream={() => startProgramCompositor() || currentProgramMediaStream()}
+        />
+        <ReplayStudio
+          roomCode={roomCode}
+          networkId={networkId}
+          isOwner={isOwner}
+          programMaster={pendingProgramMaster}
+          onPublishProgram={publishPendingProgramMaster}
+          onDeleteProgram={deletePendingProgramMaster}
+        />
+      </main>
+
+      <footer>
+        <span>URBAN DIRECTOR STUDIO ENGINE</span>
+        <span><i/> SYSTEM READY</span>
+        <span>ROOM {roomCode}</span>
+        <span>00:00:00</span>
+      </footer>
+
+      {showSetNames && (
+        <div className="modal-backdrop" onClick={() => setShowSetNames(false)}>
+          <form className="join-modal set-names-modal" onSubmit={saveCameraNames} onClick={event => event.stopPropagation()}>
+            <button type="button" className="modal-close" onClick={() => setShowSetNames(false)}><X/></button>
+            <div className="join-icon"><Type size={27}/></div>
+            <span className="eyebrow">CAMERA LABELS</span>
+            <h2>Set camera names</h2>
+            <p>These names stay synchronized across Multiview, Preview, Program, Main Cam, Master Audio, and camera communications.</p>
+            <div className="camera-name-grid">
+              {cameras.map(camera => (
+                <label key={camera.id}>
+                  <span>CAM {String(camera.id).padStart(2, "0")}</span>
+                  <input
+                    value={draftCameraNames[camera.id] ?? ""}
+                    onChange={event => setDraftCameraNames(current => ({
+                      ...current,
+                      [camera.id]: event.target.value
+                    }))}
+                    maxLength={80}
+                    placeholder={`Camera ${String(camera.id).padStart(2, "0")}`}
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="set-names-actions">
+              <button type="button" onClick={() => setShowSetNames(false)}>CANCEL</button>
+              <button type="submit">SAVE NAMES</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showTips && (
         <div className="modal-backdrop tips-backdrop" onClick={() => setShowTips(false)}>
           <div
             className="join-modal tips-modal"
