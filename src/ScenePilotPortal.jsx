@@ -1838,11 +1838,21 @@ function CommsPanel({ mode }) {
   const [incomingAlert, setIncomingAlert] = useState(null);
   const [cameraNames, setCameraNames] = useState({});
 
+  const openPanel = useCallback(() => {
+    setOpen(true);
+    setUnread(0);
+    if (mode === "director") {
+      window.dispatchEvent(new CustomEvent("scenepilot:secondary-tool-alert", {
+        detail: { type: "comms", active: false }
+      }));
+    }
+  }, [mode]);
+
   useEffect(() => {
     const openFromMenu = () => openPanel();
     window.addEventListener("scenepilot:open-comms", openFromMenu);
     return () => window.removeEventListener("scenepilot:open-comms", openFromMenu);
-  }, []);
+  }, [openPanel]);
 
   useEffect(() => {
     const clearOperatorAlert = () => {
@@ -1947,7 +1957,7 @@ function CommsPanel({ mode }) {
       socket.off("camera:joined", handleJoined);
       socket.off("camera:left", handleLeft);
     };
-  }, [open]);
+  }, [open, mode]);
 
   const visibleMessages = useMemo(() => {
     if (mode !== "director" || !targetId) return messages;
@@ -1957,16 +1967,6 @@ function CommsPanel({ mode }) {
       message.target === "all"
     );
   }, [messages, mode, targetId]);
-
-  function openPanel() {
-    setOpen(true);
-    setUnread(0);
-    if (mode === "director") {
-      window.dispatchEvent(new CustomEvent("scenepilot:secondary-tool-alert", {
-        detail: { type: "comms", active: false }
-      }));
-    }
-  }
 
   function sendMessage(event) {
     event.preventDefault();
