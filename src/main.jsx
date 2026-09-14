@@ -2,7 +2,7 @@ import { Component } from "react";
 import { createRoot } from "react-dom/client";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
-import "./index.css";
+import "./index.css";\nimport "./urban-director-brand.css";
 import ScenePilotPortal from "./ScenePilotPortal.jsx";
 
 class UrbanDirectorErrorBoundary extends Component {
