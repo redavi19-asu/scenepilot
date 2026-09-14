@@ -157,6 +157,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const pendingIce = useRef({});
   const [remoteStreams, setRemoteStreams] = useState({});
   const [wirelessCameras, setWirelessCameras] = useState([]);
+  const wirelessCamerasRef = useRef([]);
   const [signalStatus, setSignalStatus] = useState("OFFLINE");
   const [directorLockMessage, setDirectorLockMessage] = useState("");
   const [isOnAir, setIsOnAir] = useState(false);
@@ -807,7 +808,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       if (!camera?.socketId) return;
       clearTimeout(reconnectTimers.current[camera.socketId]);
       reconnectTimers.current[camera.socketId] = window.setTimeout(() => {
-        const stillConnected = wirelessCameras.some(item => item.socketId === camera.socketId);
+        const stillConnected = wirelessCamerasRef.current.some(item => item.socketId === camera.socketId);
         if (stillConnected) startPeer(camera, true);
       }, delay);
     };
@@ -1051,6 +1052,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   }, [showCamera, roomCode, networkId, directorSignalTicket]);
 
   useEffect(() => {
+    wirelessCamerasRef.current = wirelessCameras;
+  }, [wirelessCameras]);
+
+  useEffect(() => {
     if (showCamera) return;
 
     let cancelled = false;
@@ -1058,7 +1063,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     const updateLinkHealth = async () => {
       const updates = {};
 
-      for (const camera of wirelessCameras) {
+      for (const camera of wirelessCamerasRef.current) {
         const peer = peers.current[camera.socketId];
         if (!peer?.getStats || peer.connectionState === "closed") continue;
 
@@ -1162,7 +1167,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [showCamera, wirelessCameras.map(camera => camera.socketId).join("|")]);
+  }, [showCamera]);
 
   useEffect(() => {
     if (cameraVideo.current && stream) {
