@@ -1201,7 +1201,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
 
     const liveSlots =
       programComposition.mode === "nine"
-        ? cameras.map(camera => camera.id)
+        ? initialCameras.map(camera => camera.id)
         : programComposition.mode === "single"
           ? [programComposition.primary]
           : [programComposition.primary, programComposition.secondary].filter(Boolean);
