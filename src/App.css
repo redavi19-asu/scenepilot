@@ -4390,3 +4390,17 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
     line-height:1.45!important;
   }
 }
+
+.panel-loading{
+  min-height:92px;
+  display:grid;
+  place-items:center;
+  margin:14px 0;
+  border:1px solid #2a2e28;
+  border-radius:10px;
+  background:#111410;
+  color:#9fa69b;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:1.2px;
+}
