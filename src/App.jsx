@@ -30,7 +30,7 @@ const qualityProfiles = {
   "auto": { width: 1280, height: 720, fps: 24, label: "AUTO" }
 };
 
-function ScenePilotSplash({ cameraMode }) {
+export function ScenePilotSplash({ cameraMode }) {
   return (
     <div className="scenepilot-splash" role="status" aria-label="Urban Director Studio loading">
       <div className="splash-orbit splash-orbit-one"/>
@@ -259,7 +259,12 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const directorSignalTicket = network?.signalTicket || "";
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setShowSplash(false), 1650);
+    const reducedMotion =
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    const timer = window.setTimeout(
+      () => setShowSplash(false),
+      reducedMotion ? 650 : 1650
+    );
     return () => window.clearTimeout(timer);
   }, []);
 

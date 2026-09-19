@@ -5,7 +5,7 @@ import {
   X, Camera, RadioTower, Mic, Headphones, Cast, Maximize2, Smartphone,
   Monitor, Film, Layers3, Server, Globe2, CheckCircle2, Trash2, RefreshCw, Copy
 } from "lucide-react";
-import App from "./App.jsx";
+import App, { ScenePilotSplash } from "./App.jsx";
 import TurnstileWidget from "./TurnstileWidget.jsx";
 import { socket } from "./socket";
 import { subscribeToRealtimeProgram } from "./cloudflareRealtime";
@@ -331,6 +331,22 @@ function go(path) {
 }
 
 function LandingPage() {
+  const [showLandingSplash, setShowLandingSplash] = useState(true);
+
+  useEffect(() => {
+    const reducedMotion =
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    const timer = window.setTimeout(
+      () => setShowLandingSplash(false),
+      reducedMotion ? 650 : 1650
+    );
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  if (showLandingSplash) {
+    return <ScenePilotSplash cameraMode={false}/>;
+  }
+
   return (
     <div className="sp-landing sp-product-site">
       <header className="sp-landing-nav">

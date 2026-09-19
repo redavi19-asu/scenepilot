@@ -1129,6 +1129,17 @@ footer span:last-child{margin-left:auto}
   50%{transform:translate3d(-24px,22px,0)}
 }
 
+@media (prefers-reduced-motion: reduce){
+  .splash-mark,
+  .splash-line i,
+  .splash-orbit{
+    animation:none!important
+  }
+  .splash-orbit{
+    opacity:.32
+  }
+}
+
 /* Director fills the application viewport */
 .console{
   width:100%;
