@@ -4,7 +4,9 @@ import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import "./index.css";
 import ScenePilotPortal from "./ScenePilotPortal.jsx";
+import CookieNotice from "./CookieNotice.jsx";
 import "./urban-director-brand.css";
+import "./cookie-notice.css";
 
 class UrbanDirectorErrorBoundary extends Component {
   constructor(props) {
@@ -104,9 +106,12 @@ if (Capacitor.isNativePlatform()) {
 }
 
 createRoot(document.getElementById("root")).render(
-  <UrbanDirectorErrorBoundary>
-    <ScenePilotPortal />
-  </UrbanDirectorErrorBoundary>
+  <>
+    <UrbanDirectorErrorBoundary>
+      <ScenePilotPortal />
+    </UrbanDirectorErrorBoundary>
+    {!Capacitor.isNativePlatform() && <CookieNotice />}
+  </>
 );
 
 if (!Capacitor.isNativePlatform()) {
