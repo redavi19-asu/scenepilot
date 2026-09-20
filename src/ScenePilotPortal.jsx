@@ -369,7 +369,7 @@ function LandingPage() {
           <button className="sp-nav-create" onClick={() => go("/register")}>
             <UserPlus size={17}/> CREATE ACCOUNT
           </button>
-          <button className="sp-nav-login" onClick={() => go("/app")}>
+          <button className="sp-nav-login" onClick={() => go("/login")}>
             <LogIn size={17}/> OPEN STUDIO
           </button>
         </div>
@@ -387,7 +387,7 @@ function LandingPage() {
             </p>
 
             <div className="sp-hero-actions">
-              <button className="sp-primary sp-hero-primary" onClick={() => go("/app")}>
+              <button className="sp-primary sp-hero-primary" onClick={() => go("/login")}>
                 <RadioTower size={18}/> OPEN URBAN DIRECTOR STUDIO
               </button>
               <button className="sp-secondary" onClick={() => go("/register")}>
@@ -2512,15 +2512,13 @@ export default function ScenePilotPortal() {
     return <AdminPage user={user} onLogout={logout}/>;
   }
 
+  if (cleanPath === "/login") {
+    if (loading) return <div className="sp-portal-loading"><Radio size={28}/> LOADING ICA ACCOUNT...</div>;
+    return <AuthPanel onAuthenticated={setUser} initialMode="login"/>;
+  }
+
   if (cleanPath === "/register") {
     if (loading) return <div className="sp-portal-loading"><Radio size={28}/> LOADING ICA ACCOUNT...</div>;
-    if (user?.accessStatus !== "active") {
-      return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount}/>;
-    }
-    if (user) {
-      window.location.replace("/app");
-      return <div className="sp-portal-loading"><Radio size={28}/> OPENING URBAN DIRECTOR STUDIO...</div>;
-    }
     return <AuthPanel onAuthenticated={setUser} initialMode="register"/>;
   }
 
