@@ -1,5 +1,6 @@
 import baseWorker, { ScenePilotRoom } from "./index.js";
 import { handleAiStudio } from "./ai-studio.js";
+import { applyProfitSafeAiPricing } from "./ai-pricing.js";
 
 export { ScenePilotRoom };
 
@@ -36,6 +37,22 @@ async function ensureAiTransactionBootstrap(env) {
   ).run();
 }
 
+async function applyPricingToStudioResponse(response) {
+  if (!response?.ok) return response;
+  const contentType = String(response.headers.get("Content-Type") || "");
+  if (!contentType.includes("application/json")) return response;
+
+  const data = await response.json().catch(() => null);
+  if (!data) return response;
+
+  const headers = new Headers(response.headers);
+  return new Response(JSON.stringify(applyProfitSafeAiPricing(data)), {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -46,7 +63,13 @@ export default {
       }
       await ensureAiTransactionBootstrap(env);
       const user = await currentUserForAi(request, env, ctx);
-      return handleAiStudio(request, env, user);
+      const response = await handleAiStudio(request, env, user);
+
+      if (url.pathname === "/api/ai/studio" && request.method === "GET") {
+        return applyPricingToStudioResponse(response);
+      }
+
+      return response;
     }
 
     return baseWorker.fetch(request, env, ctx);
