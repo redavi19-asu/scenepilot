@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "scenepilot",
-  "main": "worker/index.js",
+  "main": "worker/entry.js",
   "compatibility_date": "2026-09-10",
   "observability": {
     "enabled": true,
@@ -12,6 +12,7 @@
     "STREAM_INCLUDED_MINUTES": 1500,
     "STREAM_MAX_SESSION_MINUTES": 240,
     "REALTIME_MAX_VIEWERS": 100,
+    "AI_MONTHLY_TOKENS": 2500,
     "APP_STORE_BUNDLE_ID": "com.icomputeranything.scenepilot",
     "APP_STORE_SUBSCRIPTION_PRODUCT_ID": "com.icomputeranything.scenepilot.pro.monthly"
   },
