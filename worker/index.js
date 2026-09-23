@@ -1,4 +1,5 @@
 import { ensureBundledMigrations } from "./migrations.js";
+import { requestPasswordReset, resetPassword } from "./password-recovery.js";
 
 const SESSION_COOKIE = "sp_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -3688,6 +3689,14 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/auth/login" && request.method === "POST") {
     return handleLogin(request, env);
+  }
+
+  if (url.pathname === "/api/auth/password/request" && request.method === "POST") {
+    return requestPasswordReset(request, env);
+  }
+
+  if (url.pathname === "/api/auth/password/reset" && request.method === "POST") {
+    return resetPassword(request, env);
   }
 
   if (url.pathname === "/api/auth/logout" && request.method === "POST") {
