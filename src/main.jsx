@@ -5,6 +5,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 import "./index.css";
 import ScenePilotPortal from "./ScenePilotPortal.jsx";
 import CookieNotice from "./CookieNotice.jsx";
+import { startAIStudioMount } from "./AIStudioMount.jsx";
 import "./urban-director-brand.css";
 import "./cookie-notice.css";
 
@@ -113,6 +114,8 @@ createRoot(document.getElementById("root")).render(
     {!Capacitor.isNativePlatform() && <CookieNotice />}
   </>
 );
+
+startAIStudioMount();
 
 if (!Capacitor.isNativePlatform()) {
   window.addEventListener("load", () => {
