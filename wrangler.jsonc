@@ -14,7 +14,9 @@
     "REALTIME_MAX_VIEWERS": 100,
     "AI_MONTHLY_TOKENS": 2500,
     "APP_STORE_BUNDLE_ID": "com.icomputeranything.scenepilot",
-    "APP_STORE_SUBSCRIPTION_PRODUCT_ID": "com.icomputeranything.scenepilot.pro.monthly"
+    "APP_STORE_SUBSCRIPTION_PRODUCT_ID": "com.icomputeranything.scenepilot.pro.monthly",
+    "ICA_AUTH_FROM_EMAIL": "I Computer Anything <accounts@mail.icomputeranything.com>",
+    "ICA_AUTH_PUBLIC_ORIGIN": "https://scenepilot.ryanedavis.workers.dev"
   },
   "assets": {
     "directory": "./dist",

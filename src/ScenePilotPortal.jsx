@@ -18,6 +18,7 @@ import {
   refreshAppleSubscription,
   restoreAppleSubscription
 } from "./storeKitSubscription";
+import { ForgotPasswordPage, ResetPasswordPage } from "./PasswordRecovery.jsx";
 import "./ScenePilotPortal.css";
 
 function WatchPage({ roomCode }) {
@@ -982,6 +983,16 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
               required
             />
           </label>
+
+          {mode === "login" && (
+            <button
+              type="button"
+              className="sp-secondary"
+              onClick={() => go("/forgot-password")}
+            >
+              FORGOT PASSWORD?
+            </button>
+          )}
 
           {mode === "register" && (
             <label className="sp-marketing-opt">
@@ -2510,6 +2521,14 @@ export default function ScenePilotPortal() {
       );
     }
     return <AdminPage user={user} onLogout={logout}/>;
+  }
+
+  if (cleanPath === "/forgot-password") {
+    return <ForgotPasswordPage/>;
+  }
+
+  if (cleanPath === "/reset-password") {
+    return <ResetPasswordPage/>;
   }
 
   if (cleanPath === "/login") {
