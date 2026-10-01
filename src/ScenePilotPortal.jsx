@@ -694,6 +694,8 @@ function LandingPage() {
         <div>
           <button onClick={() => go("/privacy")}>PRIVACY</button>
           <button onClick={() => go("/terms")}>TERMS</button>
+          <button onClick={() => go("/acceptable-use")}>ACCEPTABLE USE</button>
+          <button onClick={() => go("/account-deletion")}>ACCOUNT DELETION</button>
           <button onClick={() => go("/support")}>SUPPORT</button>
           <button onClick={() => window.location.assign("https://icomputeranything.com")}>I COMPUTER ANYTHING</button>
           <button onClick={() => go("/app")}>LOGIN</button>
@@ -710,7 +712,7 @@ function PrivacyPage() {
         <button className="sp-auth-back sp-privacy-back" onClick={() => go("/")}>← Urban Director Studio home</button>
         <span className="sp-kicker">PRIVACY</span>
         <h1>Urban Director Studio Privacy Policy</h1>
-        <p className="sp-privacy-updated">Last updated: September 12, 2026</p>
+        <p className="sp-privacy-updated">Last updated: October 1, 2026</p>
 
         <h2>Information we collect</h2>
         <p>
@@ -816,6 +818,45 @@ function TermsPage() {
   );
 }
 
+function AcceptableUsePage() {
+  return (
+    <main className="sp-privacy-shell">
+      <section className="sp-privacy-card">
+        <button className="sp-auth-back sp-privacy-back" onClick={() => go("/")}>← Urban Director Studio home</button>
+        <span className="sp-kicker">ACCEPTABLE USE</span>
+        <h1>Urban Director Studio Acceptable Use Policy</h1>
+        <p className="sp-privacy-updated">Last updated: October 1, 2026</p>
+        <p>Urban Director Studio is for lawful, authorized live production, recording, editing, collaboration, and distribution.</p>
+        <h2>Do not use the service to</h2>
+        <p>Record, monitor, impersonate, publish, or distribute people or protected material without the permission or legal authority required for the production; infringe copyright, privacy, publicity, contractual, or other rights; distribute malware or harmful content; bypass platform security; interfere with other users or services; or conduct unlawful, deceptive, abusive, or fraudulent activity.</p>
+        <h2>Your production responsibilities</h2>
+        <p>You are responsible for the cameras, microphones, media, guests, performers, locations, music, graphics, recordings, and broadcast destinations you connect to the service, including obtaining releases, licenses, and permissions required for your use.</p>
+        <h2>Enforcement</h2>
+        <p>I Computer Anything may limit or suspend access when reasonably necessary to address abuse, security risk, legal requirements, or threats to the service or another user.</p>
+      </section>
+    </main>
+  );
+}
+
+function AccountDeletionPage() {
+  return (
+    <main className="sp-privacy-shell">
+      <section className="sp-privacy-card">
+        <button className="sp-auth-back sp-privacy-back" onClick={() => go("/")}>← Urban Director Studio home</button>
+        <span className="sp-kicker">ACCOUNT & DATA</span>
+        <h1>Account & Data Deletion</h1>
+        <p className="sp-privacy-updated">Last updated: October 1, 2026</p>
+        <h2>Delete from the app</h2>
+        <p>Signed-in users can choose <strong>Delete Account</strong> from the Urban Director Studio account menu. The app requires confirmation before permanent deletion.</p>
+        <h2>What deletion removes</h2>
+        <p>Urban Director Studio removes the account and associated product records that are not required for security, billing, fraud prevention, legal compliance, or dispute handling. Locally stored recordings remain under your device control unless you delete them from that device.</p>
+        <h2>If you cannot sign in</h2>
+        <p>Contact I Computer Anything through icomputeranything.com and request Urban Director Studio account deletion. Identity verification may be required before the request is completed.</p>
+      </section>
+    </main>
+  );
+}
+
 function SupportPage() {
   return (
     <main className="sp-privacy-shell">
@@ -857,6 +898,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [marketing, setMarketing] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
   const [status, setStatus] = useState(() => new URLSearchParams(window.location.search).get("social_error") || "");
   const [busy, setBusy] = useState(false);
   const [socialProviders, setSocialProviders] = useState({});
@@ -880,12 +922,21 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
   }, []);
 
   function beginSocial(provider) {
+    if (mode === "register" && !legalAccepted) {
+      setStatus("Agree to the Terms, Privacy Policy, and Acceptable Use Policy before creating an account.");
+      return;
+    }
     window.location.assign(apiUrl("/api/auth/social/" + provider + "/start?return_to=" + encodeURIComponent("/app")));
   }
 
   async function submit(event) {
     event.preventDefault();
     setStatus("");
+
+    if (mode === "register" && !legalAccepted) {
+      setStatus("Agree to the Terms, Privacy Policy, and Acceptable Use Policy before creating an account.");
+      return;
+    }
 
     if (!turnstileToken) {
       setStatus("Complete the Cloudflare security check before continuing.");
@@ -901,6 +952,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
             email,
             password,
             marketingOptIn: marketing,
+            termsAccepted: legalAccepted,
             turnstileToken
           }
         : {
@@ -959,13 +1011,20 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
           </button>
         </div>
 
+        {mode === "register" && (
+          <label className="sp-marketing-opt sp-legal-consent">
+            <input type="checkbox" checked={legalAccepted} onChange={event => setLegalAccepted(event.target.checked)} required />
+            <span>I agree to the <button type="button" onClick={() => go("/terms")}>Terms of Use</button>, acknowledge the <button type="button" onClick={() => go("/privacy")}>Privacy Policy</button>, and agree to the <button type="button" onClick={() => go("/acceptable-use")}>Acceptable Use Policy</button>.</span>
+          </label>
+        )}
+
         {!isNativeApp() && Object.values(socialProviders).some(Boolean) && (
           <div className="sp-social-auth">
             <span>CONTINUE WITH</span>
             <div>
-              {socialProviders.google && <button type="button" onClick={() => beginSocial("google")}><span aria-hidden="true" style={{width:24,height:24,borderRadius:"50%",background:"#fff",display:"inline-grid",placeItems:"center",marginRight:7,boxShadow:"0 1px 3px rgba(0,0,0,.18)"}}><span style={{fontWeight:900,fontSize:17,lineHeight:1,background:"linear-gradient(135deg,#4285F4 0 25%,#34A853 25% 50%,#FBBC05 50% 75%,#EA4335 75% 100%)",WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}}>G</span></span>Google</button>}
-              {socialProviders.apple && <button type="button" onClick={() => beginSocial("apple")}>Apple</button>}
-              {socialProviders.microsoft && <button type="button" onClick={() => beginSocial("microsoft")}>Microsoft</button>}
+              {socialProviders.google && <button type="button" disabled={mode === "register" && !legalAccepted} onClick={() => beginSocial("google")}><span aria-hidden="true" style={{width:24,height:24,borderRadius:"50%",background:"#fff",display:"inline-grid",placeItems:"center",marginRight:7,boxShadow:"0 1px 3px rgba(0,0,0,.18)"}}><span style={{fontWeight:900,fontSize:17,lineHeight:1,background:"linear-gradient(135deg,#4285F4 0 25%,#34A853 25% 50%,#FBBC05 50% 75%,#EA4335 75% 100%)",WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}}>G</span></span>Google</button>}
+              {socialProviders.apple && <button type="button" disabled={mode === "register" && !legalAccepted} onClick={() => beginSocial("apple")}>Apple</button>}
+              {socialProviders.microsoft && <button type="button" disabled={mode === "register" && !legalAccepted} onClick={() => beginSocial("microsoft")}>Microsoft</button>}
             </div>
             <small>{mode === "register" ? "A verified provider account can create your ICA Software account without another password." : "Use the provider already linked to your ICA Software email."}</small>
           </div>
@@ -1055,7 +1114,9 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
             By continuing, you agree to the
             <button type="button" onClick={() => go("/terms")}> Terms of Use</button>
             {" "}and acknowledge the
-            <button type="button" onClick={() => go("/privacy")}> Urban Director Studio Privacy Policy</button>.
+            <button type="button" onClick={() => go("/privacy")}> Urban Director Studio Privacy Policy</button>,
+            {" "}the <button type="button" onClick={() => go("/acceptable-use")}>Acceptable Use Policy</button>, and the
+            {" "}<button type="button" onClick={() => go("/account-deletion")}>Account & Data Deletion policy</button>.
           </p>
 
           <button className="sp-auth-submit" disabled={busy || !turnstileToken}>
@@ -2537,6 +2598,14 @@ export default function ScenePilotPortal() {
 
   if (cleanPath === "/terms") {
     return <TermsPage/>;
+  }
+
+  if (cleanPath === "/acceptable-use") {
+    return <AcceptableUsePage/>;
+  }
+
+  if (cleanPath === "/account-deletion") {
+    return <AccountDeletionPage/>;
   }
 
   if (cleanPath === "/camera-open") {

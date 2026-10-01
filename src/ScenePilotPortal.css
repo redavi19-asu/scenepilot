@@ -2913,3 +2913,8 @@
 .sp-social-auth button:hover{border-color:#8b9686;background:#232823}
 .sp-social-auth small{color:#858c82;line-height:1.45}
 @media(max-width:560px){.sp-social-auth>div{grid-template-columns:1fr}}
+
+.sp-legal-consent{margin:14px 0 8px}
+.sp-legal-consent span{line-height:1.55}
+.sp-legal-consent button{border:0;background:transparent;color:inherit;text-decoration:underline;font:inherit;font-weight:800;padding:0;cursor:pointer}
+.sp-social-auth button:disabled{opacity:.42;cursor:not-allowed}

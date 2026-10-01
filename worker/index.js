@@ -1014,6 +1014,10 @@ async function handleRegister(request, env) {
   const password = String(body.password || "");
   const marketingOptIn = body.marketingOptIn ? 1 : 0;
 
+  if (body.termsAccepted !== true) {
+    return json({ error: "Agree to the Urban Director Studio Terms, Privacy Policy, and Acceptable Use Policy before creating an account." }, 400);
+  }
+
   if (!displayName) {
     return json({ error: "Enter your name." }, 400);
   }
