@@ -1,4 +1,5 @@
 import { ensureBundledMigrations } from "./migrations.js";
+import { handleSocialAuth } from "./social-auth.js";
 import { requestPasswordReset, resetPassword } from "./password-recovery.js";
 
 const SESSION_COOKIE = "sp_session";
@@ -3681,6 +3682,11 @@ async function handleApi(request, env, url) {
     request.method === "POST"
   ) {
     return handleAppleServerNotification(request, env);
+  }
+
+  if (url.pathname === "/api/auth/social/status" || url.pathname.startsWith("/api/auth/social/")) {
+    const socialResponse = await handleSocialAuth(request, env);
+    if (socialResponse) return socialResponse;
   }
 
   if (url.pathname === "/api/auth/register" && request.method === "POST") {

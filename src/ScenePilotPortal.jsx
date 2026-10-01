@@ -9,7 +9,7 @@ import App, { ScenePilotSplash } from "./App.jsx";
 import TurnstileWidget from "./TurnstileWidget.jsx";
 import { socket } from "./socket";
 import { subscribeToRealtimeProgram } from "./cloudflareRealtime";
-import { apiFetch, setNativeSessionToken } from "./runtimeApi";
+import { apiFetch, apiUrl, isNativeApp, setNativeSessionToken } from "./runtimeApi";
 import {
   getAppleSubscriptionProduct,
   isAppleStoreKitAvailable,
@@ -857,8 +857,9 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [marketing, setMarketing] = useState(false);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(() => new URLSearchParams(window.location.search).get("social_error") || "");
   const [busy, setBusy] = useState(false);
+  const [socialProviders, setSocialProviders] = useState({});
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
@@ -870,6 +871,17 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
   const handleTurnstileError = useCallback(message => {
     setStatus(message || "Security check could not be completed.");
   }, []);
+
+  useEffect(() => {
+    if (isNativeApp()) return;
+    api("/api/auth/social/status")
+      .then(data => setSocialProviders(data.providers || {}))
+      .catch(() => setSocialProviders({}));
+  }, []);
+
+  function beginSocial(provider) {
+    window.location.assign(apiUrl("/api/auth/social/" + provider + "/start?return_to=" + encodeURIComponent("/app")));
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -946,6 +958,18 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
             CREATE ACCOUNT
           </button>
         </div>
+
+        {!isNativeApp() && Object.values(socialProviders).some(Boolean) && (
+          <div className="sp-social-auth">
+            <span>CONTINUE WITH</span>
+            <div>
+              {socialProviders.google && <button type="button" onClick={() => beginSocial("google")}>Google</button>}
+              {socialProviders.apple && <button type="button" onClick={() => beginSocial("apple")}>Apple</button>}
+              {socialProviders.microsoft && <button type="button" onClick={() => beginSocial("microsoft")}>Microsoft</button>}
+            </div>
+            <small>{mode === "register" ? "A verified provider account can create your ICA Software account without another password." : "Use the provider already linked to your ICA Software email."}</small>
+          </div>
+        )}
 
         <form onSubmit={submit}>
           {mode === "register" && (
