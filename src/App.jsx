@@ -101,6 +101,15 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [preview, setPreview] = useState(2);
   const [transition, setTransition] = useState("DISSOLVE");
   const [duration, setDuration] = useState(500);
+  const [mobilePanels, setMobilePanels] = useState({
+    sources: true,
+    transition: false,
+    audio: false,
+    remoteCamera: false,
+    layout: false,
+    recording: false,
+    replay: false
+  });
   const [recording, setRecording] = useState(false);
   const [recordMode, setRecordMode] = useState(isOwner ? "both" : "iso");
   const [recordStatus, setRecordStatus] = useState("READY");
@@ -257,6 +266,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   ));
   const networkId = network?.id || cameraNetworkId;
   const directorSignalTicket = network?.signalTicket || "";
+
+  function toggleMobilePanel(panel) {
+    setMobilePanels(current => ({ ...current, [panel]: !current[panel] }));
+  }
 
   useEffect(() => {
     const reducedMotion =
@@ -4060,7 +4073,7 @@ async function enableCamera() {
           </div>
         </section>
 
-        <section className="camera-bank">
+        <section className={`camera-bank ${mobilePanels.sources ? "" : "mobile-panel-collapsed"}`}>
           <div className="section-title">
             <div><span>SOURCES</span><strong>CAMERA MULTIVIEW</strong></div>
             <div className="section-title-actions">
@@ -4072,6 +4085,14 @@ async function enableCamera() {
               } / 9 CONNECTED</span>
               <button className="set-names-button" onClick={openSetNames}>
                 <Type size={14}/> SET NAMES
+              </button>
+              <button
+                type="button"
+                className="mobile-section-toggle"
+                onClick={() => toggleMobilePanel("sources")}
+                aria-expanded={mobilePanels.sources}
+              >
+                {mobilePanels.sources ? "HIDE" : "SHOW"}
               </button>
             </div>
           </div>
@@ -4268,8 +4289,10 @@ async function enableCamera() {
         </section>
 
         <section className="control-deck">
-          <div className="transition-panel">
-            <div className="panel-label">TRANSITION</div>
+          <div className={`transition-panel ${mobilePanels.transition ? "" : "mobile-panel-collapsed"}`}>
+            <button type="button" className="panel-label mobile-panel-head" onClick={() => toggleMobilePanel("transition")} aria-expanded={mobilePanels.transition}>
+              <span>TRANSITION</span><span className="mobile-collapse-indicator">{mobilePanels.transition ? "−" : "+"}</span>
+            </button>
             <div className="transition-types">
               {["CUT","DISSOLVE","FADE"].map(type => (
                 <button
@@ -4312,8 +4335,10 @@ async function enableCamera() {
             </div>
           </div>
 
-          <div className="audio-panel">
-            <div className="panel-label">MASTER AUDIO</div>
+          <div className={`audio-panel ${mobilePanels.audio ? "" : "mobile-panel-collapsed"}`}>
+            <button type="button" className="panel-label mobile-panel-head" onClick={() => toggleMobilePanel("audio")} aria-expanded={mobilePanels.audio}>
+              <span>MASTER AUDIO</span><span className="mobile-collapse-indicator">{mobilePanels.audio ? "−" : "+"}</span>
+            </button>
 
             <label className="audio-master-select">
               <span>SOURCE</span>
@@ -4475,8 +4500,10 @@ async function enableCamera() {
             </div>
           </div>
 
-          <div className="remote-camera-control-panel">
-            <div className="panel-label">REMOTE CAMERA CONTROL</div>
+          <div className={`remote-camera-control-panel ${mobilePanels.remoteCamera ? "" : "mobile-panel-collapsed"}`}>
+            <button type="button" className="panel-label mobile-panel-head" onClick={() => toggleMobilePanel("remoteCamera")} aria-expanded={mobilePanels.remoteCamera}>
+              <span>REMOTE CAMERA CONTROL</span><span className="mobile-collapse-indicator">{mobilePanels.remoteCamera ? "−" : "+"}</span>
+            </button>
             <div className="remote-camera-control-head">
               <strong>SELECT CAMERA</strong>
               <span>TAP A CAMERA FOR LARGE CONTROLS</span>
@@ -4580,8 +4607,10 @@ async function enableCamera() {
             })()}
           </div>
 
-          <div className="production-tools">
-            <div className="panel-label">LIVE LAYOUT</div>
+          <div className={`production-tools ${mobilePanels.layout ? "" : "mobile-panel-collapsed"}`}>
+            <button type="button" className="panel-label mobile-panel-head" onClick={() => toggleMobilePanel("layout")} aria-expanded={mobilePanels.layout}>
+              <span>LIVE LAYOUT</span><span className="mobile-collapse-indicator">{mobilePanels.layout ? "−" : "+"}</span>
+            </button>
 
             <div className="layout-mode-grid">
               <button
@@ -4639,10 +4668,11 @@ async function enableCamera() {
             )}
           </div>
 
-          <div className="record-panel">
-            <div className="panel-label">
-              {isOwner ? "OWNER RECORDING" : "RAW / ISO RECORDING"}
-            </div>
+          <div className={`record-panel ${mobilePanels.recording ? "" : "mobile-panel-collapsed"}`}>
+            <button type="button" className="panel-label mobile-panel-head" onClick={() => toggleMobilePanel("recording")} aria-expanded={mobilePanels.recording}>
+              <span>{isOwner ? "OWNER RECORDING" : "RAW / ISO RECORDING"}</span>
+              <span className="mobile-collapse-indicator">{mobilePanels.recording ? "−" : "+"}</span>
+            </button>
 
             {isOwner ? (
               <div className="record-mode-grid" role="group" aria-label="Owner recording mode">
@@ -4799,8 +4829,10 @@ async function enableCamera() {
             </p>
           </div>
 
-          <div className="instant-replay-panel">
-            <div className="panel-label">INSTANT REPLAY</div>
+          <div className={`instant-replay-panel ${mobilePanels.replay ? "" : "mobile-panel-collapsed"}`}>
+            <button type="button" className="panel-label mobile-panel-head" onClick={() => toggleMobilePanel("replay")} aria-expanded={mobilePanels.replay}>
+              <span>INSTANT REPLAY</span><span className="mobile-collapse-indicator">{mobilePanels.replay ? "−" : "+"}</span>
+            </button>
 
             <div className="instant-replay-status">
               <i/>
