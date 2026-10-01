@@ -963,7 +963,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
           <div className="sp-social-auth">
             <span>CONTINUE WITH</span>
             <div>
-              {socialProviders.google && <button type="button" onClick={() => beginSocial("google")}><span aria-hidden="true" style={{fontWeight:900,marginRight:7}}>G</span>Google</button>}
+              {socialProviders.google && <button type="button" onClick={() => beginSocial("google")}><span aria-hidden="true" style={{width:24,height:24,borderRadius:"50%",background:"#fff",display:"inline-grid",placeItems:"center",marginRight:7,boxShadow:"0 1px 3px rgba(0,0,0,.18)"}}><span style={{fontWeight:900,fontSize:17,lineHeight:1,background:"linear-gradient(135deg,#4285F4 0 25%,#34A853 25% 50%,#FBBC05 50% 75%,#EA4335 75% 100%)",WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}}>G</span></span>Google</button>}
               {socialProviders.apple && <button type="button" onClick={() => beginSocial("apple")}>Apple</button>}
               {socialProviders.microsoft && <button type="button" onClick={() => beginSocial("microsoft")}>Microsoft</button>}
             </div>
