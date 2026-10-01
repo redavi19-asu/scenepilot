@@ -16,7 +16,8 @@
     "APP_STORE_BUNDLE_ID": "com.icomputeranything.scenepilot",
     "APP_STORE_SUBSCRIPTION_PRODUCT_ID": "com.icomputeranything.scenepilot.pro.monthly",
     "ICA_AUTH_FROM_EMAIL": "I Computer Anything <accounts@mail.icomputeranything.com>",
-    "ICA_AUTH_PUBLIC_ORIGIN": "https://scenepilot.ryanedavis.workers.dev"
+    "ICA_AUTH_PUBLIC_ORIGIN": "https://scenepilot.ryanedavis.workers.dev",
+    "SOCIAL_GOOGLE_CLIENT_ID": "493512781101-54s3bmlkvdl28oe4umjssknrv53cia5c.apps.googleusercontent.com"
   },
   "assets": {
     "directory": "./dist",
