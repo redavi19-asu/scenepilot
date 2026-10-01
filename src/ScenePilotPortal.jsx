@@ -364,6 +364,7 @@ function LandingPage() {
           <a href="#workflow">HOW IT WORKS</a>
           <a href="#use-cases">USE CASES</a>
           <a href="#pricing">PRICING</a>
+          <a href="/downloads">DOWNLOADS</a>
         </nav>
 
         <div className="sp-nav-account-actions">
@@ -2514,6 +2515,90 @@ function AdminPage({ user, onLogout }) {
   );
 }
 
+
+function DownloadsPage() {
+  const [releases, setReleases] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api("/api/releases")
+      .then(data => setReleases(data))
+      .catch(err => setError(err.message || "Release status is unavailable."));
+  }, []);
+
+  const cards = [
+    {
+      platform: "WINDOWS",
+      title: "Urban Director Studio for Windows",
+      copy: "Signed x64 production installer for Windows 10/11.",
+      url: releases?.windows || "",
+      action: "DOWNLOAD WINDOWS"
+    },
+    {
+      platform: "MAC · APPLE SILICON",
+      title: "Urban Director Studio for Mac",
+      copy: "Signed and notarized build for Apple Silicon Macs.",
+      url: releases?.macArm || "",
+      action: "DOWNLOAD MAC"
+    },
+    {
+      platform: "MAC · INTEL",
+      title: "Urban Director Studio for Intel Mac",
+      copy: "Signed and notarized build for Intel Core i3, i5, i7 and i9 Macs.",
+      url: releases?.macIntel || "",
+      action: "DOWNLOAD INTEL MAC"
+    },
+    {
+      platform: "ANDROID",
+      title: "Urban Director Studio for Android",
+      copy: "Signed Android production APK for supported phones and tablets.",
+      url: releases?.android || "",
+      action: "DOWNLOAD ANDROID"
+    }
+  ];
+
+  return (
+    <main className="sp-download-shell">
+      <header className="sp-download-nav">
+        <button type="button" className="sp-landing-brand sp-brand-button" onClick={() => go("/")}>
+          <span className="sp-landing-mark"><Radio size={24}/></span>
+          <div><strong>URBAN DIRECTOR STUDIO</strong><small>PRODUCTION DOWNLOADS</small></div>
+        </button>
+        <button type="button" className="sp-secondary" onClick={() => go("/login")}>OPEN STUDIO</button>
+      </header>
+
+      <section className="sp-download-hero">
+        <span className="sp-kicker">VERIFIED RELEASE CENTER</span>
+        <h1>Install Urban Director Studio.</h1>
+        <p>Desktop buttons activate only after ICA verifies the platform signature. Apple mobile releases remain App Store-only.</p>
+      </section>
+
+      {error && <div className="sp-download-error">{error}</div>}
+
+      <section className="sp-download-grid">
+        {cards.map(card => (
+          <article key={card.platform} className={card.url ? "ready" : ""}>
+            <div className="sp-download-card-top"><span>{card.platform}</span><b>{card.url ? "READY" : "SIGNING / RELEASE"}</b></div>
+            <Monitor size={30}/>
+            <h2>{card.title}</h2>
+            <p>{card.copy}</p>
+            {card.url
+              ? <a href={card.url}>{card.action} →</a>
+              : <span className="sp-download-disabled">SIGNED BUILD PENDING</span>}
+          </article>
+        ))}
+        <article>
+          <div className="sp-download-card-top"><span>IPHONE + IPAD</span><b>COMING SOON</b></div>
+          <Smartphone size={30}/>
+          <h2>Urban Director Studio Mobile</h2>
+          <p>iPhone and iPad distribution will activate through Apple after App Store approval.</p>
+          <span className="sp-download-disabled">APP STORE RELEASE PENDING</span>
+        </article>
+      </section>
+    </main>
+  );
+}
+
 export default function ScenePilotPortal() {
   const params = new URLSearchParams(window.location.search);
   const cameraMode = params.get("camera") === "1";
@@ -2586,6 +2671,10 @@ export default function ScenePilotPortal() {
 
   if (watchMatch) {
     return <WatchPage roomCode={watchMatch[1]}/>;
+  }
+
+  if (cleanPath === "/downloads") {
+    return <DownloadsPage/>;
   }
 
   if (cleanPath === "/privacy") {

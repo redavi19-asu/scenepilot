@@ -75,11 +75,12 @@
         "zip"
       ],
       "category": "public.app-category.video",
-      "identity": null,
       "extendInfo": {
         "NSCameraUsageDescription": "Urban Director Studio uses the camera for live production video.",
         "NSMicrophoneUsageDescription": "Urban Director Studio uses the microphone for live production audio."
-      }
+      },
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
     },
     "win": {
       "target": [
@@ -89,6 +90,7 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "forceCodeSigning": true
   }
 }

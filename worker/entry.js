@@ -57,6 +57,21 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
+    if (url.pathname === "/api/releases" && request.method === "GET") {
+      return new Response(JSON.stringify({
+        windows: String(env.DIRECTOR_WINDOWS_DOWNLOAD_URL || "").trim(),
+        macArm: String(env.DIRECTOR_MAC_ARM_DOWNLOAD_URL || "").trim(),
+        macIntel: String(env.DIRECTOR_MAC_INTEL_DOWNLOAD_URL || "").trim(),
+        android: String(env.DIRECTOR_ANDROID_DOWNLOAD_URL || "").trim()
+      }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "no-store"
+        }
+      });
+    }
+
     if (url.pathname.startsWith("/api/ai/")) {
       if (request.method === "OPTIONS") {
         return handleAiStudio(request, env, null);
