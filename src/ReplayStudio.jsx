@@ -16,6 +16,20 @@ const TRACKS = [
 ];
 
 const BASE_PIXELS_PER_SECOND = 18;
+const LONG_MEDIA_SECONDS = 8 * 60;
+const LARGE_MEDIA_BYTES = 250 * 1024 * 1024;
+const MEDIA_METADATA_TIMEOUT_MS = 12000;
+
+function yieldToMainThread() {
+  return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+function formatFileSize(bytes = 0) {
+  const value = Number(bytes) || 0;
+  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
+  if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(0)} MB`;
+  return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
 
 function uid(prefix = "clip") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -39,15 +53,21 @@ function getMediaDuration(file, url) {
     const element = document.createElement(
       file.type.startsWith("audio/") ? "audio" : "video"
     );
-    element.preload = "metadata";
-    element.src = url;
-
+    let settled = false;
     const done = duration => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      element.onloadedmetadata = null;
+      element.onerror = null;
       element.removeAttribute("src");
       element.load?.();
       resolve(Number.isFinite(duration) && duration > 0 ? duration : 10);
     };
+    const timeoutId = setTimeout(() => done(10), MEDIA_METADATA_TIMEOUT_MS);
 
+    element.preload = "metadata";
+    element.src = url;
     element.onloadedmetadata = () => done(element.duration);
     element.onerror = () => done(10);
   });
@@ -72,7 +92,9 @@ export default function ReplayStudio({
   const [future, setFuture] = useState([]);
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [projectStatus, setProjectStatus] = useState("");
+  const [importState, setImportState] = useState({ busy: false, current: 0, total: 0, label: "" });
   const previewRef = useRef(null);
+  const seekFrameRef = useRef(0);
   const objectUrls = useRef(new Set());
 
   const pixelsPerSecond = BASE_PIXELS_PER_SECOND * zoom;
@@ -87,7 +109,7 @@ export default function ReplayStudio({
       (max, clip) => Math.max(max, clip.start + clip.duration),
       60
     );
-    return Math.min(Math.max(clipEnd + 10, 60), 600);
+    return Math.max(clipEnd + 10, 60);
   }, [clips]);
 
   const timelineWidth = Math.max(900, projectDuration * pixelsPerSecond);
@@ -95,6 +117,7 @@ export default function ReplayStudio({
   useEffect(() => {
     const urls = objectUrls.current;
     return () => {
+      cancelAnimationFrame(seekFrameRef.current);
       urls.forEach(url => URL.revokeObjectURL(url));
     };
   }, []);
@@ -117,13 +140,26 @@ export default function ReplayStudio({
 
   useEffect(() => {
     const media = previewRef.current;
-    if (!media || !selectedClip || selectedClip.kind !== "video") return;
+    if (!media || !selectedClip || selectedClip.kind !== "video" || playing) return;
+    if (media.readyState < 1) return;
 
-    media.currentTime = Math.min(
+    const target = Math.min(
       Math.max(selectedClip.inPoint + Math.max(0, playhead - selectedClip.start), selectedClip.inPoint),
       selectedClip.outPoint
     );
-  }, [playhead, selectedClip]);
+    if (!Number.isFinite(target) || Math.abs((media.currentTime || 0) - target) < 0.12) return;
+
+    cancelAnimationFrame(seekFrameRef.current);
+    seekFrameRef.current = requestAnimationFrame(() => {
+      try {
+        media.currentTime = target;
+      } catch {
+        // Large local files can temporarily reject seeks while metadata is settling.
+      }
+    });
+
+    return () => cancelAnimationFrame(seekFrameRef.current);
+  }, [playhead, selectedClip, playing]);
 
   function snapshot(nextClips = clips) {
     setHistory(prev => [...prev.slice(-29), clips.map(clip => ({ ...clip }))]);
@@ -133,7 +169,7 @@ export default function ReplayStudio({
 
   async function importFiles(fileList) {
     const files = Array.from(fileList || []);
-    if (!files.length) return;
+    if (!files.length || importState.busy) return;
 
     const nextAssets = [];
     const nextClips = [...clips];
@@ -143,63 +179,101 @@ export default function ReplayStudio({
         : max,
       0
     );
+    let importedLongMedia = false;
 
-    for (const file of files) {
-      const url = URL.createObjectURL(file);
-      objectUrls.current.add(url);
-      const duration = await getMediaDuration(file, url);
-      const kind = file.type.startsWith("audio/")
-        ? "audio"
-        : file.type.startsWith("image/")
-          ? "image"
-          : "video";
-      const asset = {
-        id: uid("asset"),
-        name: file.name,
-        file,
-        url,
-        kind,
-        duration,
-        sourceType: "user-media",
-        exportAllowed: true
-      };
-      nextAssets.push(asset);
+    setImportState({ busy: true, current: 0, total: files.length, label: "PREPARING MEDIA" });
+    setProjectStatus("READING MEDIA METADATA • ORIGINAL FILES STAY LOCAL");
 
-      const trackId = kind === "audio" ? "a1" : "v1";
-      const clip = {
-        id: uid(),
-        assetId: asset.id,
-        name: file.name,
-        url,
-        kind,
-        trackId,
-        start: trackId === "v1" ? cursor : 0,
-        duration,
-        sourceDuration: duration,
-        inPoint: 0,
-        outPoint: duration,
-        speed: 1,
-        volume: 1,
-        opacity: 1,
-        scale: 1,
-        x: 0,
-        y: 0,
-        rotation: 0,
-        brightness: 1,
-        contrast: 1,
-        saturation: 1,
-        fadeIn: 0,
-        fadeOut: 0,
-        sourceType: "user-media",
-        exportAllowed: true
-      };
-      nextClips.push(clip);
-      if (trackId === "v1") cursor += duration;
+    try {
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        setImportState({
+          busy: true,
+          current: index + 1,
+          total: files.length,
+          label: `${file.name} • ${formatFileSize(file.size)}`
+        });
+
+        // Blob URLs let the browser stream the local file instead of copying it into JS memory.
+        const url = URL.createObjectURL(file);
+        objectUrls.current.add(url);
+        const duration = await getMediaDuration(file, url);
+        const kind = file.type.startsWith("audio/")
+          ? "audio"
+          : file.type.startsWith("image/")
+            ? "image"
+            : "video";
+        const longMedia = kind === "video" && (
+          duration >= LONG_MEDIA_SECONDS || Number(file.size || 0) >= LARGE_MEDIA_BYTES
+        );
+        importedLongMedia ||= longMedia;
+
+        const asset = {
+          id: uid("asset"),
+          name: file.name,
+          file,
+          url,
+          kind,
+          duration,
+          fileSize: Number(file.size || 0),
+          longMedia,
+          previewMode: longMedia ? "low-memory" : "standard",
+          sourceType: "user-media",
+          exportAllowed: true
+        };
+        nextAssets.push(asset);
+
+        const trackId = kind === "audio" ? "a1" : "v1";
+        const clip = {
+          id: uid(),
+          assetId: asset.id,
+          name: file.name,
+          url,
+          kind,
+          trackId,
+          start: trackId === "v1" ? cursor : 0,
+          duration,
+          sourceDuration: duration,
+          inPoint: 0,
+          outPoint: duration,
+          speed: 1,
+          volume: 1,
+          opacity: 1,
+          scale: 1,
+          x: 0,
+          y: 0,
+          rotation: 0,
+          brightness: 1,
+          contrast: 1,
+          saturation: 1,
+          fadeIn: 0,
+          fadeOut: 0,
+          fileSize: asset.fileSize,
+          longMedia,
+          previewMode: asset.previewMode,
+          sourceType: "user-media",
+          exportAllowed: true
+        };
+        nextClips.push(clip);
+        if (trackId === "v1") cursor += duration;
+
+        // Yield between large imports so iPhone/iPad UI stays responsive.
+        await yieldToMainThread();
+      }
+
+      setAssets(prev => [...prev, ...nextAssets]);
+      snapshot(nextClips);
+      setSelectedClipId(nextClips.at(-1)?.id || null);
+      setProjectStatus(
+        importedLongMedia
+          ? "LONG MEDIA READY • LOW-MEMORY PREVIEW ACTIVE • FULL SOURCE KEPT FOR EXPORT"
+          : "MEDIA READY • METADATA IMPORT COMPLETE"
+      );
+    } catch (error) {
+      setProjectStatus(`IMPORT RECOVERED • ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setImportState({ busy: false, current: 0, total: 0, label: "" });
     }
-
-    setAssets(prev => [...prev, ...nextAssets]);
-    snapshot(nextClips);
-    setSelectedClipId(nextClips.at(-1)?.id || null);
   }
 
   async function addCurrentProgramMaster() {
@@ -596,12 +670,13 @@ export default function ReplayStudio({
         <div className="nle-shell">
           <aside className="nle-sidebar">
             <div className="panel-label">MEDIA</div>
-            <label className="nle-import">
+            <label className={`nle-import ${importState.busy ? "busy" : ""}`}>
               <Upload size={18}/>
-              IMPORT MEDIA
+              {importState.busy ? `IMPORTING ${importState.current}/${importState.total}` : "IMPORT MEDIA"}
               <input
                 type="file"
                 multiple
+                disabled={importState.busy}
                 accept="video/*,audio/*,image/*"
                 onChange={event => {
                   importFiles(event.target.files);
@@ -609,6 +684,13 @@ export default function ReplayStudio({
                 }}
               />
             </label>
+            {importState.busy && (
+              <div className="nle-import-status" role="status" aria-live="polite">
+                <strong>METADATA-FIRST IMPORT</strong>
+                <span>{importState.label}</span>
+                <progress max={Math.max(1, importState.total)} value={importState.current}/>
+              </div>
+            )}
 
             {programMaster?.blob && (
               <button
@@ -636,7 +718,6 @@ export default function ReplayStudio({
                 <button
                   className="nle-asset"
                   key={asset.id}
-                  onDoubleClick={() => addAssetToTimeline(asset)}
                   onClick={() => addAssetToTimeline(asset)}
                 >
                   <span className="nle-asset-icon">
@@ -651,7 +732,7 @@ export default function ReplayStudio({
                     <small>
                       {asset.sourceType === "program-master"
                         ? `${isOwner ? "OWNER PROGRAM" : "PROTECTED PROGRAM"} • ${formatTime(asset.duration)}`
-                        : `${asset.kind.toUpperCase()} • ${formatTime(asset.duration)}`}
+                        : `${asset.kind.toUpperCase()} • ${formatTime(asset.duration)}${asset.longMedia ? " • LOW-MEMORY PREVIEW" : ""}`}
                     </small>
                   </span>
                   <Plus size={14}/>
@@ -679,11 +760,23 @@ export default function ReplayStudio({
                     key={previewClip.id}
                     ref={previewRef}
                     src={previewClip.url}
+                    preload="metadata"
                     playsInline
                     controls
                     style={previewStyle}
+                    onLoadedMetadata={event => {
+                      const media = event.currentTarget;
+                      const target = Math.min(
+                        Math.max(previewClip.inPoint + Math.max(0, playhead - previewClip.start), previewClip.inPoint),
+                        previewClip.outPoint
+                      );
+                      if (Number.isFinite(target) && Math.abs((media.currentTime || 0) - target) >= 0.12) {
+                        try { media.currentTime = target; } catch { /* metadata can settle asynchronously */ }
+                      }
+                    }}
                     onPlay={() => setPlaying(true)}
                     onPause={() => setPlaying(false)}
+                    onError={() => setProjectStatus("PREVIEW COULD NOT DECODE THIS SOURCE • ORIGINAL MEDIA WAS NOT REMOVED")}
                     onTimeUpdate={event => {
                       if (!playing) return;
                       const local = event.currentTarget.currentTime - previewClip.inPoint;
@@ -1012,8 +1105,10 @@ export default function ReplayStudio({
                 >
                   <div className="nle-ruler">
                     {Array.from(
-                      { length: Math.floor(projectDuration / 5) + 1 },
-                      (_, index) => index * 5
+                      {
+                        length: Math.floor(projectDuration / (projectDuration > 1800 ? 30 : projectDuration > 900 ? 10 : 5)) + 1
+                      },
+                      (_, index) => index * (projectDuration > 1800 ? 30 : projectDuration > 900 ? 10 : 5)
                     ).map(second => (
                       <span
                         key={second}

@@ -275,3 +275,11 @@
     overflow-wrap:anywhere
   }
 }
+
+
+/* Long-media stability and import feedback */
+.nle-import.busy{opacity:.72;cursor:progress}
+.nle-import-status{margin-top:7px;border:1px solid #3f4b3d;background:#121812;padding:8px;display:grid;gap:5px}
+.nle-import-status strong{font-size:7px;letter-spacing:.7px;color:#c8dbc2}
+.nle-import-status span{font-size:7px;color:#8f9b8b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nle-import-status progress{width:100%;height:6px;accent-color:#8da883}
