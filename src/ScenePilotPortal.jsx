@@ -1068,13 +1068,14 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
   );
 }
 
-function AccessStatusPage({ user, onLogout, onDeleteAccount }) {
+function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) {
   const pending = user?.accessStatus === "pending";
   const suspended = user?.accessStatus === "suspended";
   const appleNative = isAppleStoreKitAvailable();
   const [appleProduct, setAppleProduct] = useState(null);
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingStatus, setBillingStatus] = useState("");
+  const [accessBusy, setAccessBusy] = useState(false);
 
   useEffect(() => {
     if (!appleNative) return;
@@ -1092,6 +1093,25 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount }) {
       cancelled = true;
     };
   }, [appleNative]);
+
+  async function checkAccess() {
+    setAccessBusy(true);
+    setBillingStatus("");
+    try {
+      const data = await api("/api/auth/me");
+      const nextUser = data?.user || null;
+      if (nextUser) onAccessUpdated?.(nextUser);
+      if (nextUser?.accessStatus === "active") {
+        setBillingStatus("Access active. Opening Urban Director Studio...");
+      } else {
+        setBillingStatus("Director Pro access is still pending for this account.");
+      }
+    } catch (error) {
+      setBillingStatus(error.message);
+    } finally {
+      setAccessBusy(false);
+    }
+  }
 
   async function subscribeWithApple() {
     setBillingBusy(true);
@@ -1216,9 +1236,12 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount }) {
 
         <div className="sp-access-status-actions">
           {!appleNative && pending && (
-            <button className="sp-auth-submit" type="button" onClick={() => window.location.reload()}>
-              <RefreshCw size={17}/> CHECK ACCESS
+            <button className="sp-auth-submit" type="button" disabled={accessBusy} onClick={checkAccess}>
+              <RefreshCw size={17}/> {accessBusy ? "CHECKING..." : "CHECK ACCESS"}
             </button>
+          )}
+          {!appleNative && billingStatus && (
+            <div className="sp-billing-status" role="status">{billingStatus}</div>
           )}
           <button className="sp-secondary" type="button" onClick={onLogout}>
             <LogOut size={17}/> LOG OUT
@@ -2569,7 +2592,7 @@ export default function ScenePilotPortal() {
     if (loading) return <div className="sp-portal-loading"><Radio size={28}/> LOADING ICA ACCOUNT...</div>;
     if (!user) return <AuthPanel onAuthenticated={setUser}/>;
     if (user.accessStatus !== "active") {
-      return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount}/>;
+      return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser}/>;
     }
 
     return (
