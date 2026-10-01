@@ -93,6 +93,11 @@ export default function ReplayStudio({
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [projectStatus, setProjectStatus] = useState("");
   const [importState, setImportState] = useState({ busy: false, current: 0, total: 0, label: "" });
+  const [creatorTool, setCreatorTool] = useState("media");
+  const [showInspector, setShowInspector] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(() =>
+    typeof window === "undefined" ? true : window.innerWidth > 760
+  );
   const previewRef = useRef(null);
   const seekFrameRef = useRef(0);
   const objectUrls = useRef(new Set());
@@ -622,13 +627,108 @@ export default function ReplayStudio({
     setPlayhead(Math.max(0, Math.min(projectDuration, x / pixelsPerSecond)));
   }
 
-  function handleClipDragEnd(event, clip) {
-    const lane = event.currentTarget.closest(".nle-lane-scroll");
-    if (!lane) return;
-    const rect = lane.getBoundingClientRect();
-    const x = event.clientX - rect.left + lane.scrollLeft;
-    const nextStart = Math.max(0, x / pixelsPerSecond - clip.duration / 2);
-    updateClip(clip.id, { start: nextStart });
+  function beginClipPointer(event, clip, mode = "move") {
+    if (event.button !== undefined && event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const originX = event.clientX;
+    const original = { ...clip };
+    const before = clips.map(item => ({ ...item }));
+    const speed = Math.max(0.01, Number(original.speed) || 1);
+    let changed = false;
+
+    setSelectedClipId(clip.id);
+    setPlayhead(clip.start);
+
+    const onMove = moveEvent => {
+      const pixels = moveEvent.clientX - originX;
+      if (Math.abs(pixels) < 2) return;
+      changed = true;
+      const delta = pixels / pixelsPerSecond;
+      let updates = {};
+
+      if (mode === "move") {
+        updates = { start: Math.max(0, original.start + delta) };
+      } else if (mode === "trim-start" && original.kind !== "text") {
+        const maxTimelineTrim = Math.max(0, original.duration - 0.1);
+        const requested = Math.max(-original.start, Math.min(delta, maxTimelineTrim));
+        const requestedSource = requested * speed;
+        const nextIn = Math.max(
+          0,
+          Math.min(original.inPoint + requestedSource, original.outPoint - 0.1)
+        );
+        const actualTimeline = (nextIn - original.inPoint) / speed;
+        updates = {
+          start: Math.max(0, original.start + actualTimeline),
+          inPoint: nextIn,
+          duration: Math.max(0.1, original.duration - actualTimeline)
+        };
+      } else if (mode === "trim-end" && original.kind !== "text") {
+        const maxDuration = Math.max(
+          0.1,
+          (original.sourceDuration - original.inPoint) / speed
+        );
+        const nextDuration = Math.max(
+          0.1,
+          Math.min(maxDuration, original.duration + delta)
+        );
+        updates = {
+          duration: nextDuration,
+          outPoint: Math.min(
+            original.sourceDuration,
+            original.inPoint + nextDuration * speed
+          )
+        };
+      } else if (mode === "trim-start" && original.kind === "text") {
+        const requested = Math.max(-original.start, Math.min(delta, original.duration - 0.1));
+        updates = {
+          start: Math.max(0, original.start + requested),
+          duration: Math.max(0.1, original.duration - requested)
+        };
+      } else if (mode === "trim-end" && original.kind === "text") {
+        updates = { duration: Math.max(0.1, original.duration + delta) };
+      }
+
+      setClips(current => current.map(item =>
+        item.id === clip.id ? { ...item, ...updates } : item
+      ));
+    };
+
+    const onEnd = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("pointercancel", onEnd);
+      if (changed) {
+        setHistory(prev => [...prev.slice(-29), before]);
+        setFuture([]);
+      }
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd);
+    window.addEventListener("pointercancel", onEnd);
+  }
+
+  function previewSelectedClip() {
+    if (!selectedClip) return;
+    setPlayhead(selectedClip.start);
+    setProjectStatus(`PREVIEWING • ${selectedClip.name}`);
+    if (selectedClip.kind !== "video") return;
+    requestAnimationFrame(() => {
+      const media = previewRef.current;
+      if (!media) return;
+      try { media.currentTime = selectedClip.inPoint || 0; } catch {}
+      media.play?.().catch(() => {});
+    });
+  }
+
+  function openCreatorTool(tool) {
+    setCreatorTool(tool);
+    if (["audio", "filters", "effects"].includes(tool)) {
+      if (selectedClip) setShowInspector(true);
+      else setProjectStatus("SELECT A CLIP FIRST");
+    }
   }
 
   const previewClip = selectedClip?.kind === "video" || selectedClip?.kind === "image"
@@ -753,7 +853,7 @@ export default function ReplayStudio({
           </aside>
 
           <div className="nle-main">
-            <div className="nle-top">
+            <div className={`nle-top ${showInspector ? "inspector-open" : ""}`}>
               <div className={`nle-preview aspect-${aspectRatio.replace(":", "-")}`}>
                 {previewClip?.kind === "video" ? (
                   <video
@@ -808,8 +908,9 @@ export default function ReplayStudio({
                 <span className="editor-timecode">{formatTime(playhead)}</span>
               </div>
 
+              {showInspector && (
               <aside className="nle-inspector">
-                <div className="panel-label">INSPECTOR</div>
+                <div className="panel-label">ADVANCED</div>
                 {selectedClip ? (
                   <>
                     <strong className="inspector-title">{selectedClip.name}</strong>
@@ -1057,6 +1158,76 @@ export default function ReplayStudio({
                   </div>
                 )}
               </aside>
+              )}
+            </div>
+
+            <div className="creator-toolbar" aria-label="Creator editing tools">
+              <button className={creatorTool === "media" ? "active" : ""} onClick={() => openCreatorTool("media")}><Film size={16}/> MEDIA</button>
+              <button className={creatorTool === "audio" ? "active" : ""} onClick={() => openCreatorTool("audio")}><Music2 size={16}/> AUDIO</button>
+              <button className={creatorTool === "text" ? "active" : ""} onClick={() => openCreatorTool("text")}><Type size={16}/> TEXT</button>
+              <button className={creatorTool === "captions" ? "active" : ""} onClick={() => openCreatorTool("captions")}><Captions size={16}/> CAPTIONS</button>
+              <button className={creatorTool === "overlay" ? "active" : ""} onClick={() => openCreatorTool("overlay")}><MonitorUp size={16}/> OVERLAY</button>
+              <button className={creatorTool === "filters" ? "active" : ""} onClick={() => openCreatorTool("filters")}><Palette size={16}/> FILTERS</button>
+              <button className={creatorTool === "effects" ? "active" : ""} onClick={() => openCreatorTool("effects")}><SlidersHorizontal size={16}/> EFFECTS</button>
+              <button className={showTimeline ? "active" : ""} onClick={() => setShowTimeline(value => !value)}><Scissors size={16}/> TIMELINE</button>
+              <button className={showInspector ? "active" : ""} onClick={() => setShowInspector(value => !value)}><SlidersHorizontal size={16}/> ADVANCED</button>
+            </div>
+
+            <div className="creator-tool-panel">
+              {creatorTool === "media" && (
+                <>
+                  <label className="creator-action primary">
+                    <Upload size={16}/> ADD MEDIA
+                    <input
+                      type="file"
+                      multiple
+                      disabled={importState.busy}
+                      accept="video/*,audio/*,image/*"
+                      onChange={event => {
+                        importFiles(event.target.files);
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <span>Import video, audio or images without leaving the preview.</span>
+                </>
+              )}
+              {creatorTool === "audio" && (
+                <>
+                  <button className="creator-action" disabled={!selectedClip} onClick={() => setShowInspector(true)}><Volume2 size={16}/> OPEN AUDIO CONTROLS</button>
+                  <span>{selectedClip ? `Editing ${selectedClip.name}` : "Select a video or audio clip first."}</span>
+                </>
+              )}
+              {creatorTool === "text" && (
+                <>
+                  <button className="creator-action" onClick={addTextClip}><Type size={16}/> ADD TITLE</button>
+                  <button className="creator-action" onClick={addLowerThird}><MonitorUp size={16}/> LOWER THIRD</button>
+                </>
+              )}
+              {creatorTool === "captions" && (
+                <>
+                  <button className="creator-action" onClick={addCaption}><Captions size={16}/> ADD CAPTION</button>
+                  <span>Captions land at the current playhead and stay editable.</span>
+                </>
+              )}
+              {creatorTool === "overlay" && (
+                <>
+                  <button className="creator-action" onClick={addLowerThird}><MonitorUp size={16}/> ADD LOWER THIRD</button>
+                  <span>Overlay controls stay on the dedicated text/FX lane.</span>
+                </>
+              )}
+              {creatorTool === "filters" && (
+                <>
+                  <button className="creator-action" disabled={!selectedClip} onClick={() => setShowInspector(true)}><Palette size={16}/> OPEN COLOR CONTROLS</button>
+                  <span>Brightness, contrast, saturation and opacity are under Advanced.</span>
+                </>
+              )}
+              {creatorTool === "effects" && (
+                <>
+                  <button className="creator-action" disabled={!selectedClip} onClick={() => setShowInspector(true)}><Move size={16}/> OPEN TRANSFORM CONTROLS</button>
+                  <span>Scale, position, rotation and speed are under Advanced.</span>
+                </>
+              )}
             </div>
 
             <div className="nle-toolbar">
@@ -1080,8 +1251,8 @@ export default function ReplayStudio({
                 <option value="4:5">4:5 SOCIAL</option>
               </select>
               <button onClick={saveProject}><Save size={16}/> SAVE PROJECT</button>
-              <button onClick={() => setPlayhead(selectedClip?.start || playhead)} disabled={!selectedClip}>
-                <MonitorUp size={16}/> PREVIEW CLIP
+              <button onClick={previewSelectedClip} disabled={!selectedClip}>
+                <Play size={16}/> PLAY CLIP
               </button>
               <button
                 onClick={downloadProject}
@@ -1094,7 +1265,13 @@ export default function ReplayStudio({
               </button>
             </div>
 
+            {showTimeline && (
             <div className="nle-timeline-wrap">
+              <div className="timeline-grabber" onClick={() => setShowTimeline(false)}>
+                <span/>
+                <strong>TIMELINE</strong>
+                <small>Tap to collapse</small>
+              </div>
               <div
                 className="nle-lane-scroll"
                 onDoubleClick={seekFromEvent}
@@ -1126,9 +1303,10 @@ export default function ReplayStudio({
                         {clips
                           .filter(clip => clip.trackId === track.id)
                           .map(clip => (
-                            <button
+                            <div
                               key={clip.id}
-                              draggable
+                              role="button"
+                              tabIndex={0}
                               className={`nle-clip ${clip.kind} ${selectedClipId === clip.id ? "selected" : ""}`}
                               style={{
                                 left: clip.start * pixelsPerSecond,
@@ -1139,12 +1317,21 @@ export default function ReplayStudio({
                                 setSelectedClipId(clip.id);
                                 setPlayhead(clip.start);
                               }}
-                              onDragEnd={event => handleClipDragEnd(event, clip)}
-                              title={`${clip.name} • ${formatTime(clip.duration)}`}
+                              onKeyDown={event => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  setSelectedClipId(clip.id);
+                                  setPlayhead(clip.start);
+                                }
+                              }}
+                              onPointerDown={event => beginClipPointer(event, clip, "move")}
+                              title={`${clip.name} • ${formatTime(clip.duration)} • drag to move • drag edges to trim`}
                             >
+                              <i className="nle-trim-handle left" onPointerDown={event => beginClipPointer(event, clip, "trim-start")}/>
                               <span>{clip.name}</span>
                               <small>{formatTime(clip.duration)}</small>
-                            </button>
+                              <i className="nle-trim-handle right" onPointerDown={event => beginClipPointer(event, clip, "trim-end")}/>
+                            </div>
                           ))}
                       </div>
                     </div>
@@ -1159,6 +1346,14 @@ export default function ReplayStudio({
                 </div>
               </div>
             </div>
+            )}
+
+            {!showTimeline && (
+              <button className="timeline-reveal" type="button" onClick={() => setShowTimeline(true)}>
+                <span/>
+                SHOW TIMELINE
+              </button>
+            )}
 
             {hasProtectedProgram && !isOwner && (
               <div className="nle-protected-policy">
