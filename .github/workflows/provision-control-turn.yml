@@ -1,0 +1,97 @@
+name: Provision ICA Control TURN Relay
+
+on:
+  push:
+    branches:
+      - ops/provision-control-turn-20261002
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Setup Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Create dedicated ICA Control TURN key and store it directly in Control Worker
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          code="$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}' \
+            --request POST \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/calls/turn_keys" \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"name":"ICA Control Production"}')"
+
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            python - "$response_file" <<'PY'
+          import json,sys
+          try:
+              payload=json.load(open(sys.argv[1]))
+              messages=[str(item.get('message','')) for item in payload.get('errors',[]) if isinstance(item,dict)]
+              print('::error::TURN provisioning failed: ' + ('; '.join(messages) or 'Cloudflare request failed.'))
+          except Exception:
+              print('::error::TURN provisioning failed.')
+          PY
+            exit 1
+          fi
+
+          read -r turn_id turn_key < <(python - "$response_file" <<'PY'
+          import json,sys
+          payload=json.load(open(sys.argv[1]))
+          result=payload.get('result') or {}
+          uid=str(result.get('uid') or '').strip()
+          key=str(result.get('key') or '').strip()
+          if not uid or not key:
+              raise SystemExit('TURN create response omitted uid/key.')
+          print(uid, key)
+          PY
+          )
+          echo "::add-mask::$turn_id"
+          echo "::add-mask::$turn_key"
+
+          printf '%s' "$turn_id" | npx wrangler secret put REMOTE_SUPPORT_CLOUDFLARE_TURN_KEY_ID --name ica-control-api >/dev/null
+          printf '%s' "$turn_key" | npx wrangler secret put REMOTE_SUPPORT_CLOUDFLARE_TURN_API_TOKEN --name ica-control-api >/dev/null
+          unset turn_key
+          rm -f "$response_file"
+
+          echo "ICA Control dedicated TURN relay is provisioned."
+
+      - name: Verify Control reports production Remote Support
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            curl --fail --silent --show-error --max-time 15 \
+              https://ica-control-api.ryanedavis.workers.dev/api/readiness > /tmp/readiness.json
+            if python - <<'PY'
+          import json
+          payload=json.load(open('/tmp/readiness.json'))
+          remote=payload.get('remoteSupport') or {}
+          if remote.get('productionTransport') is not True:
+              raise SystemExit(1)
+          print('Remote Support production transport: READY')
+          print('Transport mode:', remote.get('transportMode') or 'production')
+          PY
+            then
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::ICA Control did not report production Remote Support after TURN provisioning."
+          exit 1
