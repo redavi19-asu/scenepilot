@@ -1,3 +1,4 @@
+import { appleSigningConfigured, appleClientSecret } from './apple-client-secret.js';
 const SESSION_COOKIE = "sp_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -56,7 +57,7 @@ function config(env,name){
   const prefix=name.toUpperCase();
   const clientId=String(env["SOCIAL_"+prefix+"_CLIENT_ID"]||"").trim();
   const clientSecret=String(env["SOCIAL_"+prefix+"_CLIENT_SECRET"]||"").trim();
-  return {...provider,name,clientId,clientSecret,ready:Boolean(clientId&&clientSecret)};
+  return {...provider,name,clientId,clientSecret,ready:Boolean(clientId&&(clientSecret||(name==="apple"&&appleSigningConfigured(env))))};
 }
 
 function sessionCookie(token){
@@ -124,7 +125,7 @@ async function exchange(request,env,cfg,row,params){
     grant_type:"authorization_code",
     code:String(params.code||""),
     client_id:cfg.clientId,
-    client_secret:cfg.clientSecret,
+    client_secret:cfg.name === "apple" && appleSigningConfigured(env) ? await appleClientSecret(env,cfg.clientId) : cfg.clientSecret,
     redirect_uri:redirectUri,
     code_verifier:row.code_verifier
   });
