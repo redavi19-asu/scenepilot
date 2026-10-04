@@ -352,7 +352,7 @@ function LandingPage() {
     <div className="sp-landing sp-product-site">
       <header className="sp-landing-nav">
         <button className="sp-landing-brand sp-brand-button" onClick={() => go("/")} aria-label="Urban Director Studio home">
-          <span className="sp-landing-mark"><Radio size={24}/></span>
+          <span className="sp-landing-mark"><img src="/urban-director-icon.svg" alt="" aria-hidden="true" style={{width:"100%",height:"100%",display:"block",objectFit:"cover",borderRadius:12}} /></span>
           <div>
             <strong>URBAN DIRECTOR STUDIO</strong>
             <small>BY I COMPUTER ANYTHING</small>
@@ -380,6 +380,13 @@ function LandingPage() {
       <main>
         <section className="sp-hero sp-product-hero">
           <div className="sp-hero-copy">
+            <img
+              src="/urban-director-icon.svg"
+              alt="Urban Director Studio icon"
+              width="124"
+              height="124"
+              style={{width:124,height:124,maxWidth:"34vw",display:"block",objectFit:"contain",borderRadius:28,background:"#fff",padding:6,boxShadow:"0 22px 56px rgba(0,0,0,.28)",marginBottom:22}}
+            />
             <span className="sp-kicker">LIVE PRODUCTION • MULTI-CAMERA • REMOTE CREW</span>
             <h1>Direct the whole production from one control room.</h1>
             <p>
@@ -2561,7 +2568,7 @@ function DownloadsPage() {
     <main className="sp-download-shell">
       <header className="sp-download-nav">
         <button type="button" className="sp-landing-brand sp-brand-button" onClick={() => go("/")}>
-          <span className="sp-landing-mark"><Radio size={24}/></span>
+          <span className="sp-landing-mark"><img src="/urban-director-icon.svg" alt="" aria-hidden="true" style={{width:"100%",height:"100%",display:"block",objectFit:"cover",borderRadius:12}} /></span>
           <div><strong>URBAN DIRECTOR STUDIO</strong><small>PRODUCTION DOWNLOADS</small></div>
         </button>
         <button type="button" className="sp-secondary" onClick={() => go("/login")}>OPEN STUDIO</button>
