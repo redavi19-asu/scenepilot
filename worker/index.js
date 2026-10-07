@@ -355,18 +355,37 @@ async function verifyTurnstile(request, env, token, expectedAction) {
     }
 
     const result = await verification.json();
+    const hostname = String(result?.hostname || "").trim().toLowerCase();
+    const action = String(result?.action || "").trim();
+    const requestHostname = new URL(request.url).hostname.toLowerCase();
+    let publicHostname = "";
 
-    if (
-      !result.success ||
-      (
-        result.action &&
-        expectedAction &&
-        result.action !== expectedAction
-      )
-    ) {
+    try {
+      publicHostname = new URL(
+        String(env.ICA_AUTH_PUBLIC_ORIGIN || "https://scenepilot.ryanedavis.workers.dev")
+      ).hostname.toLowerCase();
+    } catch {}
+
+    const allowedHostnames = new Set(
+      [requestHostname, publicHostname].filter(Boolean)
+    );
+    const hostnameValid = Boolean(
+      hostname && allowedHostnames.has(hostname)
+    );
+    const actionValid = Boolean(
+      expectedAction && action === expectedAction
+    );
+
+    if (!result.success || !hostnameValid || !actionValid) {
       console.warn(
         "Urban Director Studio Turnstile verification failed",
-        result["error-codes"] || []
+        {
+          errors: result["error-codes"] || [],
+          hostname,
+          action,
+          hostnameValid,
+          actionValid
+        }
       );
 
       return json({
