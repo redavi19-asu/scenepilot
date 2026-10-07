@@ -4291,7 +4291,7 @@ async function enableCamera() {
         <section className="control-deck">
           <div className={`transition-panel ${mobilePanels.transition ? "" : "mobile-panel-collapsed"}`}>
             <button type="button" className="panel-label mobile-panel-head" onClick={() => toggleMobilePanel("transition")} aria-expanded={mobilePanels.transition}>
-              <span>TRANSITION</span><span className="mobile-collapse-indicator">{mobilePanels.transition ? "−" : "+"}</span>
+              <span>TRANSITION</span><span className="mobile-collapse-indicator">{mobilePanels.transition ? "HIDE" : "SHOW"}</span>
             </button>
             <div className="transition-types">
               {["CUT","DISSOLVE","FADE"].map(type => (
@@ -4337,7 +4337,7 @@ async function enableCamera() {
 
           <div className={`audio-panel ${mobilePanels.audio ? "" : "mobile-panel-collapsed"}`}>
             <button type="button" className="panel-label mobile-panel-head" onClick={() => toggleMobilePanel("audio")} aria-expanded={mobilePanels.audio}>
-              <span>MASTER AUDIO</span><span className="mobile-collapse-indicator">{mobilePanels.audio ? "−" : "+"}</span>
+              <span>MASTER AUDIO</span><span className="mobile-collapse-indicator">{mobilePanels.audio ? "HIDE" : "SHOW"}</span>
             </button>
 
             <label className="audio-master-select">
@@ -4502,7 +4502,7 @@ async function enableCamera() {
 
           <div className={`remote-camera-control-panel ${mobilePanels.remoteCamera ? "" : "mobile-panel-collapsed"}`}>
             <button type="button" className="panel-label mobile-panel-head" onClick={() => toggleMobilePanel("remoteCamera")} aria-expanded={mobilePanels.remoteCamera}>
-              <span>REMOTE CAMERA CONTROL</span><span className="mobile-collapse-indicator">{mobilePanels.remoteCamera ? "−" : "+"}</span>
+              <span>REMOTE CAMERA CONTROL</span><span className="mobile-collapse-indicator">{mobilePanels.remoteCamera ? "HIDE" : "SHOW"}</span>
             </button>
             <div className="remote-camera-control-head">
               <strong>SELECT CAMERA</strong>
@@ -4609,7 +4609,7 @@ async function enableCamera() {
 
           <div className={`production-tools ${mobilePanels.layout ? "" : "mobile-panel-collapsed"}`}>
             <button type="button" className="panel-label mobile-panel-head" onClick={() => toggleMobilePanel("layout")} aria-expanded={mobilePanels.layout}>
-              <span>LIVE LAYOUT</span><span className="mobile-collapse-indicator">{mobilePanels.layout ? "−" : "+"}</span>
+              <span>LIVE LAYOUT</span><span className="mobile-collapse-indicator">{mobilePanels.layout ? "HIDE" : "SHOW"}</span>
             </button>
 
             <div className="layout-mode-grid">
@@ -4671,7 +4671,7 @@ async function enableCamera() {
           <div className={`record-panel ${mobilePanels.recording ? "" : "mobile-panel-collapsed"}`}>
             <button type="button" className="panel-label mobile-panel-head" onClick={() => toggleMobilePanel("recording")} aria-expanded={mobilePanels.recording}>
               <span>{isOwner ? "OWNER RECORDING" : "RAW / ISO RECORDING"}</span>
-              <span className="mobile-collapse-indicator">{mobilePanels.recording ? "−" : "+"}</span>
+              <span className="mobile-collapse-indicator">{mobilePanels.recording ? "HIDE" : "SHOW"}</span>
             </button>
 
             {isOwner ? (
@@ -4831,7 +4831,7 @@ async function enableCamera() {
 
           <div className={`instant-replay-panel ${mobilePanels.replay ? "" : "mobile-panel-collapsed"}`}>
             <button type="button" className="panel-label mobile-panel-head" onClick={() => toggleMobilePanel("replay")} aria-expanded={mobilePanels.replay}>
-              <span>INSTANT REPLAY</span><span className="mobile-collapse-indicator">{mobilePanels.replay ? "−" : "+"}</span>
+              <span>INSTANT REPLAY</span><span className="mobile-collapse-indicator">{mobilePanels.replay ? "HIDE" : "SHOW"}</span>
             </button>
 
             <div className="instant-replay-status">
