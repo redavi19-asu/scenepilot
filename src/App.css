@@ -4529,12 +4529,15 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
 .mobile-collapse-indicator{
   display:inline-grid;
   place-items:center;
-  width:25px;
+  min-width:44px;
   height:25px;
+  padding:0 7px;
   border:1px solid #454b43;
   border-radius:7px;
   color:#dce1d8;
-  font-size:15px;
+  font-size:7px;
+  font-weight:950;
+  letter-spacing:.06em;
   line-height:1;
 }
 .control-deck > .mobile-panel-collapsed > :not(.mobile-panel-head){
