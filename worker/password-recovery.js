@@ -121,7 +121,31 @@ async function verifyTurnstile(request, env, token) {
     }
 
     const result = await response.json();
-    if (!result.success || (result.action && result.action !== "password_reset")) {
+    const hostname = String(result?.hostname || "").trim().toLowerCase();
+    const action = String(result?.action || "").trim();
+    const requestHostname = new URL(request.url).hostname.toLowerCase();
+    let publicHostname = "";
+
+    try {
+      publicHostname = new URL(
+        String(env.ICA_AUTH_PUBLIC_ORIGIN || "https://scenepilot.ryanedavis.workers.dev")
+      ).hostname.toLowerCase();
+    } catch {}
+
+    const hostnameValid = Boolean(
+      hostname &&
+      new Set([requestHostname, publicHostname].filter(Boolean)).has(hostname)
+    );
+    const actionValid = action === "password_reset";
+
+    if (!result.success || !hostnameValid || !actionValid) {
+      console.warn("Urban Director password-reset Turnstile verification failed", {
+        errors: result["error-codes"] || [],
+        hostname,
+        action,
+        hostnameValid,
+        actionValid
+      });
       return json({ error: "Security verification failed. Please try again." }, 403);
     }
   } catch (error) {
