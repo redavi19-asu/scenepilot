@@ -78,6 +78,7 @@ export default function AIStudio() {
   const [photos, setPhotos] = useState([]);
   const [customPrompt, setCustomPrompt] = useState("");
   const [permission, setPermission] = useState(false);
+  const [aiSharingConsent, setAiSharingConsent] = useState(false);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [activeJob, setActiveJob] = useState(null);
@@ -123,6 +124,7 @@ export default function AIStudio() {
     setPhotos([]);
     setCustomPrompt("");
     setPermission(false);
+    setAiSharingConsent(false);
     setStatus("");
     setResult(null);
     setActiveJob(null);
@@ -131,9 +133,11 @@ export default function AIStudio() {
 
   async function choosePhoto(index, file) {
     if (!file) return;
+    setAiSharingConsent(false);
     setStatus("PREPARING PHOTO…");
     try {
       const dataUrl = await imageFileToDataUrl(file);
+      setAiSharingConsent(false);
       setPhotos(current => {
         const next = [...current];
         next[index] = {
@@ -150,6 +154,7 @@ export default function AIStudio() {
   }
 
   function removePhoto(index) {
+    setAiSharingConsent(false);
     setPhotos(current => current.filter((_, itemIndex) => itemIndex !== index));
   }
 
@@ -210,6 +215,10 @@ export default function AIStudio() {
       setStatus("CONFIRM YOU HAVE PERMISSION TO USE THE UPLOADED PHOTOS.");
       return;
     }
+    if (!aiSharingConsent) {
+      setStatus("AGREE TO SHARE THESE PHOTOS AND INSTRUCTIONS WITH FAL.AI BEFORE GENERATING.");
+      return;
+    }
     if (!studio?.provider?.ready) {
       setStatus("GENERATOR IS WIRED • ADD FAL_KEY IN CLOUDFLARE TO TURN IT ON.");
       return;
@@ -233,7 +242,8 @@ export default function AIStudio() {
         body: JSON.stringify({
           templateId: selected.id,
           images: readyPhotos.map(item => item.dataUrl),
-          customPrompt
+          customPrompt,
+          aiSharingConsent: "fal-ai-v1"
         })
       });
       const data = await response.json().catch(() => ({}));
@@ -339,7 +349,7 @@ export default function AIStudio() {
             <div>
               <span className="ai-kicker"><Sparkles size={14}/> CREATE WITH AI</span>
               <h2>Photos, scenes and cinematic video — then send it straight to Director Edit.</h2>
-              <p>Pick a look, add your photos, spend the shown tokens, and generate. Your provider key stays on the Cloudflare Worker — never inside the app.</p>
+              <p>Pick a look, add your photos, spend the shown tokens, and generate. You choose whether to share your photos and instructions with fal.ai for generation.</p>
             </div>
             <div className={`ai-provider-state ${studio?.provider?.ready ? "ready" : "waiting"}`}>
               <i/>
@@ -438,7 +448,7 @@ export default function AIStudio() {
                   <textarea
                     value={customPrompt}
                     maxLength={600}
-                    onChange={event => setCustomPrompt(event.target.value)}
+                    onChange={event => { setCustomPrompt(event.target.value); setAiSharingConsent(false); }}
                     placeholder="Example: black jackets, night scene, slow camera push, serious mood…"
                   />
                   <label className="ai-permission-check">
@@ -450,6 +460,12 @@ export default function AIStudio() {
                     <span className="ai-check-box">{permission && <Check size={13}/>}</span>
                     <span>I own these photos or have permission to use them for AI generation.</span>
                   </label>
+                  <label className="ai-permission-check">
+                    <input type="checkbox" checked={aiSharingConsent} onChange={event => setAiSharingConsent(event.target.checked)}/>
+                    <span className="ai-check-box">{aiSharingConsent && <Check size={13}/>}</span>
+                    <span>I agree to send these photos and instructions to fal.ai and its generation providers to create this result. They process and retain submitted media under their policies.</span>
+                  </label>
+                  <p><a href="https://fal.ai/privacy" target="_blank" rel="noopener noreferrer">fal.ai privacy policy</a> · <a href="/privacy" target="_blank" rel="noopener noreferrer">Urban Director Studio privacy policy</a></p>
                 </div>
               </div>
 

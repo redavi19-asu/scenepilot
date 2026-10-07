@@ -721,7 +721,7 @@ function PrivacyPage() {
         <button className="sp-auth-back sp-privacy-back" onClick={() => go("/")}>← Urban Director Studio home</button>
         <span className="sp-kicker">PRIVACY</span>
         <h1>Urban Director Studio Privacy Policy</h1>
-        <p className="sp-privacy-updated">Last updated: October 1, 2026</p>
+        <p className="sp-privacy-updated">Last updated: October 7, 2026</p>
 
         <h2>Information we collect</h2>
         <p>
@@ -745,6 +745,16 @@ function PrivacyPage() {
           publish, or send them to a configured destination. If you configure a streaming destination,
           the app stores the destination settings needed to operate that connection. Stream credentials
           are protected before storage.
+        </p>
+
+        <h2>Optional AI generation</h2>
+        <p>
+          When you choose AI generation and give permission, your selected photos and instructions
+          are sent to fal.ai and its generation providers to create images or videos. These providers
+          process and retain submitted media under their own policies. Review the linked provider
+          privacy policy before agreeing. You can decline AI sharing and continue using live production.
+          We store generation job identifiers, status, results, token transactions, and error information
+          associated with your account to deliver results, track usage, and troubleshoot failures.
         </p>
 
         <h2>Device and connection information</h2>

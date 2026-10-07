@@ -534,6 +534,14 @@ async function studioPayload(env, user) {
 }
 
 async function handleGenerate(request, env, user) {
+  const body = await request.json().catch(() => ({}));
+  if (body.aiSharingConsent !== "fal-ai-v1") {
+    return json({
+      error: "Agree to share your photos and instructions with fal.ai and its generation providers before generating. Update your app if this consent option is missing.",
+      code: "ai_sharing_consent_required"
+    }, 400);
+  }
+
   if (!String(env.FAL_KEY || "").trim()) {
     return json({
       error: "Director AI is wired but the FAL_KEY Cloudflare secret has not been added yet.",
@@ -541,7 +549,6 @@ async function handleGenerate(request, env, user) {
     }, 503);
   }
 
-  const body = await request.json().catch(() => ({}));
   const template = templateForId(String(body.templateId || ""));
   if (!template) return json({ error: "Choose a valid AI template." }, 400);
 
