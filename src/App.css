@@ -4482,9 +4482,28 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
 }
 
 
-/* Mobile production-section collapse controls.
-   Sources stay open initially; technical panels fold independently on phones. */
-.mobile-section-toggle{display:none}
+/* Production-section collapse controls.
+   Camera Multiview stays open initially; technical panels fold independently
+   on desktop, tablet, and phone so the Director can keep the workspace clean. */
+.mobile-section-toggle{
+  display:inline-flex;
+  min-height:30px;
+  padding:0 9px;
+  align-items:center;
+  justify-content:center;
+  border:1px solid #4b5048;
+  background:#20231f;
+  color:#d7dbd3;
+  font-size:7px;
+  font-weight:950;
+  letter-spacing:.06em;
+}
+.camera-bank.mobile-panel-collapsed > :not(.section-title){
+  display:none!important;
+}
+.camera-bank.mobile-panel-collapsed{
+  padding-bottom:8px;
+}
 .mobile-panel-head{
   width:100%;
   border:0;
@@ -4492,8 +4511,39 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
   background:transparent;
   color:inherit;
   text-align:left;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  min-height:34px;
+  margin:0;
+  cursor:pointer;
+  touch-action:manipulation;
 }
-.mobile-collapse-indicator{display:none}
+.mobile-panel-head > span:first-child{
+  color:#a6ada3;
+  font-size:8px;
+  font-weight:950;
+  letter-spacing:.12em;
+}
+.mobile-collapse-indicator{
+  display:inline-grid;
+  place-items:center;
+  width:25px;
+  height:25px;
+  border:1px solid #454b43;
+  border-radius:7px;
+  color:#dce1d8;
+  font-size:15px;
+  line-height:1;
+}
+.control-deck > .mobile-panel-collapsed > :not(.mobile-panel-head){
+  display:none!important;
+}
+.control-deck > .mobile-panel-collapsed{
+  min-height:0!important;
+  padding-bottom:7px!important;
+}
 
 @media(max-width:760px){
   .section-title-actions{
