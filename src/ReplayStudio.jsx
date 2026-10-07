@@ -81,7 +81,7 @@ export default function ReplayStudio({
   onPublishProgram = null,
   onDeleteProgram = null
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [assets, setAssets] = useState([]);
   const [clips, setClips] = useState([]);
   const [selectedClipId, setSelectedClipId] = useState(null);
