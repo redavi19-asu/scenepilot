@@ -24,13 +24,46 @@ export default function TurnstileWidget({
 
     let cancelled = false;
     let pollTimer = null;
+    let responseTimer = null;
     let attempts = 0;
+    let lastToken = "";
     let script = document.getElementById(SCRIPT_ID);
+
+    const publishToken = value => {
+      const token = String(value || "");
+      if (token === lastToken) return Boolean(token);
+      lastToken = token;
+      onToken(token);
+      return Boolean(token);
+    };
 
     const reportError = message => {
       if (cancelled) return;
-      onToken("");
+      publishToken("");
       if (onError) onError(message);
+    };
+
+    const recoverSolvedToken = () => {
+      if (cancelled) return false;
+
+      let token = "";
+      if (
+        widgetIdRef.current !== null &&
+        window.turnstile?.getResponse
+      ) {
+        try {
+          token = String(window.turnstile.getResponse(widgetIdRef.current) || "");
+        } catch {}
+      }
+
+      if (!token) {
+        const responseField =
+          containerRef.current?.querySelector?.('input[name="cf-turnstile-response"]') ||
+          containerRef.current?.closest?.("form")?.querySelector?.('input[name="cf-turnstile-response"]');
+        token = String(responseField?.value || "");
+      }
+
+      return token ? publishToken(token) : false;
     };
 
     const removeWidget = () => {
@@ -56,6 +89,7 @@ export default function TurnstileWidget({
       }
 
       removeWidget();
+      publishToken("");
 
       try {
         widgetIdRef.current = window.turnstile.render(
@@ -63,21 +97,33 @@ export default function TurnstileWidget({
           {
             sitekey: siteKey,
             theme: "dark",
+            size: "flexible",
             action,
             appearance: "always",
+            retry: "auto",
+            "retry-interval": 4000,
+            "refresh-expired": "auto",
+            "refresh-timeout": "auto",
             callback: token => {
               if (cancelled) return;
-              onToken(token);
+              publishToken(token);
             },
-            "expired-callback": () => onToken(""),
+            "expired-callback": () => publishToken(""),
             "timeout-callback": () => {
-              reportError("Security check timed out. Tap retry and try again.");
+              if (!recoverSolvedToken()) {
+                reportError("Security check timed out. Tap retry and try again.");
+              }
             },
             "error-callback": () => {
-              reportError("Security check could not load. Tap retry and try again.");
+              if (!recoverSolvedToken()) {
+                reportError("Security check could not load. Tap retry and try again.");
+              }
             }
           }
         );
+
+        recoverSolvedToken();
+        responseTimer = window.setInterval(recoverSolvedToken, 250);
         return true;
       } catch {
         reportError("Security check could not start. Tap retry and try again.");
@@ -119,6 +165,7 @@ export default function TurnstileWidget({
     return () => {
       cancelled = true;
       if (pollTimer) window.clearTimeout(pollTimer);
+      if (responseTimer) window.clearInterval(responseTimer);
       script?.removeEventListener("error", handleScriptError);
       removeWidget();
     };
