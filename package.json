@@ -34,7 +34,6 @@
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.1",
     "@capacitor/device": "^8.0.3",
-    "concurrently": "^10.0.5",
     "express": "^5.2.1",
     "hls.js": "^1.7.2",
     "lucide-react": "^1.41.0",
@@ -46,6 +45,7 @@
     "ws": "^8.21.3"
   },
   "devDependencies": {
+    "concurrently": "^10.0.5",
     "@capacitor/android": "^8.5.1",
     "@capacitor/cli": "^8.5.1",
     "@capacitor/ios": "^8.5.1",
