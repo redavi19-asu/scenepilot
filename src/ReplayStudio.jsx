@@ -1440,7 +1440,7 @@ export default function ReplayStudio({
               Multi-track editing, trim/split, speed, transform, color, opacity, audio levels/fades,
               titles, lower thirds, captions, aspect presets, local project save and project export are active.
               Uploaded media and raw/ISO footage remain exportable. Protected customer Program masters
-              are edit/preview-only and cannot use project or future rendered export as a download path.
+              are edit/preview-only and cannot use project or rendered video export as a download path.
               Owner accounts remain unrestricted. EXPORT VIDEO renders your timeline with audio,
               titles and visual edits. Native apps can save or share the finished video.
             </div>
