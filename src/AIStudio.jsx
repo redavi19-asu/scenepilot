@@ -70,7 +70,7 @@ function fileExtension(contentType, kind) {
 }
 
 export default function AIStudio() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [studio, setStudio] = useState(null);
   const [filter, setFilter] = useState("trending");
