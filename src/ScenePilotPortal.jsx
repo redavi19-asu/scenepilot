@@ -705,6 +705,7 @@ function LandingPage() {
           <button onClick={() => go("/acceptable-use")}>ACCEPTABLE USE</button>
           <button onClick={() => go("/account-deletion")}>ACCOUNT DELETION</button>
           <button onClick={() => go("/support")}>SUPPORT</button>
+          <button onClick={() => { window.location.href = "mailto:ryanedavis@gmail.com?subject=Urban%20Director%20Studio%20Support"; }}>EMAIL · ryanedavis@gmail.com</button>
           <button onClick={() => window.location.assign("https://icomputeranything.com")}>I COMPUTER ANYTHING</button>
           <button onClick={() => go("/app")}>LOGIN</button>
         </div>
