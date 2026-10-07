@@ -58,10 +58,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const [settings, setSettings] = useState(EMPTY_SETTINGS);
   const [usage, setUsage] = useState(null);
   const [broadcastNetworkId, setBroadcastNetworkId] = useState("");
-  const [collapsed, setCollapsed] = useState(() => (
-    typeof window !== "undefined" &&
-    Boolean(window.matchMedia?.("(max-width: 760px)")?.matches)
-  ));
+  const [collapsed, setCollapsed] = useState(true);
   const ingestRef = useRef({ recorder: null, socket: null });
   const realtimeRef = useRef(null);
   const limitTimerRef = useRef(null);
@@ -102,16 +99,6 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     if (typeof window === "undefined") return "";
     return `${publicOrigin()}/watch/${encodeURIComponent(serviceRoomCode)}`;
   }, [serviceRoomCode]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return undefined;
-    const media = window.matchMedia("(max-width: 760px)");
-    const handleViewportChange = event => {
-      if (!event.matches) setCollapsed(false);
-    };
-    media.addEventListener?.("change", handleViewportChange);
-    return () => media.removeEventListener?.("change", handleViewportChange);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
