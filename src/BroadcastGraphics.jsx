@@ -38,20 +38,7 @@ export default function BroadcastGraphics() {
   const [logoImage, setLogoImage] = useState("");
   const topicUrl = useRef("");
   const logoUrl = useRef("");
-  const [collapsed, setCollapsed] = useState(() => (
-    typeof window !== "undefined" &&
-    Boolean(window.matchMedia?.("(max-width: 700px)")?.matches)
-  ));
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return undefined;
-    const media = window.matchMedia("(max-width: 700px)");
-    const handleViewportChange = event => {
-      if (!event.matches) setCollapsed(false);
-    };
-    media.addEventListener?.("change", handleViewportChange);
-    return () => media.removeEventListener?.("change", handleViewportChange);
-  }, []);
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     const findTarget = () => {
