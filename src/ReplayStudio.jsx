@@ -6,6 +6,8 @@ import {
   Captions, Move, Palette, RotateCcw, FileDown
 } from "lucide-react";
 import "./ReplayStudio.css";
+import { movieMime, renderMovie } from "./movieExport";
+import { movieFileSink, shareMovie } from "./movieFile";
 
 const TRACKS = [
   { id: "v2", label: "VIDEO 2", kind: "video" },
@@ -101,6 +103,9 @@ export default function ReplayStudio({
   const previewRef = useRef(null);
   const seekFrameRef = useRef(0);
   const objectUrls = useRef(new Set());
+  const exportAbort = useRef(null);
+  const [exportState, setExportState] = useState(null);
+  const [exportedMovie, setExportedMovie] = useState(null);
 
   const pixelsPerSecond = BASE_PIXELS_PER_SECOND * zoom;
   const selectedClip = clips.find(clip => clip.id === selectedClipId) || null;
@@ -122,6 +127,7 @@ export default function ReplayStudio({
   useEffect(() => {
     const urls = objectUrls.current;
     return () => {
+      exportAbort.current?.abort();
       cancelAnimationFrame(seekFrameRef.current);
       urls.forEach(url => URL.revokeObjectURL(url));
     };
@@ -544,10 +550,42 @@ export default function ReplayStudio({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `scenepilot-${roomCode || "project"}-${Date.now()}.json`;
+    anchor.download = `Urban-Director-${roomCode || "project"}-${Date.now()}.json`;
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setProjectStatus("PROJECT FILE EXPORTED");
+  }
+
+  async function exportMovie() {
+    if (exportAbort.current || !projectExportAllowed || !clips.length) return;
+    const controller = new AbortController();
+    exportAbort.current = controller;
+    setExportState({ phase: "Preparing media", progress: 0 });
+    if (exportedMovie?.url) {
+      URL.revokeObjectURL(exportedMovie.url);
+      objectUrls.current.delete(exportedMovie.url);
+    }
+    setExportedMovie(null);
+    previewRef.current?.pause();
+    let sink;
+    try {
+      const mimeType = movieMime();
+      if (!mimeType) throw new Error("Video export is not supported on this device.");
+      const filename = `Urban-Director-${Date.now()}.${mimeType.includes("mp4") ? "mp4" : "webm"}`;
+      sink = await movieFileSink(filename, mimeType);
+      await renderMovie({ clips: clips.map(clip => ({ ...clip })), assets, aspectRatio, isOwner,
+        signal: controller.signal, onProgress: setExportState, writeChunk: sink.write });
+      const result = await sink.finish();
+      if (result.url) objectUrls.current.add(result.url);
+      setExportedMovie(result);
+      setProjectStatus("FINISHED VIDEO READY • SAVE OR SHARE BELOW");
+    } catch (error) {
+      await sink?.abort();
+      setProjectStatus(error.name === "AbortError" ? "VIDEO EXPORT CANCELLED" : `VIDEO EXPORT FAILED • ${error.message}`);
+    } finally {
+      exportAbort.current = null;
+      setExportState(null);
+    }
   }
 
   function updateClip(id, updates, pushHistory = true) {
@@ -1263,7 +1301,27 @@ export default function ReplayStudio({
                 <FileDown size={16}/>
                 {!projectExportAllowed ? "PROTECTED PROGRAM" : "EXPORT PROJECT"}
               </button>
+              <button onClick={exportMovie} disabled={!projectExportAllowed || !clips.length || Boolean(exportState) || importState.busy}>
+                <Film size={16}/> EXPORT VIDEO
+              </button>
             </div>
+
+            {exportState && (
+              <div className="nle-movie-export" role="status">
+                <strong>{exportState.phase} • {exportState.progress}%</strong>
+                <progress max="100" value={exportState.progress}/>
+                <span>Keep this screen open. Video renders in real time with timeline audio.</span>
+                <button onClick={() => exportAbort.current?.abort()}>CANCEL EXPORT</button>
+              </div>
+            )}
+            {exportedMovie && (
+              <div className="nle-movie-export" role="status">
+                <strong>FINISHED VIDEO READY</strong>
+                {exportedMovie.native
+                  ? <button onClick={() => shareMovie(exportedMovie).catch(error => setProjectStatus(error.message))}>SAVE / SHARE VIDEO</button>
+                  : <a href={exportedMovie.url} download={exportedMovie.filename}>DOWNLOAD VIDEO</a>}
+              </div>
+            )}
 
             {showTimeline && (
             <div className="nle-timeline-wrap">
@@ -1383,8 +1441,8 @@ export default function ReplayStudio({
               titles, lower thirds, captions, aspect presets, local project save and project export are active.
               Uploaded media and raw/ISO footage remain exportable. Protected customer Program masters
               are edit/preview-only and cannot use project or future rendered export as a download path.
-              Owner accounts remain unrestricted. Final rendered movie export will connect to the native
-              iOS/Android/Desktop media layer.
+              Owner accounts remain unrestricted. EXPORT VIDEO renders your timeline with audio,
+              titles and visual edits. Native apps can save or share the finished video.
             </div>
           </div>
         </div>

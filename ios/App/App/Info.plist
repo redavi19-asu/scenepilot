@@ -29,6 +29,7 @@
 			<string>com.icomputeranything.scenepilot</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>urbandirectorstudio</string>
 				<string>scenepilot</string>
 			</array>
 		</dict>

@@ -254,7 +254,16 @@ const MIGRATIONS = [
       )`,
       `CREATE INDEX IF NOT EXISTS social_identities_user_idx ON social_identities(user_id)`
     ]
-  }
+  },
+{
+  "name": "0011_stripe_billing.sql",
+  "statements": [
+    "CREATE TABLE IF NOT EXISTS director_stripe_customers (\n  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,\n  customer_id TEXT NOT NULL UNIQUE\n)",
+    "CREATE TABLE IF NOT EXISTS director_stripe_subscriptions (\n  subscription_id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  customer_id TEXT NOT NULL, status TEXT NOT NULL, period_start INTEGER NOT NULL,\n  expires_at INTEGER NOT NULL, updated_at INTEGER NOT NULL\n)",
+    "CREATE INDEX IF NOT EXISTS director_stripe_subscriptions_user ON director_stripe_subscriptions(user_id)",
+    "CREATE TABLE IF NOT EXISTS director_stripe_events (id TEXT PRIMARY KEY, processed_at INTEGER NOT NULL)"
+  ]
+}
 ];
 
 let migrationPromise = null;

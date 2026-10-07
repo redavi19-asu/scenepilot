@@ -87,6 +87,14 @@ export default {
       return response;
     }
 
-    return baseWorker.fetch(request, env, ctx);
+    const response = await baseWorker.fetch(request, env, ctx);
+    if (response.headers.get("Content-Type")?.includes("text/html")) {
+      const headers = new Headers(response.headers);
+      headers.set("Content-Security-Policy", "default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://*.stripe.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; frame-src https://challenges.cloudflare.com https://*.stripe.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://*.stripe.com");
+      headers.set("X-Content-Type-Options", "nosniff");
+      headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+      return new Response(response.body, { status: response.status, headers });
+    }
+    return response;
   }
 };

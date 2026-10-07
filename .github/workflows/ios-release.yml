@@ -1,0 +1,118 @@
+name: Urban Director Studio iOS Archive
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/ios-release.yml', 'ios/**']
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Upload the signed build to App Store Connect
+        type: boolean
+        default: false
+      build_number:
+        description: Unique numeric Apple build number (blank uses the run number)
+        type: string
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: urban-director-ios-release
+  cancel-in-progress: false
+jobs:
+  archive:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Build and sync production assets
+        run: |
+          npm ci
+          npm run lint
+          npm run validate:release
+          npm run build
+          npx cap sync ios
+          xcodebuild -version
+      - name: Check upload credentials
+        if: inputs.upload
+        env:
+          IOS_DISTRIBUTION_CERTIFICATE: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
+          IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY }}
+        run: |
+          missing=0
+          for name in IOS_DISTRIBUTION_CERTIFICATE IOS_DISTRIBUTION_CERTIFICATE_PASSWORD IOS_PROVISIONING_PROFILE APP_STORE_KEY_ID APP_STORE_ISSUER_ID APP_STORE_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::Missing $name"; missing=1; fi
+          done
+          exit "$missing"
+      - name: Prepare distribution signing
+        if: inputs.upload
+        env:
+          CERTIFICATE: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+          APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY }}
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/director.keychain-db"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/director.keychain-db"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/director.keychain-db"
+          printf '%s' "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/distribution.p12"
+          security import "$RUNNER_TEMP/distribution.p12" -k "$RUNNER_TEMP/director.keychain-db" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/director.keychain-db"
+          security list-keychains -d user -s "$RUNNER_TEMP/director.keychain-db" login.keychain-db
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/private_keys"
+          printf '%s' "$PROFILE" | base64 --decode > "$RUNNER_TEMP/director.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/director.mobileprovision" > "$RUNNER_TEMP/profile.plist"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$RUNNER_TEMP/profile.plist")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print Name' "$RUNNER_TEMP/profile.plist")
+          echo "IOS_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          cp "$RUNNER_TEMP/director.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          printf '%s' "$APP_STORE_PRIVATE_KEY" > "$HOME/private_keys/AuthKey_$APP_STORE_KEY_ID.p8"
+          chmod 600 "$HOME/private_keys/AuthKey_$APP_STORE_KEY_ID.p8"
+      - name: Archive iPhone and iPad app
+        env:
+          UPLOAD: ${{ inputs.upload }}
+          BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
+        run: |
+          set -euo pipefail
+          [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo '::error::Build number must be numeric'; exit 1; }
+          signing=(CODE_SIGNING_ALLOWED=NO)
+          if [ "$UPLOAD" = "true" ]; then signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' "PROVISIONING_PROFILE_SPECIFIER=$IOS_PROFILE_NAME"); fi
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/UrbanDirector.xcarchive" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" "${signing[@]}" archive
+      - name: Export and upload to Apple
+        if: inputs.upload
+        env:
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, plistlib
+          options = {'method':'app-store-connect','destination':'export','signingStyle':'manual','teamID':'8RW4WF59X8','signingCertificate':'Apple Distribution','provisioningProfiles':{'com.icomputeranything.scenepilot':os.environ['IOS_PROFILE_NAME']}}
+          with open(os.environ['RUNNER_TEMP']+'/ExportOptions.plist','wb') as output: plistlib.dump(options,output)
+          PY
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/UrbanDirector.xcarchive" -exportPath "$RUNNER_TEMP/UrbanDirectorExport" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+          IPA="$(find "$RUNNER_TEMP/UrbanDirectorExport" -name '*.ipa' -print -quit)"
+          test -n "$IPA"
+          xcrun altool --validate-app -f "$IPA" -t ios --apiKey "$APP_STORE_KEY_ID" --apiIssuer "$APP_STORE_ISSUER_ID"
+          xcrun altool --upload-app -f "$IPA" -t ios --apiKey "$APP_STORE_KEY_ID" --apiIssuer "$APP_STORE_ISSUER_ID"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Urban-Director-iOS-Archive
+          path: ${{ runner.temp }}/UrbanDirector.xcarchive
+          retention-days: 7
+      - name: Clean signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/director.keychain-db" || true
+          rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/director.mobileprovision" "$RUNNER_TEMP/profile.plist"
+          rm -f "$HOME"/private_keys/AuthKey_*.p8

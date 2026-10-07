@@ -2,6 +2,9 @@ name: Urban Director Studio Production Packages
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/production-packages.yml']
 
 permissions:
   contents: write
@@ -33,6 +36,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          set -eu
           [ -n "$WINDOWS_CERTIFICATE" ] && [ -n "$WINDOWS_CERTIFICATE_PASSWORD" ] && echo "windows_ready=true" >> "$GITHUB_OUTPUT" || echo "windows_ready=false" >> "$GITHUB_OUTPUT"
           [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_CERTIFICATE_PASSWORD" ] && [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ] && echo "apple_ready=true" >> "$GITHUB_OUTPUT" || echo "apple_ready=false" >> "$GITHUB_OUTPUT"
           [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ] && echo "android_ready=true" >> "$GITHUB_OUTPUT" || echo "android_ready=false" >> "$GITHUB_OUTPUT"
@@ -45,7 +49,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - name: Build signed Windows installer
         env:
@@ -53,6 +57,7 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
           npm ci
+          npm run build
           npm run package:win
       - name: Verify and publish
         shell: pwsh
@@ -84,7 +89,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - name: Build signed Mac DMG
         env:
@@ -92,6 +97,7 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
         run: |
           npm ci
+          npm run build
           npx electron-builder --mac dmg --${{ matrix.arch }}
       - name: Notarize, staple and publish
         shell: bash
@@ -120,7 +126,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
         with:
@@ -156,6 +162,16 @@ jobs:
           cp "$APK" Urban-Director-Studio-Android.apk
           gh release view director-production --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create director-production --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Urban Director Studio Production Apps" --notes "Verified signed production packages."
           gh release upload director-production Urban-Director-Studio-Android.apk --repo "$GITHUB_REPOSITORY" --clobber
+
+  report-signing-gaps:
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report unavailable production signatures
+        run: |
+          [ "${{ needs.preflight.outputs.windows_ready }}" = "true" ] || echo "::warning::Windows signing certificate/password are missing."
+          [ "${{ needs.preflight.outputs.apple_ready }}" = "true" ] || echo "::warning::Mac signing/notarization credentials are missing."
+          [ "${{ needs.preflight.outputs.android_ready }}" = "true" ] || echo "::warning::Android signing credentials are missing."
 
   activate-downloads:
     needs: [windows, macos, android]

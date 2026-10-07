@@ -258,7 +258,7 @@ function CameraAppHandoff() {
   }
 
   const query = cameraParams.toString();
-  const appUrl = `scenepilot://camera?${query}`;
+  const appUrl = `urbandirectorstudio://camera?${query}`;
   const browserUrl = `/app?${query}`;
 
   useEffect(() => {
@@ -624,7 +624,7 @@ function LandingPage() {
 
           <div className="sp-price-card">
             <div className="sp-price-line">
-              <span>$</span><strong>29.99</strong><small>/ month</small>
+              <span>$</span><strong>39.99</strong><small>/ month</small>
             </div>
             <ul>
               <li><CheckCircle2 size={16}/> Multi-camera Director console</li>
@@ -640,7 +640,7 @@ function LandingPage() {
               CREATE YOUR ACCOUNT <ArrowRight size={17}/>
             </button>
             <small className="sp-price-note">
-              $29.99 per month. Auto-renews monthly until canceled. Platform-specific purchase options are handled through the supported release channel.
+              $39.99 per month. Auto-renews monthly until canceled. Platform-specific purchase options are handled through the supported release channel.
               {" "}<button type="button" onClick={() => go("/terms")}>Terms of Use</button>
               {" "}·{" "}<button type="button" onClick={() => go("/privacy")}>Privacy Policy</button>
             </small>
@@ -1146,6 +1146,24 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingStatus, setBillingStatus] = useState("");
   const [accessBusy, setAccessBusy] = useState(false);
+  const [stripeReady, setStripeReady] = useState(false);
+  useEffect(() => {
+    if (appleNative) return;
+    let cancelled = false;
+    api("/api/billing/stripe/config").then(data => { if (!cancelled) setStripeReady(data.ready); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [appleNative]);
+  async function openWebBilling(action) {
+    setBillingBusy(true);
+    setBillingStatus("");
+    try {
+      const data = await api(`/api/billing/stripe/${action}`, { method: "POST", body: "{}" });
+      const target = new URL(data.url);
+      if (target.protocol !== "https:" || !["checkout.stripe.com", "billing.stripe.com"].includes(target.hostname)) throw new Error("Invalid billing destination.");
+      window.location.assign(target.href);
+    } catch (error) { setBillingStatus(error.message); }
+    finally { setBillingBusy(false); }
+  }
 
   useEffect(() => {
     if (!appleNative) return;
@@ -1173,6 +1191,7 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
       if (nextUser) onAccessUpdated?.(nextUser);
       if (nextUser?.accessStatus === "active") {
         setBillingStatus("Access active. Opening Urban Director Studio...");
+        go("/app");
       } else {
         setBillingStatus("Director Pro access is still pending for this account.");
       }
@@ -1261,11 +1280,13 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
           <div className="sp-apple-billing-card">
             <span className="sp-kicker">APPLE SUBSCRIPTION</span>
             <strong>
-              Urban Director Studio Pro — {appleProduct?.displayPrice || "$29.99"} / month
+              Urban Director Studio Pro — {appleProduct?.displayPrice || "$39.99"} / month
             </strong>
             <small>
               Includes 1,500 broadcast minutes per billing period and up to 4 hours per live session.
               Auto-renews until canceled in your Apple Account settings.
+              <button type="button" onClick={() => go("/terms")}>Terms of Use</button>
+              <button type="button" onClick={() => go("/privacy")}>Privacy Policy</button>
             </small>
 
             <button
@@ -1304,6 +1325,17 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
           </div>
         )}
 
+        {!appleNative && (
+          <div className="sp-apple-billing-card">
+            <strong>Urban Director Studio Pro — $39.99 / month</strong>
+            <small>Includes 1,500 broadcast minutes each billing period. Auto-renews until cancelled. Payment details are handled securely by Stripe.</small>
+            {user.accessStatus !== "active" && <button className="sp-auth-submit" disabled={billingBusy || !stripeReady} onClick={() => openWebBilling("checkout")}>SUBSCRIBE WITH STRIPE</button>}
+            {stripeReady && <button className="sp-secondary" disabled={billingBusy} onClick={() => openWebBilling("portal")}>MANAGE BILLING</button>}
+            {!stripeReady && <small>Online subscriptions are being configured. Contact support for access.</small>}
+            <button type="button" onClick={() => go("/terms")}>Terms of Use</button>
+            <button type="button" onClick={() => go("/privacy")}>Privacy Policy</button>
+          </div>
+        )}
         <div className="sp-access-status-actions">
           {!appleNative && pending && (
             <button className="sp-auth-submit" type="button" disabled={accessBusy} onClick={checkAccess}>
@@ -2357,10 +2389,10 @@ function AdminPage({ user, onLogout }) {
       <section className="sp-admin-card sp-readiness-card">
         <div className="sp-admin-card-head">
           <div>
-            <span className="sp-kicker">RELEASE READINESS</span>
-            <h2>{readiness?.ready ? "Ready for release checks." : "Release checks"}</h2>
+            <span className="sp-kicker">BACKEND RELEASE CHECKS</span>
+            <h2>{readiness?.ready ? "Backend checks passed." : "Backend checks"}</h2>
             <p>
-              Live verification of the services Urban Director Studio needs before submission.
+              Live service checks. Store review, signed builds, and device testing must also be completed before release.
             </p>
           </div>
           <button
@@ -2388,7 +2420,7 @@ function AdminPage({ user, onLogout }) {
         {readiness && (
           <div className={`sp-readiness-result ${readiness.ready ? "ok" : "blocked"}`}>
             {readiness.ready
-              ? "NO RELEASE BLOCKERS DETECTED"
+              ? "BACKEND CHECKS PASSED"
               : `BLOCKERS: ${(readiness.blockers || []).join(", ").toUpperCase() || "NONE"}`}
           </div>
         )}
@@ -2752,6 +2784,12 @@ export default function ScenePilotPortal() {
   if (cleanPath === "/register") {
     if (loading) return <div className="sp-portal-loading"><Radio size={28}/> LOADING ICA ACCOUNT...</div>;
     return <AuthPanel onAuthenticated={setUser} initialMode="register"/>;
+  }
+
+  if (cleanPath === "/billing") {
+    if (loading) return <div className="sp-portal-loading">LOADING ACCOUNT...</div>;
+    if (!user) return <AuthPanel onAuthenticated={setUser}/>;
+    return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser}/>;
   }
 
   if (cleanPath === "/app") {

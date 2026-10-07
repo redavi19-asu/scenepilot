@@ -1,0 +1,21 @@
+name: Urban Director Studio Production Domain
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['scripts/configure-production-domain.mjs', '.github/workflows/production-domain.yml']
+permissions:
+  contents: read
+jobs:
+  domain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Attach existing brand domain to the Director Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/configure-production-domain.mjs

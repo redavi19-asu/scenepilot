@@ -68,7 +68,7 @@ class UrbanDirectorErrorBoundary extends Component {
 function openScenePilotUrl(value, allowRepeat = false) {
   try {
     const url = new URL(value);
-    if (url.protocol !== "scenepilot:" || url.hostname !== "camera") return;
+    if (!["urbandirectorstudio:", "scenepilot:"].includes(url.protocol) || url.hostname !== "camera") return;
 
     const cameraParams = new URLSearchParams({ camera: "1" });
     for (const key of ["network", "room", "join"]) {

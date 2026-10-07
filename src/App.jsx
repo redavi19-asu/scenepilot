@@ -1794,7 +1794,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       const timestamp = startedAt.toISOString().replace(/[:.]/g, "-");
       const ext = recordingExtension(type);
       const filename =
-        `scenepilot-${safeRecordingName(roomCode)}-${kind}-${safeRecordingName(label)}-${timestamp}.${ext}`;
+        `Urban-Director-${safeRecordingName(roomCode)}-${kind}-${safeRecordingName(label)}-${timestamp}.${ext}`;
 
       if (kind === "program") {
         if (isOwner) {
@@ -1919,7 +1919,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     if (!isOwner || !pendingProgramMaster?.blob) return;
     downloadRecordingBlob(
       pendingProgramMaster.blob,
-      pendingProgramMaster.filename || `scenepilot-${safeRecordingName(roomCode)}-owner-program.mp4`
+      pendingProgramMaster.filename || `Urban-Director-${safeRecordingName(roomCode)}-owner-program.mp4`
     );
     setRecordStatus("OWNER PROGRAM MASTER DOWNLOADED");
   }
@@ -1940,7 +1940,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
 
     const DC_LIVE_API = "https://dc-live-api.ryanedavis.workers.dev";
     const blob = pendingProgramMaster.blob;
-    const filename = pendingProgramMaster.filename || "scenepilot-program.webm";
+    const filename = pendingProgramMaster.filename || "Urban-Director-program.webm";
     const mimeType = blob.type || (filename.toLowerCase().endsWith(".mp4") ? "video/mp4" : "video/webm");
     const defaultTitle =
       `${network?.name || user?.displayName || "Urban Director Studio"} • ${new Date().toLocaleString([], {

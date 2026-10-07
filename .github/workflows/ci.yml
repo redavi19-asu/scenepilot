@@ -33,8 +33,8 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
-      - name: Test Apple signing assertions
-        run: node --test worker/test/apple-client-secret.test.js
+      - name: Test Apple signing, video export and Stripe billing
+        run: node --test worker/test/*.test.js src/movieExport.test.js
 
       - name: Lint
         run: npm run lint

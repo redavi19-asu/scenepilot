@@ -419,3 +419,7 @@
   .nle-timeline-wrap{border-radius:10px}
   .nle-trim-handle{width:14px}
 }
+.nle-movie-export { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px; background: #171b22; border: 1px solid #374151; border-radius: 12px; color: #f9fafb; }
+.nle-movie-export progress { flex: 1; min-width: 120px; accent-color: #ef4444; }
+.nle-movie-export span { font-size: 12px; color: #cbd5e1; }
+.nle-movie-export a { color: #fff; background: #b91c1c; padding: 10px 14px; border-radius: 8px; font-weight: 700; text-decoration: none; }

@@ -1,3 +1,4 @@
+import { handleStripeBilling, stripeConfig } from "./stripe-billing.js";
 import { ensureBundledMigrations } from "./migrations.js";
 import { handleSocialAuth } from "./social-auth.js";
 import { requestPasswordReset, resetPassword } from "./password-recovery.js";
@@ -240,7 +241,7 @@ async function getCurrentUser(request, env) {
   if (row.status !== "active") return null;
 
   if (
-    (row.entitlement_source === "apple" ||
+    (row.entitlement_source === "stripe" || row.entitlement_source === "apple" ||
       row.entitlement_source === "app-review") &&
     Number(row.entitlement_expires_at || 0) > 0 &&
     Number(row.entitlement_expires_at) <= now &&
@@ -251,7 +252,7 @@ async function getCurrentUser(request, env) {
        SET plan = 'free', access_status = 'suspended'
        WHERE user_id = ?
          AND product_id = 'product_scenepilot'
-         AND source = 'apple'`
+         AND source IN ('stripe','apple','app-review')`
     ).bind(row.id).run();
 
     row.plan = "free";
@@ -1532,6 +1533,9 @@ async function handleReleaseReadiness(request, env) {
   if (databaseReady) {
     add("database", true, "D1 is reachable and release tables are available.");
   }
+
+  const stripe = stripeConfig(env);
+  add("stripe-web-billing", stripe.ready, stripe.ready ? "Stripe checkout, webhooks and monthly price are configured." : "Stripe secret, monthly Price ID and webhook signing secret are required for web subscriptions.", true);
 
   const apple = appleBillingConfig(env);
   add(
@@ -3023,6 +3027,10 @@ function utcBillingWindow(now = Date.now()) {
 
 async function billingWindowForNetwork(env, networkId, now = Date.now()) {
   const calendar = utcBillingWindow(now);
+  try {
+    const row = await env.DB.prepare(`SELECT s.period_start, s.expires_at FROM director_stripe_subscriptions s JOIN scenepilot_networks n ON n.created_by=s.user_id WHERE n.id=? AND s.status IN ('active','trialing') AND s.expires_at>? ORDER BY s.expires_at DESC LIMIT 1`).bind(networkId, now).first();
+    if (row && row.period_start <= now && row.expires_at > now) return { start: Number(row.period_start), resetAt: Number(row.expires_at), source: "stripe" };
+  } catch { /* Older schemas use the calendar window until migration finishes. */ }
 
   try {
     const row = await env.DB.prepare(
@@ -3590,6 +3598,12 @@ async function handleRealtimeRenegotiate(request, env) {
 }
 
 async function handleApi(request, env, url) {
+  if (url.pathname.startsWith("/api/billing/stripe/")) {
+    await ensureBundledMigrations(env.DB);
+    const user = url.pathname.endsWith("/webhook") || url.pathname.endsWith("/config") ? null : await getCurrentUser(request, env);
+    try { return await handleStripeBilling(request, env, user); }
+    catch { return json({ error: "Billing is temporarily unavailable. Please try again." }, 503); }
+  }
   if (url.pathname === "/api/health" || url.pathname === "/health") {
     let databaseReady = false;
     let userCount = null;
@@ -3627,6 +3641,7 @@ async function handleApi(request, env, url) {
         String(env.TURNSTILE_SECRET_KEY || "").trim()
       ),
       service: "Urban Director Studio",
+      stripeBillingConfigured: stripeConfig(env).ready,
       appleBillingConfigured: appleBillingConfig(env).ready
     }, Boolean(env.DB) && databaseReady ? 200 : 503);
   }
