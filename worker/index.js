@@ -1,3 +1,4 @@
+import { readMasterFreeAccess } from './master-free-access.js';
 import { handleStripeBilling, stripeConfig } from "./stripe-billing.js";
 import { ensureBundledMigrations } from "./migrations.js";
 import { handleSocialAuth } from "./social-auth.js";
@@ -194,6 +195,7 @@ function publicUser(row) {
     plan: row.plan || "free",
     accessStatus: row.access_status || "active",
     billingSource: row.entitlement_source || row.source || "",
+    freeAccessVerificationRequired: Boolean(row.free_access_verification_required),
     entitlementExpiresAt: row.entitlement_expires_at
       ? Number(row.entitlement_expires_at)
       : null,
@@ -202,7 +204,7 @@ function publicUser(row) {
   };
 }
 
-async function getCurrentUser(request, env) {
+export async function getCurrentUser(request, env) {
   if (!env.DB) return null;
 
   const token =
@@ -216,6 +218,7 @@ async function getCurrentUser(request, env) {
   const row = await env.DB.prepare(
     `SELECT
       u.id,
+      s.created_at AS session_created_at,
       u.email,
       u.display_name,
       u.role,
@@ -259,6 +262,16 @@ async function getCurrentUser(request, env) {
     row.access_status = "suspended";
   }
 
+  const grant = await readMasterFreeAccess(env.DB, row.email, 'scenepilot', now);
+  if (grant) {
+    const proof = await env.DB.prepare(`SELECT verified_at FROM director_email_access_proofs
+      WHERE user_id=? AND (session_id=? OR (session_id='password-recovery' AND verified_at <= ?)) LIMIT 1`)
+      .bind(row.id, sessionId, Number(row.session_created_at)).first();
+    if (proof) {
+      row.plan = 'pro'; row.access_status = 'active'; row.entitlement_source = 'master-comp';
+      row.entitlement_expires_at = grant.expires_at;
+    } else row.free_access_verification_required = true;
+  }
   return publicUser(row);
 }
 
@@ -2483,7 +2496,7 @@ async function ensureSignalTicketSchema(env) {
   ).run();
 }
 
-async function createSignalTicket(env, userId, networkId) {
+async function createSignalTicket(env, userId, networkId, verifiedComp = false) {
   await ensureSignalTicketSchema(env);
 
   const token = randomToken(24);
@@ -2502,10 +2515,11 @@ async function createSignalTicket(env, userId, networkId) {
     ).bind(tokenHash, userId, networkId, expiresAt, now)
   ]);
 
+  if (verifiedComp) await env.DB.prepare("INSERT OR REPLACE INTO director_email_access_proofs (user_id,session_id,verified_at) VALUES (?,?,?)").bind(userId, tokenHash, now).run();
   return { token, expiresAt };
 }
 
-async function userFromSignalTicket(env, networkId, token) {
+export async function userFromSignalTicket(env, networkId, token) {
   if (!networkId || !token) return null;
 
   await ensureSignalTicketSchema(env);
@@ -2538,7 +2552,14 @@ async function userFromSignalTicket(env, networkId, token) {
     LIMIT 1`
   ).bind(tokenHash, networkId, Date.now()).first();
 
-  return row ? publicUser(row) : null;
+  if (!row) return null;
+  const grant = await readMasterFreeAccess(env.DB, row.email, 'scenepilot');
+  const proof = grant ? await env.DB.prepare('SELECT verified_at FROM director_email_access_proofs WHERE user_id=? AND session_id=? LIMIT 1').bind(row.id, tokenHash).first() : null;
+  if (grant && proof) {
+    // Tickets are minted only from an authenticated, entitled account; re-check the grant on use.
+    row.plan = 'pro'; row.access_status = 'active'; row.entitlement_source = 'master-comp'; row.entitlement_expires_at = grant.expires_at;
+  }
+  return publicUser(row);
 }
 
 async function handleNetwork(request, env) {
@@ -2552,7 +2573,7 @@ async function handleNetwork(request, env) {
   }
 
   const network = await ensureUserScenePilotNetwork(env, user);
-  const signalTicket = await createSignalTicket(env, user.id, network.id);
+  const signalTicket = await createSignalTicket(env, user.id, network.id, user.billingSource === "master-comp");
 
   return json({
     network: {

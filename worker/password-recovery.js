@@ -340,7 +340,8 @@ export async function resetPassword(request, env) {
     env.DB.prepare(
       "UPDATE ica_password_resets SET used_at = ? WHERE token_hash = ?"
     ).bind(now, tokenHash),
-    env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(row.user_id)
+    env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(row.user_id),
+    env.DB.prepare("INSERT OR REPLACE INTO director_email_access_proofs (user_id,session_id,verified_at) VALUES (?, 'password-recovery', ?)").bind(row.user_id, now)
   ]);
 
   return json({

@@ -82,6 +82,8 @@ async function createSession(env,userId,request){
   const now=Date.now();
   await env.DB.prepare("INSERT INTO sessions (id,user_id,expires_at,created_at,user_agent) VALUES (?,?,?,?,?)")
     .bind(id,userId,now+SESSION_TTL_MS,now,request.headers.get("User-Agent")||"").run();
+  await env.DB.prepare("INSERT OR REPLACE INTO director_email_access_proofs (user_id,session_id,verified_at) VALUES (?,?,?)")
+    .bind(userId,id,now).run();
   return token;
 }
 
@@ -145,7 +147,7 @@ async function finish(request,env,cfg,row,params){
   if(cfg.name==="apple"&&params.user){try{appleUser=JSON.parse(String(params.user));}catch{}}
   const email=normalizeEmail(claims.email||claims.preferred_username||appleUser.email);
   if(!/^\S+@\S+\.\S+$/.test(email))throw new Error("Identity provider did not return a usable email.");
-  if(cfg.name==="google"&&claims.email_verified===false)throw new Error("Google did not verify this email.");
+  if(cfg.name==="google"&&claims.email_verified!==true)throw new Error("Google did not verify this email.");
 
   const linked=await env.DB.prepare("SELECT user_id FROM social_identities WHERE provider=? AND provider_subject=? LIMIT 1")
     .bind(cfg.name,subject).first();

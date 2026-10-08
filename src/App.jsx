@@ -3818,9 +3818,11 @@ async function enableCamera() {
                 <button type="button" onClick={() => window.location.assign("/admin")}>
                   <ShieldCheck size={17}/> ADMIN
                 </button>
+                <button type="button" onClick={() => window.location.assign('https://icomputeranything.com/master?view=free-access')}>GIVE FREE ACCESS</button>
               </div>
             )}
 
+            {user?.billingSource === 'master-comp' && <p role="status">Comped — no payment required.</p>}
             {onLogout && (
               <button className="director-menu-logout" type="button" onClick={onLogout}>
                 <LogOut size={17}/> LOG OUT

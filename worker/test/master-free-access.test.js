@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
+import fs from 'node:fs';
+import { getCurrentUser } from '../index.js';
+
+test('Director comp grants require email proof, expire/revoke and cannot elevate roles', async()=>{
+  const sqlite=new DatabaseSync(':memory:');
+  sqlite.exec(fs.readFileSync('migrations/0001_ica_saas.sql','utf8'));
+  sqlite.exec(fs.readFileSync('migrations/0012_master_email_access.sql','utf8'));
+  sqlite.exec(`CREATE TABLE email_access_grants(email TEXT,product_slug TEXT,status TEXT,expires_at INTEGER);
+    INSERT INTO users(id,email,password_hash,password_salt,created_at) VALUES('u','person@example.com','','','0');
+    INSERT INTO user_products VALUES('u','product_scenepilot','free','pending','signup','0',NULL);
+    INSERT INTO email_access_grants VALUES('person@example.com','scenepilot','active',NULL);`);
+  const token='unit-test-session';
+  const id=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token))).toString('hex');
+  sqlite.prepare('INSERT INTO sessions(id,user_id,expires_at,created_at) VALUES(?,?,?,?)').run(id,'u',Date.now()+60000,Date.now());
+  const wrap=(sql,values=[])=>({bind:(...args)=>wrap(sql,args),first:async()=>sqlite.prepare(sql).get(...values),run:async()=>sqlite.prepare(sql).run(...values)});
+  const env={DB:{prepare:sql=>wrap(sql)}};
+  const request=new Request('https://unit.test/api/auth/me',{headers:{Authorization:`Bearer ${token}`}});
+  let user=await getCurrentUser(request,env);
+  assert.equal(user.accessStatus,'pending'); assert.equal(user.freeAccessVerificationRequired,true);
+  sqlite.prepare('INSERT INTO director_email_access_proofs VALUES(?,?,?)').run('u',id,Date.now());
+  user=await getCurrentUser(request,env);
+  assert.equal(user.accessStatus,'active'); assert.equal(user.plan,'pro'); assert.equal(user.role,'user'); assert.equal(user.billingSource,'master-comp');
+  sqlite.exec("UPDATE email_access_grants SET status='revoked'");
+  assert.equal((await getCurrentUser(request,env)).accessStatus,'pending');
+  sqlite.exec("UPDATE email_access_grants SET status='active',expires_at=1");
+  assert.equal((await getCurrentUser(request,env)).accessStatus,'pending');
+  sqlite.exec("UPDATE user_products SET plan='pro',access_status='active',source='stripe',expires_at='9999999999999'");
+  assert.equal((await getCurrentUser(request,env)).billingSource,'stripe');
+  sqlite.exec("UPDATE users SET status='suspended'");
+  assert.equal(await getCurrentUser(request,env),null);
+  sqlite.close();
+});

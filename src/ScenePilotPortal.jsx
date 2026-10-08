@@ -1286,7 +1286,11 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
               : "Your account is signed in, but Director access is not currently available."}
         </p>
 
-        {appleNative && (
+        {user.freeAccessVerificationRequired && <div className="sp-billing-status" role="status">
+          Free access is saved for your email. Sign in with Google, Apple, or Microsoft to verify it, or use the emailed password-recovery link once. No payment is required.
+          <button type="button" onClick={() => go('/forgot-password')}>VERIFY EMAIL WITH PASSWORD RECOVERY</button>
+        </div>}
+        {appleNative && !user.freeAccessVerificationRequired && (
           <div className="sp-apple-billing-card">
             <span className="sp-kicker">APPLE SUBSCRIPTION</span>
             <strong>
@@ -1335,7 +1339,7 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
           </div>
         )}
 
-        {!appleNative && (
+        {!appleNative && !user.freeAccessVerificationRequired && (
           <div className="sp-apple-billing-card">
             <strong>Urban Director Studio Pro — $39.99 / month</strong>
             <small>Includes 1,500 broadcast minutes each billing period. Auto-renews until cancelled. Payment details are handled securely by Stripe.</small>
@@ -2383,7 +2387,7 @@ function AdminPage({ user, onLogout }) {
         </div>
         <div className="sp-admin-actions">
           <button onClick={() => go("/app")}>OPEN URBAN DIRECTOR STUDIO</button>
-          <button onClick={() => window.location.assign("https://icomputeranything.com/master")}>ICA MASTER</button>
+          <button onClick={() => window.location.assign("https://icomputeranything.com/master?view=free-access")}>GIVE FREE ACCESS</button>
           <button onClick={onLogout}><LogOut size={15}/> LOGOUT</button>
         </div>
       </header>

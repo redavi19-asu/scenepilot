@@ -263,7 +263,8 @@ const MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS director_stripe_subscriptions_user ON director_stripe_subscriptions(user_id)",
     "CREATE TABLE IF NOT EXISTS director_stripe_events (id TEXT PRIMARY KEY, processed_at INTEGER NOT NULL)"
   ]
-}
+},
+  { name: "0012_master_email_access.sql", statements: ['CREATE TABLE IF NOT EXISTS director_email_access_proofs (user_id TEXT NOT NULL, session_id TEXT NOT NULL, verified_at INTEGER NOT NULL, PRIMARY KEY(user_id,session_id), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)'] }
 ];
 
 let migrationPromise = null;
