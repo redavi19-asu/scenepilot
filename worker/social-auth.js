@@ -178,7 +178,10 @@ async function finish(request,env,cfg,row,params){
     .bind(cfg.name,subject,user.id,email,now,now).run();
 
   const tokenValue=await createSession(env,user.id,request);
-  const destination=new URL(safeReturn(row.return_path),origin(request,env));
+  const requestedReturn=safeReturn(row.return_path);
+  // Verified owner/admin users should land in the admin console after social login.
+  const returnPath=requestedReturn==="/app"&&(user.role==="owner"||user.role==="admin")?"/admin":requestedReturn;
+  const destination=new URL(returnPath,origin(request,env));
   destination.searchParams.set("social",cfg.name);
   return new Response(null,{status:302,headers:{Location:destination.toString(),"Set-Cookie":sessionCookie(tokenValue),"Cache-Control":"no-store"}});
 }

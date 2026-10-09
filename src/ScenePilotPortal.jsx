@@ -926,7 +926,8 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
 
   const handleTurnstileToken = useCallback(token => {
     setTurnstileToken(token || "");
-    if (token) setStatus("");
+    // Do not erase an OAuth callback error merely because the challenge loaded.
+    if (token && !new URLSearchParams(window.location.search).has("social_error")) setStatus("");
   }, []);
 
   const handleTurnstileError = useCallback(message => {
@@ -990,6 +991,9 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
 
       if (data.user) {
         onAuthenticated(data.user);
+        // A successful login must leave the login screen and honor administrator roles.
+        const isAdmin = data.user.role === "owner" || data.user.role === "admin";
+        window.location.assign(isAdmin ? "/admin" : "/app");
         return;
       }
 
@@ -2660,6 +2664,12 @@ export default function ScenePilotPortal() {
   const watchMatch = cleanPath.match(/^\/watch\/([A-Za-z0-9_-]{1,80})$/);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(!cameraMode);
+
+  useEffect(() => {
+    if (loading || !user || (cleanPath !== "/login" && cleanPath !== "/register")) return;
+    const isAdmin = user.role === "owner" || user.role === "admin";
+    window.location.replace(isAdmin ? "/admin" : "/app");
+  }, [loading, user, cleanPath]);
 
   useEffect(() => {
     if (cameraMode) return;
