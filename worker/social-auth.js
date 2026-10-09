@@ -213,7 +213,10 @@ export async function handleSocialAuth(request,env){
     target.searchParams.set("nonce",nonce);
     target.searchParams.set("code_challenge",await challenge(verifier));
     target.searchParams.set("code_challenge_method","S256");
-    if(name==="google")target.searchParams.set("access_type","online");
+    if(name==="google"){
+      target.searchParams.set("access_type","online");
+      target.searchParams.set("prompt","select_account");
+    }
     if(name==="microsoft")target.searchParams.set("response_mode","query");
     if(name==="apple")target.searchParams.set("response_mode","form_post");
     return Response.redirect(target.toString(),302);
