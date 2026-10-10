@@ -991,9 +991,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
 
       if (data.user) {
         onAuthenticated(data.user);
-        // A successful login must leave the login screen and honor administrator roles.
-        const isAdmin = data.user.role === "owner" || data.user.role === "admin";
-        window.location.assign(isAdmin ? "/admin" : "/app");
+        window.location.assign("/app");
         return;
       }
 
@@ -2667,8 +2665,7 @@ export default function ScenePilotPortal() {
 
   useEffect(() => {
     if (loading || !user || (cleanPath !== "/login" && cleanPath !== "/register")) return;
-    const isAdmin = user.role === "owner" || user.role === "admin";
-    window.location.replace(isAdmin ? "/admin" : "/app");
+    window.location.replace("/app");
   }, [loading, user, cleanPath]);
 
   useEffect(() => {
