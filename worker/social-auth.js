@@ -1,4 +1,5 @@
 import { appleSigningConfigured, appleClientSecret } from './apple-client-secret.js';
+import { directorAuthReturn } from './auth-return.js';
 const SESSION_COOKIE = "sp_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -48,7 +49,7 @@ async function challenge(verifier){const digest=await crypto.subtle.digest("SHA-
 function b64urlBytes(value){const n=String(value||"").replace(/-/g,"+").replace(/_/g,"/");const p=n+"=".repeat((4-n.length%4)%4);const binary=atob(p);return Uint8Array.from(binary,c=>c.charCodeAt(0));}
 function jwtPart(value){return JSON.parse(new TextDecoder().decode(b64urlBytes(value)));}
 function normalizeEmail(value){return String(value||"").trim().toLowerCase();}
-function safeReturn(value){const p=String(value||"/app").trim();return p.startsWith("/")&&!p.startsWith("//")?p:"/app";}
+const safeReturn = directorAuthReturn;
 function origin(request,env){return String(env.SOCIAL_AUTH_ORIGIN||new URL(request.url).origin).replace(/\/$/,"");}
 
 function config(env,name){
@@ -178,9 +179,7 @@ async function finish(request,env,cfg,row,params){
     .bind(cfg.name,subject,user.id,email,now,now).run();
 
   const tokenValue=await createSession(env,user.id,request);
-  const requestedReturn=safeReturn(row.return_path);
-  // Verified owner/admin users should land in the admin console after social login.
-  const returnPath=requestedReturn==="/app"&&(user.role==="owner"||user.role==="admin")?"/admin":requestedReturn;
+  const returnPath=safeReturn(row.return_path);
   const destination=new URL(returnPath,origin(request,env));
   destination.searchParams.set("social",cfg.name);
   return new Response(null,{status:302,headers:{Location:destination.toString(),"Set-Cookie":sessionCookie(tokenValue),"Cache-Control":"no-store"}});
