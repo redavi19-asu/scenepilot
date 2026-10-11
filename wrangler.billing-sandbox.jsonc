@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "director-billing-sandbox",
+  "main": "worker/entry.js",
+  "compatibility_date": "2026-09-10",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "ICA_AUTH_PUBLIC_ORIGIN": "https://director-billing-sandbox.ryanedavis.workers.dev",
+    "STRIPE_PRICE_ID": "price_1UNx3yGzgYAIrLjGQ7lxpYFH"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ROOMS",
+        "class_name": "ScenePilotRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "ScenePilotRoom"
+      ]
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "director-billing-sandbox",
+      "database_id": "ea8a6e9a-bb4e-4963-b393-a0b68d618be0",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
