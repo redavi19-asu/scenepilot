@@ -16,6 +16,8 @@ import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
 import {
   smartGlassesSupportedHere,
+  getSmartGlassesStatus,
+  registerSmartGlasses,
   startSmartGlassesStream,
   stopSmartGlassesStream
 } from "./smartGlasses";
@@ -230,6 +232,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [selectedVideoDevice, setSelectedVideoDevice] = useState("");
   const [selectedAudioDevice, setSelectedAudioDevice] = useState("");
   const [cameraSourceMode, setCameraSourceMode] = useState("phone");
+  const [cameraSourceNotice, setCameraSourceNotice] = useState("");
+  const [cameraSourceSwitching, setCameraSourceSwitching] = useState(false);
+  const cameraSourceSwitchRef = useRef(false);
+  const cameraStreamRef = useRef(null);
   const [_showReplayEditor, setShowReplayEditor] = useState(true);
   const [compositionMode, setCompositionMode] = useState("single");
   const [secondaryPreview, setSecondaryPreview] = useState(8);
@@ -2306,11 +2312,11 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     });
   }
 
-  async function flipCamera() {
-    if (!stream) return;
-
-    const nextFacing =
-      facingMode === "environment" ? "user" : "environment";
+  async function flipCamera(preferredFacing = null) {
+    if (!stream || cameraSourceMode === "smart-glasses") return false;
+    const nextFacing = preferredFacing === "user" || preferredFacing === "environment"
+      ? preferredFacing : facingMode === "environment" ? "user" : "environment";
+    if (nextFacing === facingMode) return true;
     const profile = qualityProfiles[qualityProfile];
     const oldVideoTracks = stream.getVideoTracks();
     const currentVideoTrack = oldVideoTracks[0];
@@ -2440,7 +2446,9 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
           ? actualFacing
           : nextFacing
       );
+      cameraStreamRef.current = nextStream;
       setStream(nextStream);
+      setCameraSourceMode("phone");
       readZoomCapability(nextStream);
       await refreshVideoInputs();
 
@@ -2449,9 +2457,12 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
           ? "LIVE TO DIRECTOR"
           : "CAMERA READY"
       );
+      return true;
     } catch (error) {
       console.error("Urban Director Studio camera flip failed", error);
       setSignalStatus("CAMERA SWITCH FAILED");
+      setCameraSourceNotice("Phone camera switch failed. Check permissions and try again.");
+      return false;
     }
   }
 
@@ -2522,6 +2533,101 @@ async function completeCameraStartup() {
     }
   }
 
+
+  // A QR camera operator can switch camera sources without claiming Director.
+  // Keep the same WebRTC session, camera slot and phone microphone.
+  async function selectOperatorCameraSource(source) {
+    if (!["front", "rear", "meta"].includes(source) || cameraSourceSwitchRef.current) return;
+    const face = source === "front" ? "user" : "environment";
+    const currentSource = cameraSourceMode === "smart-glasses"
+      ? "meta" : facingMode === "user" ? "front" : "rear";
+    if (!stream) {
+      setCameraSourceMode(source === "meta" ? "smart-glasses" : "phone");
+      if (source !== "meta") {
+        setFacingMode(face);
+        setSelectedVideoDevice("");
+      }
+      setCameraSourceNotice(source === "meta"
+        ? "Meta requires Director's native wearable integration and paired glasses."
+        : "");
+      return;
+    }
+    if (source === currentSource) return;
+    cameraSourceSwitchRef.current = true;
+    setCameraSourceSwitching(true);
+    setCameraSourceNotice("");
+    let acquired = null;
+    let committed = false;
+    try {
+      if (source === "meta") {
+        const status = await getSmartGlassesStatus();
+        if (!status?.available) {
+          throw new Error("Meta camera streaming is not installed in this app yet. Phone cameras remain available.");
+        }
+        if (!status.connected) await registerSmartGlasses();
+        acquired = await startSmartGlassesStream({ fps: qualityProfiles[qualityProfile].fps });
+      } else if (cameraSourceMode === "phone") {
+        const ok = await flipCamera(face);
+        if (!ok) throw new Error("Unable to switch phone camera.");
+        setCameraSourceNotice(source === "front" ? "Front camera active." : "Back camera active.");
+        return;
+      } else {
+        const profile = qualityProfiles[qualityProfile];
+        acquired = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: face },
+            width: { ideal: profile.width },
+            height: { ideal: profile.height },
+            frameRate: { ideal: profile.fps, max: profile.fps }
+          },
+          audio: false
+        });
+      }
+      const track = acquired?.getVideoTracks?.()[0];
+      if (!track) throw new Error("No video is available from that camera source.");
+      const previousMedia = cameraStreamRef.current || stream;
+      const oldTrack = previousMedia.getVideoTracks()[0];
+      const senders = Object.values(peers.current)
+        .map(peer => peer.getSenders().find(sender => sender.track?.kind === "video"))
+        .filter(Boolean);
+      try {
+        await Promise.all(senders.map(async sender => {
+          await sender.replaceTrack(track);
+          await optimizeVideoSender(sender, qualityProfile);
+        }));
+      } catch (error) {
+        await Promise.allSettled(senders.map(sender => sender.replaceTrack(oldTrack)));
+        throw error;
+      }
+      const nextMedia = new MediaStream([track, ...previousMedia.getAudioTracks()]);
+      cameraStreamRef.current = nextMedia;
+      setStream(nextMedia);
+      setCameraSourceMode(source === "meta" ? "smart-glasses" : "phone");
+      setSelectedVideoDevice("");
+      if (source !== "meta") setFacingMode(face);
+      oldTrack?.stop();
+      if (currentSource === "meta") await stopSmartGlassesStream();
+      if (source === "meta") {
+        setZoomRange(null);
+        setTorchSupported(false);
+        setTorchOn(false);
+      } else {
+        readZoomCapability(nextMedia);
+      }
+      setCameraSourceNotice(source === "meta" ? "Meta glasses active." :
+        source === "front" ? "Front camera active." : "Back camera active.");
+      setSignalStatus(Object.keys(peers.current).length ? "LIVE TO DIRECTOR" : "CAMERA READY");
+      committed = true;
+    } catch (error) {
+      setCameraSourceNotice(error instanceof Error ? error.message : String(error));
+      if (!committed && source === "meta") await stopSmartGlassesStream().catch(() => {});
+    } finally {
+      if (!committed) acquired?.getVideoTracks?.().forEach(track => track.stop());
+      cameraSourceSwitchRef.current = false;
+      setCameraSourceSwitching(false);
+    }
+  }
+
 async function enableCamera() {
     try {
       if (!networkId || !cameraJoinToken) {
@@ -2577,6 +2683,7 @@ async function enableCamera() {
         });
       }
 
+      cameraStreamRef.current = media;
       setStream(media);
       readZoomCapability(media);
 
@@ -2639,8 +2746,9 @@ async function enableCamera() {
 
         peers.current[from] = peer;
 
-        media.getTracks().forEach(track => {
-          const sender = peer.addTrack(track, media);
+        const currentMedia = cameraStreamRef.current || media;
+        currentMedia.getTracks().forEach(track => {
+          const sender = peer.addTrack(track, currentMedia);
           if (track.kind === "video") {
             optimizeVideoSender(sender, qualityProfile);
           }
@@ -2707,7 +2815,7 @@ async function enableCamera() {
         if (payload?.command === "zoom") {
           if (payload.action === "start") {
             const direction = Number(payload.direction) < 0 ? -1 : 1;
-            startZoomHold(direction, media);
+            startZoomHold(direction, cameraStreamRef.current || media);
           } else if (payload.action === "stop") {
             stopZoomHold();
           }
@@ -2715,7 +2823,7 @@ async function enableCamera() {
         }
 
         if (payload?.command === "torch") {
-          setCameraTorch(Boolean(payload.enabled), media);
+          setCameraTorch(Boolean(payload.enabled), cameraStreamRef.current || media);
         }
       };
 
@@ -2864,6 +2972,7 @@ async function enableCamera() {
   }
 
   function stopCamera() {
+    cameraStreamRef.current = null;
     stream?.getTracks().forEach(track => track.stop());
     if (cameraSourceMode === "smart-glasses") {
       stopSmartGlassesStream();
@@ -3305,8 +3414,9 @@ async function enableCamera() {
                   <button
                     type="button"
                     className="camera-control-button flip-control"
-                    onClick={flipCamera}
-                    title="Switch front / rear camera"
+                    onClick={() => void selectOperatorCameraSource(facingMode === "environment" ? "front" : "rear")}
+                    disabled={cameraSourceSwitching || cameraSourceMode === "smart-glasses"}
+                    title="Switch front / rear phone camera"
                   >
                     <RefreshCw size={24}/>
                     <span>SWITCH CAMERA</span>
@@ -3333,6 +3443,30 @@ async function enableCamera() {
           </div>
 
           <section className="operator-card">
+            <div className="source-row operator-source-switcher">
+              <label>CAMERA FEED • SWITCH WITHOUT LEAVING THE QR SESSION</label>
+              <div className="operator-source-buttons" role="group" aria-label="Camera source">
+                {[
+                  ["front", "FRONT CAMERA", "Phone selfie"],
+                  ["rear", "BACK CAMERA", "Phone rear"],
+                  ["meta", "META GLASSES", "Wearable camera"]
+                ].map(([source, title, description]) => {
+                  const selected = cameraSourceMode === "smart-glasses"
+                    ? source === "meta"
+                    : !selectedVideoDevice && source === (facingMode === "user" ? "front" : "rear");
+                  return <button key={source} type="button"
+                    className={`operator-source-option ${selected ? "active" : ""}`}
+                    aria-pressed={selected} disabled={cameraSourceSwitching}
+                    onClick={() => void selectOperatorCameraSource(source)}>
+                    <strong>{title}</strong><small>{description}</small>
+                  </button>;
+                })}
+              </div>
+              <small role="status" aria-live="polite">
+                {cameraSourceSwitching ? "SWITCHING CAMERA…" : cameraSourceNotice ||
+                  "Meta requires the native phone bridge; front and rear phone cameras work now."}
+              </small>
+            </div>
             <label>CAMERA NAME</label>
             <input
               value={cameraName}
@@ -3358,7 +3492,7 @@ async function enableCamera() {
                     >
                       <option value="">AUTO / PHONE CAMERA</option>
                       {smartGlassesSupportedHere() && (
-                        <option value="__smart_glasses__">META SMART GLASSES • DEVELOPER PREVIEW</option>
+                        <option value="__smart_glasses__">META SMART GLASSES • NATIVE APP REQUIRED</option>
                       )}
                       {videoInputs.map((device, index) => (
                         <option key={device.deviceId || index} value={device.deviceId}>
