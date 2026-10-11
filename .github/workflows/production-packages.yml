@@ -2,9 +2,6 @@ name: Urban Director Studio Production Packages
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/production-packages.yml']
 
 permissions:
   contents: write
@@ -159,6 +156,9 @@ jobs:
           set -euo pipefail
           APK="android/app/build/outputs/apk/release/app-release.apk"
           test -f "$APK"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
           cp "$APK" Urban-Director-Studio-Android.apk
           gh release view director-production --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create director-production --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Urban Director Studio Production Apps" --notes "Verified signed production packages."
           gh release upload director-production Urban-Director-Studio-Android.apk --repo "$GITHUB_REPOSITORY" --clobber
