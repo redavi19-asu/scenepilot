@@ -395,6 +395,12 @@ function LandingPage() {
               add graphics, record, replay, and broadcast from a single Director console.
             </p>
 
+            <div role="note" style={{margin:"18px 0 24px",padding:"18px 20px",border:"1px solid rgba(96,221,255,.4)",borderRadius:18,background:"linear-gradient(120deg,rgba(0,128,160,.17),rgba(10,23,33,.62))",boxShadow:"0 8px 28px rgba(0,0,0,.15)"}}>
+              <strong style={{display:"block",fontSize:13,letterSpacing:".12em",color:"#8beaff",marginBottom:8}}>META RAY-BAN SMART GLASSES • IN DEVELOPMENT</strong>
+              <span style={{display:"block",fontSize:18,fontWeight:750,color:"#fff",marginBottom:8}}>Your point of view. One Director. Every camera.</span>
+              <span style={{display:"block",lineHeight:1.65}}>Connect glasses through an iPhone using the same secure camera QR code as other operators. The planned Front / Rear / Meta source selector keeps the iPad or computer in charge. Native Meta streaming is being integrated and is not yet live.</span>
+            </div>
+
             <div className="sp-hero-actions">
               <button className="sp-primary sp-hero-primary" onClick={() => go("/login")}>
                 <RadioTower size={18}/> OPEN URBAN DIRECTOR STUDIO
@@ -405,6 +411,7 @@ function LandingPage() {
             </div>
 
             <div className="sp-hero-proof">
+              <span style={{color:"#8beaff"}}>◈ Meta glasses camera integration in development</span>
               <span><CheckCircle2 size={15}/> Wireless phone cameras</span>
               <span><CheckCircle2 size={15}/> Director-to-crew comms</span>
               <span><CheckCircle2 size={15}/> Replay, graphics & recording</span>
