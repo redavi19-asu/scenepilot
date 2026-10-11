@@ -42,6 +42,38 @@
 	<string>Urban Director Studio uses the camera for live production video.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Urban Director Studio uses the microphone for live production audio.</string>
+	<!-- Meta Wearables DAT 1.0: the Developer Center issues app ID and client token.
+             Keep placeholder values for development mode only. -->
+	<key>MWDAT</key>
+	<dict>
+		<key>AppLinkURLScheme</key>
+		<string>urbandirectorstudio://</string>
+		<key>MetaAppID</key>
+		<string>$(META_APP_ID)</string>
+		<key>ClientToken</key>
+		<string>$(META_CLIENT_TOKEN)</string>
+		<key>TeamID</key>
+		<string>$(DEVELOPMENT_TEAM)</string>
+	</dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Urban Director Studio connects to your Meta glasses to capture a production camera feed.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Urban Director Studio connects to paired Meta glasses and camera operators on local networks.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_bonjour._tcp</string>
+	</array>
+	<key>UISupportedExternalAccessoryProtocols</key>
+	<array>
+		<string>com.meta.ar.wearable</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>processing</string>
+		<string>bluetooth-central</string>
+		<string>bluetooth-peripheral</string>
+		<string>external-accessory</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
