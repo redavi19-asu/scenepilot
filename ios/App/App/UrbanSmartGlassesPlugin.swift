@@ -134,7 +134,7 @@ public class UrbanSmartGlassesPlugin: CAPPlugin, CAPBridgedPlugin {
                         // JPEG-base64 over the WebView bridge is the initial
                         // compatibility path. Limit to ~15 frames/s.
                         if self.frameCount % 2 == 0 {
-                            self.notifyListeners("frame", [
+                            self.notifyListeners("frame", data: [
                                 "base64": jpeg.base64EncodedString(),
                                 "width": Int(image.size.width),
                                 "height": Int(image.size.height)
@@ -145,7 +145,7 @@ public class UrbanSmartGlassesPlugin: CAPPlugin, CAPBridgedPlugin {
 
                 camera.stream.errorPublisher.listen { [weak self] error in
                     Task { @MainActor [weak self] in
-                        self?.notifyListeners("streamError", ["message": error.localizedDescription])
+                        self?.notifyListeners("streamError", data: ["message": error.localizedDescription])
                     }
                 }.store(in: streamTokens)
                 camera.stream.start()
