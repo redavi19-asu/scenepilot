@@ -4,7 +4,17 @@ This project contains the web/Capacitor side of the Meta smart-glasses camera pa
 
 ## Release status
 
-Meta Wearables Device Access Toolkit is currently Developer Preview. Keep the native Meta SDK optional/development-only until Meta enables end-user distribution.
+Meta Wearables Device Access Toolkit 1.0 began rolling out September 30, 2026. See https://developers.meta.com/wearables/faq/ for Meta's current supported devices and APIs.
+
+**Product status:** Director's JavaScript/Capacitor camera bridge and the QR-operator Front / Back / Meta selector are implemented. The native iOS/Android `UrbanSmartGlasses` plugin is **not installed** in this repository yet, so Meta video streaming is **not functional** in release builds. The selector must report this clearly without breaking a working phone camera source.
+
+**Security:** Meta video joins through the existing, short-lived, room-scoped QR camera invite on the phone. It is a camera-operator source only, not a second Director login or a second production session.
+
+**Audio:** Until a native Meta microphone integration is implemented, the Director phone's selected microphone is used for the Meta camera source.
+
+**Switching:** The camera UI offers Front Camera, Back Camera and Meta Glasses. The source is selected before connecting or replaced inside the existing WebRTC camera stream without changing the camera slot; existing native plugin availability checks prevent misleading "connected" behavior. Keep the old phone video and microphone operational if the Meta connection is unavailable.
+
+**Before release:** Implement Meta DAT 1.0 native iOS/Android plugin, enrollment/permissions and authorization flow; test actual glasses, pause/resume, first-join/rejoin, phone lens switching, and audio while connected. Validate compatible device support and production distribution requirements with Meta.
 
 ## Native plugin contract
 
@@ -57,7 +67,7 @@ The JS bridge draws those frames to an offscreen canvas and uses `canvas.capture
 
 ## Meta DAT iOS reference flow
 
-Current DAT v0.9 flow:
+Previous v0.9 reference flow; **update this against DAT 1.0 before production implementation**:
 
 - Add Meta package with Swift Package Manager.
 - Add `MWDATCore` and `MWDATCamera`.
