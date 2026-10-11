@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        A7A100070000000000000007 /* UrbanSmartGlassesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A100080000000000000008 /* UrbanSmartGlassesPlugin.swift */; };
+        A7A1000C0000000000000C /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = A7A1000A0000000000000A /* MWDATCore */; };
+        A7A1000D0000000000000D /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = A7A1000B0000000000000B /* MWDATCamera */; };
 		A7A100050000000000000005 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A7A100060000000000000006 /* PrivacyInfo.xcprivacy */; };
 		A7A100010000000000000001 /* StoreKitSubscriptionPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A100020000000000000002 /* StoreKitSubscriptionPlugin.swift */; };
 		A7A100030000000000000003 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A100040000000000000004 /* MainViewController.swift */; };
@@ -22,6 +25,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+        A7A100080000000000000008 /* UrbanSmartGlassesPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UrbanSmartGlassesPlugin.swift; sourceTree = "<group>"; };
 		A7A100060000000000000006 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A7A100020000000000000002 /* StoreKitSubscriptionPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitSubscriptionPlugin.swift; sourceTree = "<group>"; };
 		A7A100040000000000000004 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
@@ -44,6 +48,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+                A7A1000C0000000000000C /* MWDATCore in Frameworks */,
+                A7A1000D0000000000000D /* MWDATCamera in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -72,6 +78,7 @@
 			children = (
 				A7A100040000000000000004 /* MainViewController.swift */,
 				A7A100020000000000000002 /* StoreKitSubscriptionPlugin.swift */,
+                A7A100080000000000000008 /* UrbanSmartGlassesPlugin.swift */,
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -104,6 +111,8 @@
 			name = App;
 			packageProductDependencies = (
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
+                A7A1000A0000000000000A /* MWDATCore */,
+                A7A1000B0000000000000B /* MWDATCamera */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
@@ -137,6 +146,7 @@
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
+                A7A100090000000000000009 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -171,6 +181,7 @@
 			files = (
 				A7A100030000000000000003 /* MainViewController.swift in Sources */,
 				A7A100010000000000000001 /* StoreKitSubscriptionPlugin.swift in Sources */,
+                A7A100070000000000000007 /* UrbanSmartGlassesPlugin.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);
@@ -251,7 +262,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -393,7 +404,29 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+        A7A100090000000000000009 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */ = {
+            isa = XCRemoteSwiftPackageReference;
+            repositoryURL = "https://github.com/facebook/meta-wearables-dat-ios";
+            requirement = {
+                kind = exactVersion;
+                version = 1.0.0;
+            };
+        };
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+        A7A1000A0000000000000A /* MWDATCore */ = {
+            isa = XCSwiftPackageProductDependency;
+            package = A7A100090000000000000009 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+            productName = MWDATCore;
+        };
+        A7A1000B0000000000000B /* MWDATCamera */ = {
+            isa = XCSwiftPackageProductDependency;
+            package = A7A100090000000000000009 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+            productName = MWDATCamera;
+        };
+
 		4D22ABE82AF431CB00220026 /* CapApp-SPM */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */;
