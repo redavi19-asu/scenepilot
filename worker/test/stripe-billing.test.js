@@ -27,6 +27,33 @@ test("unsigned events are rejected and never touch the database", async () => {
   const response = await stripeWebhook(new Request("https://example.com/webhook", { method: "POST", body: "{}" }), { STRIPE_WEBHOOK_SECRET: "whsec_test" }, { webhooks: { constructEventAsync: async () => { throw new Error("signature"); } } });
   assert.equal(response.status, 400);
 });
+test("Checkout retries reuse a session and cancellation starts a new checkout cycle", async () => {
+  const { sqlite, DB } = database();
+  const env = { DB, STRIPE_SECRET_KEY: "sk_test_unit_only", STRIPE_PRICE_ID: "price_director", STRIPE_WEBHOOK_SECRET: "whsec_test" };
+  let subscriptions = [];
+  const sessions = new Map();
+  const stripe = {
+    prices: { retrieve: async () => ({ active: true, unit_amount: 3999, currency: "usd", recurring: { interval: "month", interval_count: 1 } }) },
+    subscriptions: { list: async () => ({ data: subscriptions }) },
+    checkout: { sessions: { create: async (_params, { idempotencyKey }) => {
+      if (!sessions.has(idempotencyKey)) sessions.set(idempotencyKey, { url: `https://checkout.example/${sessions.size + 1}` });
+      return sessions.get(idempotencyKey);
+    } } },
+  };
+  const checkout = () => handleStripeBilling(new Request("https://example.com/api/billing/stripe/checkout", {
+    method: "POST", headers: { Origin: "https://example.com" }
+  }), env, { id: "u1", role: "user", accessStatus: "suspended" }, stripe);
+  const first = await (await checkout()).json();
+  assert.deepEqual(await (await checkout()).json(), first);
+  subscriptions = [{ id: "sub_previous", status: "canceled", items: { data: [{ price: { id: "price_director" } }] } }];
+  const restart = await (await checkout()).json();
+  assert.notEqual(restart.url, first.url);
+  assert.deepEqual(await (await checkout()).json(), restart);
+  subscriptions[0].status = "past_due";
+  assert.equal((await checkout()).status, 409);
+  assert.equal(sessions.size, 2);
+  sqlite.close();
+});
 test("signed checkout/renewal events are idempotent; delayed events use current state and preserve manual access", async () => {
   const { sqlite, DB } = database();
   const env = { DB, STRIPE_PRICE_ID: "price_director", STRIPE_WEBHOOK_SECRET: "whsec_test" };

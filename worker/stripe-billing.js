@@ -70,7 +70,7 @@ export async function stripeWebhook(request, env, stripe = client(env)) {
   return response({ received: true });
 }
 
-export async function handleStripeBilling(request, env, user) {
+export async function handleStripeBilling(request, env, user, stripeOverride) {
   const path = new URL(request.url).pathname;
   const config = stripeConfig(env);
   if (path === "/api/billing/stripe/config" && request.method === "GET") return response({ ...config, priceId: undefined, currency: "usd" });
@@ -81,7 +81,7 @@ export async function handleStripeBilling(request, env, user) {
   const origin = new URL(request.url).origin;
   if (request.headers.get("Origin") !== origin) return response({ error: "Open billing from the Director website." }, 403);
   if (request.headers.get("X-Urban-Director-Platform") === "ios") return response({ error: "Use Apple subscription controls in the iPhone/iPad app." }, 400);
-  const stripe = client(env);
+  const stripe = stripeOverride || client(env);
   let mapping = await env.DB.prepare("SELECT customer_id FROM director_stripe_customers WHERE user_id=?").bind(user.id).first();
   if (path === "/api/billing/stripe/portal") {
     if (!mapping) return response({ error: "No web subscription is linked to this account." }, 404);
@@ -102,13 +102,16 @@ export async function handleStripeBilling(request, env, user) {
     mapping = await env.DB.prepare("SELECT customer_id FROM director_stripe_customers WHERE user_id=?").bind(user.id).first();
   }
   const existingSubscriptions = await stripe.subscriptions.list({ customer: mapping.customer_id, status: "all", limit: 100 });
-  if (existingSubscriptions.data.some(subscription => ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"].includes(subscription.status) && subscription.items?.data?.some(item => item.price?.id === config.priceId))) {
+  const directorSubscriptions = existingSubscriptions.data.filter(subscription => subscription.items?.data?.some(item => item.price?.id === config.priceId));
+  if (directorSubscriptions.some(subscription => ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"].includes(subscription.status))) {
     return response({ error: "A subscription already exists. Use Manage Billing to resolve it." }, 409);
   }
   const session = await stripe.checkout.sessions.create({ mode: "subscription", customer: mapping.customer_id,
     line_items: [{ price: config.priceId, quantity: 1 }], client_reference_id: user.id,
     success_url: `${origin}/billing?checkout=success`, cancel_url: `${origin}/billing?checkout=cancelled`,
     integration_identifier: "urban_director_studio_qpmtxkza" },
-    { idempotencyKey: `director-checkout-${user.id}-${Math.floor(Date.now() / 1800000)}` });
+    // A canceled subscription starts a new checkout cycle. Time buckets can
+    // replay a completed/expired session when a customer restarts quickly.
+    { idempotencyKey: `director-checkout-${user.id}-${directorSubscriptions[0]?.id || "initial"}` });
   return response({ url: session.url });
 }
