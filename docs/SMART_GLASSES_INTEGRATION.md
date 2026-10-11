@@ -6,7 +6,7 @@ This project contains the web/Capacitor side of the Meta smart-glasses camera pa
 
 Meta Wearables Device Access Toolkit 1.0 began rolling out September 30, 2026. See https://developers.meta.com/wearables/faq/ for Meta's current supported devices and APIs.
 
-**Product status:** Director's JavaScript/Capacitor camera bridge and the QR-operator Front / Back / Meta selector are implemented. The native iOS/Android `UrbanSmartGlasses` plugin is **not installed** in this repository yet, so Meta video streaming is **not functional** in release builds. The selector must report this clearly without breaking a working phone camera source.
+**Product status (2026-10-11):** The QR-operator Front / Back / Meta camera selector, web/Capacitor JPEG-to-WebRTC bridge, and native **iOS** `UrbanSmartGlassesPlugin.swift` implementation are committed on the Meta feature branch. The iOS project now references Meta DAT **1.0.0** (`MWDATCore`, `MWDATCamera`), with registration deep-link handling, callback, camera permission and frames. **No real glasses test or production distribution has occurred.** There is **no Android native bridge** yet. Production release is blocked until a signed iPhone/TestFlight build, Meta Developer Center app ID and client token, and paired-glasses QA are completed.
 
 **Security:** Meta video joins through the existing, short-lived, room-scoped QR camera invite on the phone. It is a camera-operator source only, not a second Director login or a second production session.
 
@@ -14,7 +14,7 @@ Meta Wearables Device Access Toolkit 1.0 began rolling out September 30, 2026. S
 
 **Switching:** The camera UI offers Front Camera, Back Camera and Meta Glasses. The source is selected before connecting or replaced inside the existing WebRTC camera stream without changing the camera slot; existing native plugin availability checks prevent misleading "connected" behavior. Keep the old phone video and microphone operational if the Meta connection is unavailable.
 
-**Before release:** Implement Meta DAT 1.0 native iOS/Android plugin, enrollment/permissions and authorization flow; test actual glasses, pause/resume, first-join/rejoin, phone lens switching, and audio while connected. Validate compatible device support and production distribution requirements with Meta.
+**Before release:** Verify macOS Xcode archive, provision real Meta Developer Center credentials (stored as GitHub Actions secrets, not in code), test actual glasses and registration/permissions, QR first-join/rejoin, phone lens switching, audio, and background recovery. Verify public App Store distribution requirements with Meta; use an approved beta/TestFlight path until cleared. Add a separate Android bridge before claiming Android glasses support.
 
 ## Native plugin contract
 
