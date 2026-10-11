@@ -8,8 +8,8 @@
 
 /* Begin PBXBuildFile section */
         A7A100070000000000000007 /* UrbanSmartGlassesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A100080000000000000008 /* UrbanSmartGlassesPlugin.swift */; };
-        A7A1000C0000000000000C /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = A7A1000A0000000000000A /* MWDATCore */; };
-        A7A1000D0000000000000D /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = A7A1000B0000000000000B /* MWDATCamera */; };
+        A7A1000C000000000000000C /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = A7A1000A000000000000000A /* MWDATCore */; };
+        A7A1000D000000000000000D /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = A7A1000B000000000000000B /* MWDATCamera */; };
 		A7A100050000000000000005 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A7A100060000000000000006 /* PrivacyInfo.xcprivacy */; };
 		A7A100010000000000000001 /* StoreKitSubscriptionPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A100020000000000000002 /* StoreKitSubscriptionPlugin.swift */; };
 		A7A100030000000000000003 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A100040000000000000004 /* MainViewController.swift */; };
@@ -48,8 +48,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
-                A7A1000C0000000000000C /* MWDATCore in Frameworks */,
-                A7A1000D0000000000000D /* MWDATCamera in Frameworks */,
+                A7A1000C000000000000000C /* MWDATCore in Frameworks */,
+                A7A1000D000000000000000D /* MWDATCamera in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -111,8 +111,8 @@
 			name = App;
 			packageProductDependencies = (
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
-                A7A1000A0000000000000A /* MWDATCore */,
-                A7A1000B0000000000000B /* MWDATCamera */,
+                A7A1000A000000000000000A /* MWDATCore */,
+                A7A1000B000000000000000B /* MWDATCamera */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
@@ -416,12 +416,12 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-        A7A1000A0000000000000A /* MWDATCore */ = {
+        A7A1000A000000000000000A /* MWDATCore */ = {
             isa = XCSwiftPackageProductDependency;
             package = A7A100090000000000000009 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
             productName = MWDATCore;
         };
-        A7A1000B0000000000000B /* MWDATCamera */ = {
+        A7A1000B000000000000000B /* MWDATCamera */ = {
             isa = XCSwiftPackageProductDependency;
             package = A7A100090000000000000009 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
             productName = MWDATCamera;
