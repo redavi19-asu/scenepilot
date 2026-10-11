@@ -75,6 +75,14 @@ export async function startSmartGlassesStream({ fps = 24 } = {}) {
     );
   }
 
+  if (support.registered === false) {
+    await registerSmartGlasses();
+    throw new Error("Complete Urban Director registration in Meta AI, return to this camera, then tap ENABLE again.");
+  }
+  if (support.connected === false) {
+    throw new Error("Meta glasses are not connected to this phone. Check Meta AI and wear the glasses.");
+  }
+
   await frameListener?.remove?.();
   frameListener = await SmartGlasses.addListener("frame", drawFrame);
 
