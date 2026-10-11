@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import MWDATCore
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,6 +8,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // Configure Meta DAT only once for native camera operator sessions.
+        // Development builds may register with Meta AI in Developer Mode;
+        // production publishing requires real Meta app credentials.
+        do {
+            try Wearables.configure()
+        } catch {
+            NSLog("[UrbanDirector] Wearables initialization failed: \\(error.localizedDescription)")
+        }
         // Override point for customization after application launch.
         return true
     }
