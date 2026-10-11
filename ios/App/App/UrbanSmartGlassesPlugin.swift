@@ -44,7 +44,8 @@ public class UrbanSmartGlassesPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func startRegistration(_ call: CAPPluginCall) {
         Task { @MainActor in
             do {
-                if Wearables.shared.registrationState != .registered {
+                if Wearables.shared.registrationState != .registered &&
+                    Wearables.shared.registrationState != .registering {
                     try await Wearables.shared.startRegistration()
                 }
                 call.resolve(["started": true])
