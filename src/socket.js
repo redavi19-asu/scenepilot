@@ -1,4 +1,4 @@
-import { signalUrl } from "./runtimeApi";
+import { signalUrl } from "./runtimeApi.js";
 
 class ScenePilotSocket {
   constructor() {
