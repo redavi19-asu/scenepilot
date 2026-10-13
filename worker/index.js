@@ -3,6 +3,7 @@ import { handleStripeBilling, stripeConfig } from "./stripe-billing.js";
 import { ensureBundledMigrations } from "./migrations.js";
 import { handleSocialAuth } from "./social-auth.js";
 import { requestPasswordReset, resetPassword } from "./password-recovery.js";
+import { issueDirectorIceServers } from "./director-turn.js";
 
 const SESSION_COOKIE = "sp_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -2676,6 +2677,35 @@ async function validCameraJoinToken(
   return Boolean(row);
 }
 
+async function handleDirectorMediaIce(request, env) {
+  if (!env.DB) return json({ error: "Director network database is unavailable." }, 503);
+  const body = await readJson(request);
+  const networkId = String(body.network || "").trim();
+  const room = String(body.room || "").trim();
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(networkId) || !/^[A-Za-z0-9_-]{1,80}$/.test(room)) {
+    return json({ error: "A valid Director network and room are required." }, 400);
+  }
+  // The Director proves membership with their account; cameras prove access
+  // with the original short-lived invite, never a shared master TURN secret.
+  const user = await getCurrentUser(request, env);
+  const member = Boolean(
+    user?.id && user.status === "active" && user.accessStatus === "active" &&
+    await userCanAccessNetwork(env, user.id, networkId)
+  );
+  const camera = !member && await validCameraJoinToken(
+    env, networkId, room, String(body.join || "")
+  );
+  if (!member && !camera) {
+    return json({ error: "This production camera session is not authorized." }, 403);
+  }
+  try {
+    return json(await issueDirectorIceServers(env));
+  } catch (error) {
+    console.error("Urban Director Studio relay unavailable", error?.message || "unknown");
+    return json({ error: "Media relay is unavailable. Check Director TURN configuration or service health." }, 503);
+  }
+}
+
 async function handleCameraInvite(request, env) {
   const auth = await requireScenePilotNetworkMember(request, env);
   if (auth.response) return auth.response;
@@ -3673,6 +3703,10 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/camera/invite" && request.method === "POST") {
     return handleCameraInvite(request, env);
+  }
+
+  if (url.pathname === "/api/media/ice" && request.method === "POST") {
+    return handleDirectorMediaIce(request, env);
   }
 
   if (
