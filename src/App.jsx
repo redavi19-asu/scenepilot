@@ -4324,6 +4324,9 @@ async function enableCamera() {
                     <button onClick={putDirectorInPreview}>
                       <MonitorUp size={15}/> PREVIEW
                     </button>
+                    <button type="button" onClick={() => dropCameraOnMain(DIRECTOR_SOURCE)} aria-label="Set Director selfie camera as Main Cam">
+                      <Camera size={15}/> SET MAIN
+                    </button>
                     <button onClick={putDirectorInPip}>
                       <PictureInPicture2 size={15}/> ADD AS PiP
                     </button>
@@ -4405,7 +4408,25 @@ async function enableCamera() {
             <div className="main-camera-home-copy">
               <span>HOME SHOT</span>
               <strong>MAIN CAM</strong>
-              <small>Drag any connected camera or Director Cam here. TAKE returns to this source when no new Preview shot is selected.</small>
+              <small>Drag a connected camera here, or tap below to set Main Cam. TAKE returns to the selected source.</small>
+              <select
+                className="main-camera-source-select"
+                aria-label="Choose Main Cam source"
+                value={mainCamera === DIRECTOR_SOURCE
+                  ? (directorStream ? DIRECTOR_SOURCE : "")
+                  : (cameraForSlot(mainCamera) ? String(mainCamera) : "")}
+                onChange={event => {
+                  if (event.target.value) dropCameraOnMain(event.target.value);
+                }}
+              >
+                <option value="">TAP TO CHOOSE MAIN CAM</option>
+                {cameras.filter(cam => cameraForSlot(cam.id)).map(cam => (
+                  <option key={cam.id} value={String(cam.id)}>
+                    {displayNameForCamera(cam.id)} · CAM {String(cam.id).padStart(2, "0")}
+                  </option>
+                ))}
+                {directorStream && <option value={DIRECTOR_SOURCE}>DIRECTOR SELFIE CAM</option>}
+              </select>
             </div>
             <div className="main-camera-home-feed">
               {streamForSlot(mainCamera) ? (
