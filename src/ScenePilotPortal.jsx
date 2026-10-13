@@ -69,8 +69,10 @@ function WatchPage({ roomCode }) {
     video.addEventListener("canplay", seekToLiveEdge);
     video.addEventListener("timeupdate", catchUpToLive);
 
+    let fallbackStarted = false;
     const startHls = () => {
-      if (cancelled) return;
+      if (cancelled || fallbackStarted) return;
+      fallbackStarted = true;
       video.srcObject = null;
 
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -120,7 +122,13 @@ function WatchPage({ roomCode }) {
       }).catch(() => setStatus("LIVE PLAYER COULD NOT LOAD"));
     };
 
-    subscribeToRealtimeProgram(safeRoom, video)
+    subscribeToRealtimeProgram(safeRoom, video, () => {
+      if (cancelled) return;
+      realtime?.stop();
+      realtime = null;
+      setStatus("REALTIME INTERRUPTED — TRYING BACKUP STREAM");
+      startHls();
+    })
       .then(connection => {
         if (cancelled) return connection.stop();
         realtime = connection;
