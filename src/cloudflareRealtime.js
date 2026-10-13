@@ -118,6 +118,27 @@ export async function subscribeToRealtimeProgram(room, video, onTransportFailure
     let heartbeatTimer = null;
     let transportFailed = false;
     let disconnectTimer = null;
+    let videoFrameCheckTimer = null;
+    let frameCallbackId = null;
+    let lastVideoFrameAt = Date.now();
+    const resetStallClock = () => { lastVideoFrameAt = Date.now(); };
+    if (typeof video.requestVideoFrameCallback === "function") {
+      const onFrame = () => {
+        if (transportFailed) return;
+        lastVideoFrameAt = Date.now();
+        frameCallbackId = video.requestVideoFrameCallback(onFrame);
+      };
+      frameCallbackId = video.requestVideoFrameCallback(onFrame);
+      document.addEventListener("visibilitychange", resetStallClock);
+      // Connected ICE alone is not proof that the broadcaster is still sending
+      // media. If the Director goes away, switch this viewer to server HLS.
+      videoFrameCheckTimer = window.setInterval(() => {
+        if (transportFailed || document.visibilityState === "hidden") return;
+        if (Date.now() - lastVideoFrameAt < 14000) return;
+        transportFailed = true;
+        onTransportFailure();
+      }, 3000);
+    }
     const watchTransport = () => {
       if (peer.connectionState === "connected") {
         window.clearTimeout(disconnectTimer);
@@ -155,6 +176,9 @@ export async function subscribeToRealtimeProgram(room, video, onTransportFailure
       stop: () => {
         transportFailed = true;
         window.clearTimeout(disconnectTimer);
+        if (videoFrameCheckTimer) window.clearInterval(videoFrameCheckTimer);
+        if (frameCallbackId != null) video.cancelVideoFrameCallback?.(frameCallbackId);
+        document.removeEventListener("visibilitychange", resetStallClock);
         peer.removeEventListener("connectionstatechange", watchTransport);
         if (heartbeatTimer) {
           window.clearInterval(heartbeatTimer);
