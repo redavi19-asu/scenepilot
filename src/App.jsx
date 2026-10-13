@@ -183,6 +183,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [directorLockMessage, setDirectorLockMessage] = useState("");
   const [isOnAir, setIsOnAir] = useState(false);
   const [cameraRegistered, setCameraRegistered] = useState(false);
+  const [cameraMediaConnected, setCameraMediaConnected] = useState(false);
   const [assignedSlot, setAssignedSlot] = useState(1);
   const assignedSlotRef = useRef(1);
   const [cameraName, setCameraName] = useState("USER");
@@ -2718,6 +2719,7 @@ async function enableCamera() {
 
       const handleOffer = async ({ from, offer }) => {
         cameraLastOfferAtRef.current = Date.now();
+        setCameraMediaConnected(false);
         let iceServers;
         try {
           iceServers = await getDirectorIceServers({ network: networkId, room: roomCode, join: cameraJoinToken });
@@ -2741,10 +2743,13 @@ async function enableCamera() {
             if (state === "connecting") {
               setSignalStatus("WEBRTC CONNECTING");
             } else if (state === "connected") {
+              setCameraMediaConnected(true);
               setSignalStatus("LIVE TO DIRECTOR");
             } else if (state === "failed") {
+              setCameraMediaConnected(false);
               setSignalStatus("WEBRTC FAILED");
             } else if (state === "disconnected") {
+              setCameraMediaConnected(false);
               setSignalStatus("WEBRTC DISCONNECTED");
             }
           }
@@ -2857,6 +2862,7 @@ async function enableCamera() {
 
       const handleDisconnect = () => {
         setCameraRegistered(false);
+        setCameraMediaConnected(false);
         setSignalStatus("SIGNAL DISCONNECTED");
       };
 
@@ -2995,6 +3001,7 @@ async function enableCamera() {
   }
 
   function stopCamera() {
+    setCameraMediaConnected(false);
     if (cameraRecoveryTimerRef.current) {
       clearInterval(cameraRecoveryTimerRef.current);
       cameraRecoveryTimerRef.current = null;
