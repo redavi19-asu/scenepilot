@@ -183,6 +183,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [directorLockMessage, setDirectorLockMessage] = useState("");
   const [isOnAir, setIsOnAir] = useState(false);
   const [cameraRegistered, setCameraRegistered] = useState(false);
+  const [cameraMediaConnected, setCameraMediaConnected] = useState(false);
   const [assignedSlot, setAssignedSlot] = useState(1);
   const assignedSlotRef = useRef(1);
   const [cameraName, setCameraName] = useState("USER");
@@ -2718,6 +2719,7 @@ async function enableCamera() {
 
       const handleOffer = async ({ from, offer }) => {
         cameraLastOfferAtRef.current = Date.now();
+        setCameraMediaConnected(false);
         let iceServers;
         try {
           iceServers = await getDirectorIceServers({ network: networkId, room: roomCode, join: cameraJoinToken });
@@ -2741,10 +2743,13 @@ async function enableCamera() {
             if (state === "connecting") {
               setSignalStatus("WEBRTC CONNECTING");
             } else if (state === "connected") {
+              setCameraMediaConnected(true);
               setSignalStatus("LIVE TO DIRECTOR");
             } else if (state === "failed") {
+              setCameraMediaConnected(false);
               setSignalStatus("WEBRTC FAILED");
             } else if (state === "disconnected") {
+              setCameraMediaConnected(false);
               setSignalStatus("WEBRTC DISCONNECTED");
             }
           }
@@ -2857,6 +2862,7 @@ async function enableCamera() {
 
       const handleDisconnect = () => {
         setCameraRegistered(false);
+        setCameraMediaConnected(false);
         setSignalStatus("SIGNAL DISCONNECTED");
       };
 
@@ -2995,6 +3001,7 @@ async function enableCamera() {
   }
 
   function stopCamera() {
+    setCameraMediaConnected(false);
     if (cameraRecoveryTimerRef.current) {
       clearInterval(cameraRecoveryTimerRef.current);
       cameraRecoveryTimerRef.current = null;
@@ -3322,12 +3329,12 @@ async function enableCamera() {
 
             {stream && (
               <>
-                <span className={`operator-live ${isOnAir ? "on-air" : "ready"}`} role="status" aria-live="polite">
-                  <i /> {isOnAir ? "LIVE" : "CONNECTED / READY"}
+                <span className={`operator-live ${cameraMediaConnected ? (isOnAir ? "on-air" : "ready") : "waiting"}`} role="status" aria-live="polite">
+                  <i /> {cameraMediaConnected ? (isOnAir ? "LIVE" : "VIDEO LINK CONNECTED") : "CAMERA OPEN — LINK PENDING"}
                 </span>
 
-                <div className={`on-air-banner ${isOnAir ? "live" : "standby"}`}>
-                  {isOnAir ? (
+                <div className={`on-air-banner ${cameraMediaConnected && isOnAir ? "live" : "standby"}`}>
+                  {cameraMediaConnected && isOnAir ? (
                     <>
                       <Radio size={22}/>
                       <div>
@@ -3339,8 +3346,8 @@ async function enableCamera() {
                     <>
                       <Camera size={22}/>
                       <div>
-                        <strong>CONNECTED — STANDBY</strong>
-                        <span>Camera feed is ready for the director.</span>
+                        <strong>{cameraMediaConnected ? "VIDEO LINK CONNECTED — STANDBY" : "WAITING FOR DIRECTOR VIDEO LINK"}</strong>
+                        <span>{cameraMediaConnected ? "Connected to Director; waiting to be placed on air." : cameraRegistered ? "Camera joined the room, but WebRTC video has not connected." : "Camera is open, but it has not joined the Director room yet."}</span>
                       </div>
                     </>
                   )}
