@@ -398,7 +398,13 @@ const server = createServer(async (request, response) => {
         }
       }
 
-      if (jobs.has(room)) stopJob(jobs.get(room));
+      if (jobs.has(room) && !jobs.get(room)?.stopped) {
+        // START SESSION is intentionally not a way to steal or restart an
+        // already-running public feed. Resume its ingest or end it explicitly.
+        return json(response, 409, {
+          error: "Broadcast session is already active. Use RESUME LIVE or END SESSION."
+        });
+      }
 
       const processes = [];
       const accepted = [];
@@ -572,9 +578,17 @@ websocketServer.on("connection", (ws, _request, context) => {
 
   let finished = false;
   let killTimer;
+  let lastPacketAt = Date.now();
+  const stallTimer = setInterval(() => {
+    if (!finished && Date.now() - lastPacketAt > 7000) {
+      finish(1011, "Director stopped sending video; switching to server standby");
+    }
+  }, 2000);
+  stallTimer.unref?.();
   function finish(code, reason) {
     if (finished) return;
     finished = true;
+    clearInterval(stallTimer);
     console.log(`[${job.eventId}:ingest] ${reason}`);
     ws.resume();
     if (ws.readyState < 2) ws.close(code, reason);
@@ -611,6 +625,7 @@ websocketServer.on("connection", (ws, _request, context) => {
 
   ws.on("message", (data, isBinary) => {
     if (finished || !isBinary || !ingestProcess.stdin.writable) return;
+    lastPacketAt = Date.now();
     // Bound the queue when the encoder cannot keep up with the producer.
     if (!ingestProcess.stdin.write(data)) ws.pause();
   });
