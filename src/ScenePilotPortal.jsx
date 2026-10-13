@@ -8,6 +8,7 @@ import {
 import App, { ScenePilotSplash } from "./App.jsx";
 import TurnstileWidget from "./TurnstileWidget.jsx";
 import { socket } from "./socket";
+import { getDirectorIceServers } from "./iceServers";
 import { subscribeToRealtimeProgram } from "./cloudflareRealtime";
 import { apiFetch, apiUrl, isNativeApp, setNativeSessionToken } from "./runtimeApi";
 import {
@@ -1482,7 +1483,7 @@ function IntercomPanel({ mode }) {
     }
   }, []);
 
-  const buildPeer = useCallback(peerId => {
+  const buildPeer = useCallback(async peerId => {
     const current = peersRef.current[peerId];
     if (
       current?.peer &&
@@ -1495,16 +1496,13 @@ function IntercomPanel({ mode }) {
       current?.peer?.close?.();
     } catch {}
 
-    const peer = new RTCPeerConnection({
-      iceServers: [
-        {
-          urls: [
-            "stun:stun.l.google.com:19302",
-            "stun:stun1.l.google.com:19302"
-          ]
-        }
-      ]
+    const cameraParams = new URLSearchParams(window.location.search);
+    const iceServers = await getDirectorIceServers({
+      network: socket.network || cameraParams.get("network"),
+      room: roomCode,
+      join: mode === "camera" ? cameraParams.get("join") || "" : ""
     });
+    const peer = new RTCPeerConnection({ iceServers, iceTransportPolicy: "all" });
 
     const transceiver = peer.addTransceiver("audio", {
       direction: "sendrecv"
@@ -1546,14 +1544,14 @@ function IntercomPanel({ mode }) {
     };
 
     return peerState;
-  }, [attachRemoteAudio]);
+  }, [attachRemoteAudio, mode, roomCode]);
 
   const attachMicToPeer = useCallback(async peerId => {
     const media = await ensureMic();
     const sourceTrack = media.getAudioTracks()[0];
     if (!sourceTrack) throw new Error("No microphone track is available.");
 
-    const peerState = buildPeer(peerId);
+    const peerState = await buildPeer(peerId);
 
     if (!peerState.sendTrack || peerState.sendTrack.readyState === "ended") {
       peerState.sendTrack = sourceTrack.clone();
@@ -1567,7 +1565,7 @@ function IntercomPanel({ mode }) {
   const ensurePeer = useCallback(async (peerId, initiate = false) => {
     if (!peerId) return null;
 
-    const peerState = buildPeer(peerId);
+    const peerState = await buildPeer(peerId);
 
     if (
       initiate &&
@@ -1756,7 +1754,7 @@ function IntercomPanel({ mode }) {
       if (!from || !offer) return;
 
       try {
-        const peerState = buildPeer(from);
+        const peerState = await buildPeer(from);
 
         if (peerState.peer.signalingState !== "stable") {
           await peerState.peer.setLocalDescription({ type: "rollback" }).catch(() => {});
