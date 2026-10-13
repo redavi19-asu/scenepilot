@@ -15,6 +15,7 @@ import "./App.css";
 import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
 import { getDirectorIceServers } from "./iceServers";
+import { disposeGraphicAsset, drawGraphicAsset, updateGraphicAsset } from "./programGraphicAssets";
 import {
   smartGlassesSupportedHere,
   startSmartGlassesStream,
@@ -127,6 +128,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const programCompositeStreamRef = useRef(null);
   const programRenderFrameRef = useRef(0);
   const programVideoElementsRef = useRef({});
+  const graphicsAssetsRef = useRef({ logo: null, topic: null });
   const programLastFrameRef = useRef(null);
   const programTransitionStateRef = useRef({ key: 0, startedAt: 0, duration: 0, type: "CUT" });
   const graphicsStateRef = useRef({
@@ -358,11 +360,21 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
 
   useEffect(() => {
     const handleGraphicsState = event => {
-      if (event?.detail) graphicsStateRef.current = event.detail;
+      if (!event?.detail) return;
+      const state = event.detail;
+      graphicsStateRef.current = state;
+      graphicsAssetsRef.current.logo = updateGraphicAsset(
+        graphicsAssetsRef.current.logo, state.logoImage, state.logoMediaType
+      );
+      graphicsAssetsRef.current.topic = updateGraphicAsset(
+        graphicsAssetsRef.current.topic, state.topicImage
+      );
     };
     window.addEventListener("scenepilot:graphics-state", handleGraphicsState);
     return () => {
       window.removeEventListener("scenepilot:graphics-state", handleGraphicsState);
+      disposeGraphicAsset(graphicsAssetsRef.current.logo);
+      disposeGraphicAsset(graphicsAssetsRef.current.topic);
     };
   }, []);
 
@@ -1538,16 +1550,52 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       ctx.fillText("LIVE", 66, 53);
     }
 
+    if (graphics.topic && state.topicImage) {
+      const x = graphics.topicSide === "left" ? 64 : width - 64 - 358;
+      const y = Math.round(height * .19);
+      const w = 358;
+      const h = 230;
+      ctx.fillStyle = "rgba(8,8,8,.8)";
+      ctx.fillRect(x, y, w, h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x + 2, y + 2, w - 4, h - 4);
+      ctx.clip();
+      drawGraphicAsset(ctx, graphicsAssetsRef.current.topic, x + 2, y + 2, w - 4, h - 4, "cover");
+      ctx.restore();
+      ctx.strokeStyle = "rgba(255,255,255,.72)";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x, y, w, h);
+    }
+
     if (graphics.logo) {
-      const x = width - 116;
-      const y = height - 108;
-      ctx.fillStyle = "rgba(0,0,0,.62)";
-      ctx.fillRect(x, y, 78, 54);
-      ctx.fillStyle = "#fff";
-      ctx.font = "900 24px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText(graphics.logoText || "SP", x + 39, y + 35);
-      ctx.textAlign = "left";
+      const size = 82;
+      const x = width - size - 42;
+      const y = height - size - 120;
+      const cx = x + size / 2;
+      const cy = y + size / 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = "rgba(10,10,10,.78)";
+      ctx.fillRect(x, y, size, size);
+      const hasLogo = drawGraphicAsset(
+        ctx, graphicsAssetsRef.current.logo, x + 7, y + 7, size - 14, size - 14
+      );
+      if (!hasLogo) {
+        ctx.fillStyle = "#fff";
+        ctx.font = "900 22px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(graphics.logoText || "SP", cx, cy);
+      }
+      ctx.restore();
+      ctx.strokeStyle = "rgba(255,255,255,.28)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, size / 2 - 1, 0, Math.PI * 2);
+      ctx.stroke();
     }
 
     if (graphics.countdown) {
