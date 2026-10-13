@@ -66,7 +66,7 @@ export async function publishProgramToRealtime(room, stream) {
   }
 }
 
-export async function subscribeToRealtimeProgram(room, video) {
+export async function subscribeToRealtimeProgram(room, video, onTransportFailure = () => {}) {
   const peer = createRealtimePeer();
   const stream = new MediaStream();
 
@@ -116,6 +116,26 @@ export async function subscribeToRealtimeProgram(room, video) {
     });
 
     let heartbeatTimer = null;
+    let transportFailed = false;
+    let disconnectTimer = null;
+    const watchTransport = () => {
+      if (peer.connectionState === "connected") {
+        window.clearTimeout(disconnectTimer);
+        disconnectTimer = null;
+      } else if (!transportFailed && peer.connectionState === "failed") {
+        transportFailed = true;
+        onTransportFailure();
+      } else if (!transportFailed && peer.connectionState === "disconnected" && !disconnectTimer) {
+        disconnectTimer = window.setTimeout(() => {
+          disconnectTimer = null;
+          if (peer.connectionState !== "connected" && !transportFailed) {
+            transportFailed = true;
+            onTransportFailure();
+          }
+        }, 7000);
+      }
+    };
+    peer.addEventListener("connectionstatechange", watchTransport);
 
     if (subscription.viewerToken) {
       const heartbeat = () => {
@@ -133,6 +153,9 @@ export async function subscribeToRealtimeProgram(room, video) {
     return {
       peer,
       stop: () => {
+        transportFailed = true;
+        window.clearTimeout(disconnectTimer);
+        peer.removeEventListener("connectionstatechange", watchTransport);
         if (heartbeatTimer) {
           window.clearInterval(heartbeatTimer);
           heartbeatTimer = null;
