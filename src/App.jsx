@@ -2623,9 +2623,18 @@ async function enableCamera() {
       };
 
       const handleOffer = async ({ from, offer }) => {
+        let iceServers;
+        try {
+          iceServers = await getDirectorIceServers({ network: networkId, room: roomCode, join: cameraJoinToken });
+        } catch (error) {
+          console.error("Camera relay configuration failed", error);
+          setSignalStatus("MEDIA RELAY UNAVAILABLE — CHECK CONNECTION");
+          return;
+        }
         peers.current[from]?.close();
 
         const peer = createPeerConnection({
+          iceServers,
           onIceCandidate: candidate => {
             socket.emit("webrtc:ice", {
               target: from,
