@@ -36,6 +36,7 @@ export default function BroadcastGraphics() {
   const [counting, setCounting] = useState(false);
   const [topicImage, setTopicImage] = useState("");
   const [logoImage, setLogoImage] = useState("");
+  const [logoMediaType, setLogoMediaType] = useState("image");
   const topicUrl = useRef("");
   const logoUrl = useRef("");
   const [collapsed, setCollapsed] = useState(true);
@@ -81,10 +82,11 @@ export default function BroadcastGraphics() {
         remaining,
         topicImage,
         logoImage,
+        logoMediaType,
         now: Date.now()
       }
     }));
-  }, [graphics, remaining, topicImage, logoImage]);
+  }, [graphics, remaining, topicImage, logoImage, logoMediaType]);
 
   function setValue(key, value) {
     setGraphics(current => ({ ...current, [key]: value }));
@@ -108,6 +110,11 @@ export default function BroadcastGraphics() {
       if (logoUrl.current) URL.revokeObjectURL(logoUrl.current);
       logoUrl.current = url;
       setLogoImage(url);
+      setLogoMediaType(
+        file.type.startsWith("video/") || /\.(mp4|mov|m4v|webm)$/i.test(file.name)
+          ? "video"
+          : "image"
+      );
       setValue("logo", true);
     }
     event.target.value = "";
@@ -149,7 +156,9 @@ export default function BroadcastGraphics() {
       {graphics.logo && (
         <div className="sp-logo-bug">
           {logoImage
-            ? <img src={logoImage} alt=""/>
+            ? logoMediaType === "video"
+              ? <video src={logoImage} autoPlay muted playsInline loop aria-label="Uploaded corner logo"/>
+              : <img src={logoImage} alt=""/>
             : <strong>{graphics.logoText || "SP"}</strong>}
         </div>
       )}
@@ -299,8 +308,10 @@ export default function BroadcastGraphics() {
             </label>
             <label className="sp-file-button">
               <Upload size={14}/> UPLOAD LOGO
-              <input type="file" accept="image/*" onChange={e => loadImage(e, "logo")} />
+              <input type="file" accept="image/*,video/*" onChange={e => loadImage(e, "logo")} />
             </label>
+            <small>Images and short silent looping video logos appear in the live Program feed.</small>
+            <span hidden></span>
           </div>
 
           <div className="sp-graphics-card sp-graphics-master">
