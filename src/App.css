@@ -4614,3 +4614,27 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
     line-height:1;
   }
 }
+
+
+/* Native picker works reliably on iPad/iPhone when browser drag-and-drop does not. */
+.main-camera-source-select {
+  display: block;
+  width: 100%;
+  max-width: 270px;
+  min-height: 38px;
+  margin-top: 5px;
+  padding: 7px 9px;
+  border: 1px solid #708d70;
+  border-radius: 7px;
+  background: #202920;
+  color: #f0f6ec;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.main-camera-source-select:focus-visible {
+  outline: 2px solid #b8f2a7;
+  outline-offset: 2px;
+}
