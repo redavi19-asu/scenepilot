@@ -74,10 +74,10 @@
 .sp-ticker{height:clamp(20px,2.4vw,34px);display:grid;grid-template-columns:auto 1fr auto;background:#111;overflow:hidden;box-shadow:0 3px 12px rgba(0,0,0,.5)}
 .sp-ticker-label{background:#e3a11c;color:#0c0c0c;padding:0 9px;display:flex;align-items:center;font-size:clamp(5px,.55vw,8px);font-weight:950}
 .sp-ticker-window{min-width:0;overflow:hidden;display:flex;align-items:center}
-.sp-ticker-track{display:flex;width:max-content;white-space:nowrap;animation:spTicker 24s linear infinite}
-.sp-ticker-track span{padding-right:60px;font-size:clamp(6px,.7vw,10px);font-weight:750}
+.sp-ticker-track{display:flex;flex:none;align-items:center;width:max-content;white-space:nowrap;padding-left:100%;animation:spTicker var(--ticker-duration,24s) linear infinite}
+.sp-ticker-track span{font-size:clamp(6px,.7vw,10px);font-weight:750}
 .sp-ticker time{padding:0 8px;display:flex;align-items:center;background:#222;font-size:clamp(5px,.55vw,8px);font-weight:900}
-@keyframes spTicker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes spTicker{from{transform:translateX(0)}to{transform:translateX(-100%)}}
 @keyframes spLivePulse{0%,100%{opacity:1}50%{opacity:.35}}
 @media(max-width:1000px){.sp-graphics-toggles{grid-template-columns:repeat(3,1fr)}.sp-graphics-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:700px){
