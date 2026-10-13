@@ -1886,8 +1886,17 @@ export class ScenePilotRoom {
       return null;
     }
 
-    if (Date.now() - director.lastSeenAt > 15000) {
-      this.removeSession(director);
+    // Mobile browsers suspend JS when Safari/iPad is backgrounded. The socket
+    // may remain open while heartbeats pause; evicting the entire session after
+    // 15 seconds orphaned a connected Director permanently. Retire only its
+    // lease, keep the session registered, and let the client reclaim the room.
+    if (Date.now() - director.lastSeenAt > 90000) {
+      this.activeDirectorId = null;
+      director.role = "standby";
+      this.send(director, "director:available", {
+        reason: "lease_expired",
+        message: "Director session paused. Reconnecting your production room."
+      });
       return null;
     }
 
@@ -2012,8 +2021,10 @@ export class ScenePilotRoom {
     session.lastSeenAt = Date.now();
 
     if (event === "session:heartbeat") {
-      // Standby heartbeats also expire an orphaned Director and trigger
-      // director:available so another device can claim the room.
+      // Acknowledged heartbeats let Safari clients detect half-open sockets
+      // that otherwise look CONNECTED despite losing all room messages.
+      this.send(session, "session:pong", { ts: Date.now() });
+      // A resumed Director can reclaim after an old lease expires.
       this.getActiveDirector();
       return;
     }
@@ -2030,22 +2041,34 @@ export class ScenePilotRoom {
       const currentDirector = this.getActiveDirector();
 
       if (currentDirector && currentDirector.id !== session.id) {
-        session.role = "standby";
-
-        this.send(session, "director:denied", {
-          reason: "director_in_use",
-          message: "This production already has an active Director."
-        });
-
-        return;
+        // A second tab/device belonging to the SAME signed-in account may
+        // take over an abandoned foreground session. Never let a different
+        // user's connection steal the production.
+        if (currentDirector.userId && session.userId &&
+            currentDirector.userId === session.userId) {
+          currentDirector.role = "standby";
+          this.send(currentDirector, "director:denied", {
+            reason: "director_replaced",
+            message: "Director control moved to your other open device."
+          });
+          this.activeDirectorId = null;
+        } else {
+          session.role = "standby";
+          this.send(session, "director:denied", {
+            reason: "director_in_use",
+            message: "This production already has an active Director."
+          });
+          return;
+        }
       }
 
+      const alreadyActive = currentDirector?.id === session.id;
       session.role = "director";
       this.activeDirectorId = session.id;
 
-      // Every Director login starts a clean production session.
-      // Keep connected sources, but renumber them from CAM 01 and clear names.
-      this.resetProductionSession();
+      // Reclaiming the same Director after Safari resumes is idempotent:
+      // don't rename sources or reset Program on every tab focus.
+      if (!alreadyActive) this.resetProductionSession();
 
       this.send(session, "director:granted", {
         socketId: session.id
