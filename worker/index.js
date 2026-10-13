@@ -2133,6 +2133,24 @@ export class ScenePilotRoom {
       return;
     }
 
+    if (event === "camera:request-offer") {
+      // A camera with a working signaling socket may still have no WebRTC
+      // media connection. Let it ask the active Director to re-offer, without
+      // letting the camera address arbitrary sessions or flood the Director.
+      if (session.role !== "camera" || !this.cameras.has(session.id)) return;
+      const now = Date.now();
+      if (now - (session.lastCameraReofferAt || 0) < 5000) return;
+      session.lastCameraReofferAt = now;
+
+      const director = this.getActiveDirector();
+      if (director) {
+        this.send(director, "camera:reoffer-requested", {
+          socketId: session.id
+        });
+      }
+      return;
+    }
+
     if (event === "camera:telemetry") {
       if (session.role !== "camera") return;
 
@@ -2330,6 +2348,20 @@ export class ScenePilotRoom {
     ) {
       const target = this.sessions.get(payload.target);
       if (!target) return;
+
+      // Camera SDP and ICE must only travel between the active Director and
+      // one of its registered camera sessions in this production room.
+      const fromDirector =
+        session.role === "director" &&
+        this.activeDirectorId === session.id &&
+        target.role === "camera" &&
+        this.cameras.has(target.id);
+      const fromCamera =
+        session.role === "camera" &&
+        this.cameras.has(session.id) &&
+        target.id === this.activeDirectorId &&
+        target.role === "director";
+      if (!fromDirector && !fromCamera) return;
 
       const forwarded = {
         ...payload,
