@@ -3097,7 +3097,7 @@ async function loadBroadcastTargets(env, networkId, destinationIds) {
   return targets;
 }
 
-async function callEncoder(env, path, payload) {
+async function callEncoder(env, path, payload = {}, method = "POST") {
   const baseUrl = String(env.ENCODER_API_URL || "").trim().replace(/\/+$/, "");
   const token = String(env.ENCODER_API_TOKEN || "").trim();
 
@@ -3113,12 +3113,12 @@ async function callEncoder(env, path, payload) {
   }
 
   const response = await fetch(`${baseUrl}${path}`, {
-    method: "POST",
+    method,
     headers: {
-      "Content-Type": "application/json",
+      ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify(payload)
+    ...(method === "POST" ? { body: JSON.stringify(payload) } : {})
   });
 
   const data = await response.json().catch(() => ({}));
@@ -3272,6 +3272,37 @@ async function getStreamingAllowance(env, networkId, now = Date.now()) {
     resetAt,
     billingWindowSource
   };
+}
+
+async function handleBroadcastSession(request, env, action, url) {
+  const auth = await requireScenePilotNetworkMember(request, env);
+  if (auth.response) return auth.response;
+  const body = action === "status" ? {} : await readJson(request);
+  const room = String(
+    action === "status" ? url.searchParams.get("room") || "" : body.room || ""
+  ).trim();
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(room)) {
+    return json({ error: "Invalid live production room." }, 400);
+  }
+  // All broadcast rooms are scoped to the authenticated company network.
+  if (!room.endsWith(`-${auth.network.id}`) && room !== String(auth.network.id)) {
+    return json({ error: "This broadcast belongs to another company network." }, 403);
+  }
+
+  try {
+    const encoder = action === "status"
+      ? await callEncoder(env, `/broadcast/status?room=${encodeURIComponent(room)}`, {}, "GET")
+      : await callEncoder(env, "/broadcast/resume", {
+        room, networkId: auth.network.id
+      });
+    if (encoder.pending) return json({ error: encoder.data.error }, 503);
+    if (!encoder.ok) {
+      return json({ error: encoder.data?.error || "Broadcast status unavailable." }, encoder.status || 503);
+    }
+    return json(encoder.data);
+  } catch {
+    return json({ error: "Broadcast server is temporarily unavailable." }, 503);
+  }
 }
 
 async function handleBroadcastUsage(request, env) {
@@ -3794,6 +3825,12 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === "/api/broadcast/usage" && request.method === "GET") {
     return handleBroadcastUsage(request, env);
+  }
+  if (url.pathname === "/api/broadcast/status" && request.method === "GET") {
+    return handleBroadcastSession(request, env, "status", url);
+  }
+  if (url.pathname === "/api/broadcast/resume" && request.method === "POST") {
+    return handleBroadcastSession(request, env, "resume", url);
   }
 
   if (url.pathname === "/api/broadcast/start" && request.method === "POST") {
