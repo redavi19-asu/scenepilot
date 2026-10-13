@@ -3329,12 +3329,12 @@ async function enableCamera() {
 
             {stream && (
               <>
-                <span className={`operator-live ${isOnAir ? "on-air" : "ready"}`} role="status" aria-live="polite">
-                  <i /> {isOnAir ? "LIVE" : "CONNECTED / READY"}
+                <span className={`operator-live ${cameraMediaConnected ? (isOnAir ? "on-air" : "ready") : "waiting"}`} role="status" aria-live="polite">
+                  <i /> {cameraMediaConnected ? (isOnAir ? "LIVE" : "VIDEO LINK CONNECTED") : "CAMERA OPEN — LINK PENDING"}
                 </span>
 
-                <div className={`on-air-banner ${isOnAir ? "live" : "standby"}`}>
-                  {isOnAir ? (
+                <div className={`on-air-banner ${cameraMediaConnected && isOnAir ? "live" : "standby"}`}>
+                  {cameraMediaConnected && isOnAir ? (
                     <>
                       <Radio size={22}/>
                       <div>
@@ -3346,8 +3346,8 @@ async function enableCamera() {
                     <>
                       <Camera size={22}/>
                       <div>
-                        <strong>CONNECTED — STANDBY</strong>
-                        <span>Camera feed is ready for the director.</span>
+                        <strong>{cameraMediaConnected ? "VIDEO LINK CONNECTED — STANDBY" : "WAITING FOR DIRECTOR VIDEO LINK"}</strong>
+                        <span>{cameraMediaConnected ? "Connected to Director; waiting to be placed on air." : cameraRegistered ? "Camera joined the room, but WebRTC video has not connected." : "Camera is open, but it has not joined the Director room yet."}</span>
                       </div>
                     </>
                   )}
