@@ -13,6 +13,52 @@ class ScenePilotSocket {
     this.manualClose = false;
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
+    this.role = null;
+    this.lastPongAt = 0;
+    this.lastForegroundAt = 0;
+    this.wasBackgroundedAt = 0;
+    this.openedFor = null;
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+          this.wasBackgroundedAt = Date.now();
+        } else {
+          this.restoreForeground();
+        }
+      });
+      window.addEventListener("focus", () => this.restoreForeground());
+    }
+  }
+
+  restoreForeground() {
+    if (!this.wantConnected || !this.network || !this.room) return;
+    const now = Date.now();
+    if (now - this.lastForegroundAt < 1500) return;
+    this.lastForegroundAt = now;
+
+    // Safari may leave a stale OPEN socket after sleeping. Renew the room
+    // session and refresh Director/camera presence after a long suspension.
+    if (!this.connected || (this.wasBackgroundedAt && now - this.wasBackgroundedAt > 10000) ||
+        (this.lastPongAt && now - this.lastPongAt > 20000)) {
+      this.reconnect();
+    } else if (this.role === "director") {
+      this.emit("director:join", { room: this.room });
+    } else if (this.role === "camera") {
+      this.emit("camera:join", { room: this.room });
+    }
+    this.wasBackgroundedAt = 0;
+  }
+
+  reconnect() {
+    if (!this.wantConnected) return this;
+    clearTimeout(this.reconnectTimer);
+    clearInterval(this.heartbeatTimer);
+    const prior = this.ws;
+    this.ws = null;
+    this.openedFor = null;
+    try { prior?.close(1000, "Refreshing Director signaling session"); } catch {}
+    this.open();
+    return this;
   }
 
   get connected() {
@@ -77,6 +123,11 @@ class ScenePilotSocket {
 
   open() {
     if (!this.wantConnected || !this.room || !this.network) return;
+    const connectionKey = [this.room, this.network].join(":");
+    if (this.ws && this.openedFor && this.openedFor !== connectionKey) {
+      this.reconnect();
+      return;
+    }
 
     if (
       this.ws &&
@@ -97,10 +148,12 @@ class ScenePilotSocket {
 
     const ws = new WebSocket(url);
     this.ws = ws;
+    this.openedFor = connectionKey;
 
     ws.addEventListener("open", () => {
       if (this.ws !== ws) return;
 
+      this.lastPongAt = Date.now();
       this.dispatch("connect");
       const pending = [...this.queue];
       this.queue = [];
@@ -128,6 +181,10 @@ class ScenePilotSocket {
       try {
         const message = JSON.parse(event.data);
         if (!message?.event) return;
+        if (message.event === "session:pong") {
+          this.lastPongAt = Date.now();
+          return;
+        }
         this.dispatch(message.event, message.payload);
       } catch (error) {
         console.error("Urban Director Studio signaling message error", error);
@@ -135,12 +192,13 @@ class ScenePilotSocket {
     });
 
     ws.addEventListener("close", () => {
+      // An old socket may close *after* its replacement connects.
+      // Never report a phantom disconnection for that obsolete socket.
+      if (this.ws !== ws) return;
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
-      if (this.ws === ws) {
-        this.ws = null;
-      }
-
+      this.ws = null;
+      this.openedFor = null;
       this.dispatch("disconnect");
 
       if (!this.manualClose && this.wantConnected && this.room && this.network) {
@@ -155,6 +213,8 @@ class ScenePilotSocket {
   }
 
   emit(event, payload = {}) {
+    if (event === "director:join") this.role = "director";
+    if (event === "camera:join") this.role = "camera";
     if (payload?.room && !this.room) {
       this.room = payload.room;
     }
@@ -183,6 +243,8 @@ class ScenePilotSocket {
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
     this.queue = [];
+    this.role = null;
+    this.openedFor = null;
 
     if (this.ws) {
       try {
