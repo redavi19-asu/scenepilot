@@ -311,7 +311,6 @@ export default function BroadcastGraphics() {
               <input type="file" accept="image/*,video/*" onChange={e => loadImage(e, "logo")} />
             </label>
             <small>Images and short silent looping video logos appear in the live Program feed.</small>
-            <span hidden></span>
           </div>
 
           <div className="sp-graphics-card sp-graphics-master">
