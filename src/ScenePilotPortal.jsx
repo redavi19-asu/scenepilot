@@ -1502,6 +1502,12 @@ function IntercomPanel({ mode }) {
       room: roomCode,
       join: mode === "camera" ? cameraParams.get("join") || "" : ""
     });
+    // The TURN request is asynchronous. Avoid creating duplicate peers if an offer
+    // arrives while the Director is preparing the same intercom connection.
+    const arrivedWhileLoading = peersRef.current[peerId];
+    if (arrivedWhileLoading?.peer && !["closed", "failed"].includes(arrivedWhileLoading.peer.connectionState)) {
+      return arrivedWhileLoading;
+    }
     const peer = new RTCPeerConnection({ iceServers, iceTransportPolicy: "all" });
 
     const transceiver = peer.addTransceiver("audio", {
