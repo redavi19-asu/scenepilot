@@ -37,7 +37,17 @@ export async function getDirectorIceServers({ network, room, join = "", force = 
     }
   })();
   cache.set(key, { pending });
-  return pending;
+  try {
+    const servers = await pending;
+    window.dispatchEvent(new CustomEvent("scenepilot:relay-health", { detail: { available: true } }));
+    return servers;
+  } catch (error) {
+    // Keep existing same-network camera operation available while TURN provisioning
+    // is incomplete. The UI must mark cross-network connectivity as degraded.
+    console.warn("Director TURN unavailable; limited direct-only media mode.", error);
+    window.dispatchEvent(new CustomEvent("scenepilot:relay-health", { detail: { available: false } }));
+    return [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
+  }
 }
 
 export function clearDirectorIceCache() {
