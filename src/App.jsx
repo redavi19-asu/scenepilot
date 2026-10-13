@@ -14,6 +14,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 import "./App.css";
 import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
+import { getDirectorIceServers } from "./iceServers";
 import {
   smartGlassesSupportedHere,
   startSmartGlassesStream,
