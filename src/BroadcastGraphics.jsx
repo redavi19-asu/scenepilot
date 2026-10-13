@@ -175,8 +175,10 @@ export default function BroadcastGraphics() {
           <div className="sp-ticker">
             <span className="sp-ticker-label">UPDATE</span>
             <div className="sp-ticker-window">
-              <div className="sp-ticker-track">
-                <span>{graphics.tickerText}</span>
+              <div
+                className="sp-ticker-track"
+                style={{ "--ticker-duration": `${Math.max(14, Math.ceil((String(graphics.tickerText || "").length * 9 + 900) / 92))}s` }}
+              >
                 <span>{graphics.tickerText}</span>
               </div>
             </div>
