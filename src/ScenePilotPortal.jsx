@@ -8,6 +8,7 @@ import {
 import App, { ScenePilotSplash } from "./App.jsx";
 import TurnstileWidget from "./TurnstileWidget.jsx";
 import { socket } from "./socket";
+import { getDirectorIceServers } from "./iceServers";
 import { subscribeToRealtimeProgram } from "./cloudflareRealtime";
 import { apiFetch, apiUrl, isNativeApp, setNativeSessionToken } from "./runtimeApi";
 import {
@@ -68,8 +69,10 @@ function WatchPage({ roomCode }) {
     video.addEventListener("canplay", seekToLiveEdge);
     video.addEventListener("timeupdate", catchUpToLive);
 
+    let fallbackStarted = false;
     const startHls = () => {
-      if (cancelled) return;
+      if (cancelled || fallbackStarted) return;
+      fallbackStarted = true;
       video.srcObject = null;
 
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -119,7 +122,13 @@ function WatchPage({ roomCode }) {
       }).catch(() => setStatus("LIVE PLAYER COULD NOT LOAD"));
     };
 
-    subscribeToRealtimeProgram(safeRoom, video)
+    subscribeToRealtimeProgram(safeRoom, video, () => {
+      if (cancelled) return;
+      realtime?.stop();
+      realtime = null;
+      setStatus("REALTIME INTERRUPTED — TRYING BACKUP STREAM");
+      startHls();
+    })
       .then(connection => {
         if (cancelled) return connection.stop();
         realtime = connection;
@@ -1482,7 +1491,7 @@ function IntercomPanel({ mode }) {
     }
   }, []);
 
-  const buildPeer = useCallback(peerId => {
+  const buildPeer = useCallback(async peerId => {
     const current = peersRef.current[peerId];
     if (
       current?.peer &&
@@ -1495,16 +1504,19 @@ function IntercomPanel({ mode }) {
       current?.peer?.close?.();
     } catch {}
 
-    const peer = new RTCPeerConnection({
-      iceServers: [
-        {
-          urls: [
-            "stun:stun.l.google.com:19302",
-            "stun:stun1.l.google.com:19302"
-          ]
-        }
-      ]
+    const cameraParams = new URLSearchParams(window.location.search);
+    const iceServers = await getDirectorIceServers({
+      network: socket.network || cameraParams.get("network"),
+      room: roomCode,
+      join: mode === "camera" ? cameraParams.get("join") || "" : ""
     });
+    // The TURN request is asynchronous. Avoid creating duplicate peers if an offer
+    // arrives while the Director is preparing the same intercom connection.
+    const arrivedWhileLoading = peersRef.current[peerId];
+    if (arrivedWhileLoading?.peer && !["closed", "failed"].includes(arrivedWhileLoading.peer.connectionState)) {
+      return arrivedWhileLoading;
+    }
+    const peer = new RTCPeerConnection({ iceServers, iceTransportPolicy: "all" });
 
     const transceiver = peer.addTransceiver("audio", {
       direction: "sendrecv"
@@ -1546,14 +1558,14 @@ function IntercomPanel({ mode }) {
     };
 
     return peerState;
-  }, [attachRemoteAudio]);
+  }, [attachRemoteAudio, mode, roomCode]);
 
   const attachMicToPeer = useCallback(async peerId => {
     const media = await ensureMic();
     const sourceTrack = media.getAudioTracks()[0];
     if (!sourceTrack) throw new Error("No microphone track is available.");
 
-    const peerState = buildPeer(peerId);
+    const peerState = await buildPeer(peerId);
 
     if (!peerState.sendTrack || peerState.sendTrack.readyState === "ended") {
       peerState.sendTrack = sourceTrack.clone();
@@ -1567,7 +1579,7 @@ function IntercomPanel({ mode }) {
   const ensurePeer = useCallback(async (peerId, initiate = false) => {
     if (!peerId) return null;
 
-    const peerState = buildPeer(peerId);
+    const peerState = await buildPeer(peerId);
 
     if (
       initiate &&
@@ -1756,7 +1768,7 @@ function IntercomPanel({ mode }) {
       if (!from || !offer) return;
 
       try {
-        const peerState = buildPeer(from);
+        const peerState = await buildPeer(from);
 
         if (peerState.peer.signalingState !== "stable") {
           await peerState.peer.setLocalDescription({ type: "rollback" }).catch(() => {});

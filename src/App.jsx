@@ -14,6 +14,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 import "./App.css";
 import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
+import { getDirectorIceServers } from "./iceServers";
 import {
   smartGlassesSupportedHere,
   startSmartGlassesStream,
@@ -853,10 +854,19 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
 
     const startPeer = async (camera, iceRestart = false) => {
       if (!camera?.socketId) return;
+      let iceServers;
+      try {
+        iceServers = await getDirectorIceServers({ network: networkId, room: roomCode, force: iceRestart });
+      } catch (error) {
+        setSignalStatus("MEDIA RELAY UNAVAILABLE — CAMERA CANNOT CONNECT");
+        console.error("Director relay configuration failed", error);
+        return;
+      }
 
       peers.current[camera.socketId]?.close();
 
       const peer = createPeerConnection({
+        iceServers,
         onIceCandidate: candidate => {
           socket.emit("webrtc:ice", {
             target: camera.socketId,
@@ -2613,9 +2623,18 @@ async function enableCamera() {
       };
 
       const handleOffer = async ({ from, offer }) => {
+        let iceServers;
+        try {
+          iceServers = await getDirectorIceServers({ network: networkId, room: roomCode, join: cameraJoinToken });
+        } catch (error) {
+          console.error("Camera relay configuration failed", error);
+          setSignalStatus("MEDIA RELAY UNAVAILABLE — CHECK CONNECTION");
+          return;
+        }
         peers.current[from]?.close();
 
         const peer = createPeerConnection({
+          iceServers,
           onIceCandidate: candidate => {
             socket.emit("webrtc:ice", {
               target: from,

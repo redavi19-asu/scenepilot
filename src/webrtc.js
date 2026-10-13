@@ -1,17 +1,15 @@
 export function createPeerConnection({
   onIceCandidate,
   onTrack,
-  onConnectionState
+  onConnectionState,
+  iceServers
 } = {}) {
+  if (!iceServers?.some(server => server.username && server.credential)) {
+    throw new Error("Secure Director TURN relay settings are missing.");
+  }
   const peer = new RTCPeerConnection({
-    iceServers: [
-      {
-        urls: [
-          "stun:stun.l.google.com:19302",
-          "stun:stun1.l.google.com:19302"
-        ]
-      }
-    ]
+    iceServers,
+    iceTransportPolicy: "all"
   });
 
   const fallbackStream = new MediaStream();
