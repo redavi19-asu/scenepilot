@@ -168,6 +168,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const cameraVideo = useRef(null);
   const peers = useRef({});
   const pendingIce = useRef({});
+  const cameraLastOfferAtRef = useRef(0);
+  const cameraRecoveryTimerRef = useRef(null);
   const [remoteStreams, setRemoteStreams] = useState({});
   const [wirelessCameras, setWirelessCameras] = useState([]);
   const wirelessCamerasRef = useRef([]);
@@ -850,6 +852,9 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
    useEffect(() => {
     if (showCamera || !networkId) return;
 
+    let disposed = false;
+    const peerStartupGeneration = {};
+
     const queueIce = (peerId, candidate) => {
       if (!candidate) return;
       if (!pendingIce.current[peerId]) {
@@ -884,7 +889,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     };
 
     const startPeer = async (camera, iceRestart = false) => {
-      if (!camera?.socketId) return;
+      if (!camera?.socketId || disposed) return;
+      const cameraId = camera.socketId;
+      const generation = (peerStartupGeneration[cameraId] || 0) + 1;
+      peerStartupGeneration[cameraId] = generation;
       let iceServers;
       try {
         iceServers = await getDirectorIceServers({ network: networkId, room: roomCode, force: iceRestart });
@@ -894,7 +902,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
         return;
       }
 
-      peers.current[camera.socketId]?.close();
+      // An ICE lookup can take several seconds; discard stale negotiations
+      // when a rejoin/retry supersedes them or the room is unmounted.
+      if (disposed || peerStartupGeneration[cameraId] !== generation) return;
+      peers.current[cameraId]?.close();
 
       const peer = createPeerConnection({
         iceServers,
@@ -1013,6 +1024,11 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       }
     };
 
+    const handleCameraReofferRequested = ({ socketId }) => {
+      const camera = wirelessCamerasRef.current.find(item => item.socketId === socketId);
+      if (camera) void startPeer(camera, true);
+    };
+
     const handleCameraTelemetry = payload => {
       if (!payload?.socketId) return;
       setWirelessCameras(prev =>
@@ -1041,6 +1057,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     };
 
     const handleCameraLeft = ({ socketId }) => {
+      peerStartupGeneration[socketId] = (peerStartupGeneration[socketId] || 0) + 1;
       peers.current[socketId]?.close();
       delete peers.current[socketId];
       delete pendingIce.current[socketId];
@@ -1095,6 +1112,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     socket.on("disconnect", handleDisconnect);
     socket.on("room:cameras", handleRoomCameras);
     socket.on("camera:joined", handleCameraJoined);
+    socket.on("camera:reoffer-requested", handleCameraReofferRequested);
     socket.on("webrtc:answer", handleAnswer);
     socket.on("webrtc:ice", handleIce);
     socket.on("camera:left", handleCameraLeft);
@@ -1108,10 +1126,12 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     socket.connect();
 
     return () => {
+      disposed = true;
       socket.off("connect", handleConnect);
       socket.off("disconnect", handleDisconnect);
       socket.off("room:cameras", handleRoomCameras);
       socket.off("camera:joined", handleCameraJoined);
+      socket.off("camera:reoffer-requested", handleCameraReofferRequested);
       socket.off("webrtc:answer", handleAnswer);
       socket.off("webrtc:ice", handleIce);
       socket.off("camera:left", handleCameraLeft);
@@ -2697,6 +2717,7 @@ async function enableCamera() {
       };
 
       const handleOffer = async ({ from, offer }) => {
+        cameraLastOfferAtRef.current = Date.now();
         let iceServers;
         try {
           iceServers = await getDirectorIceServers({ network: networkId, room: roomCode, join: cameraJoinToken });
@@ -2776,6 +2797,20 @@ async function enableCamera() {
 
       const handleRegistered = ({ slotId, directorAvailable }) => {
         setCameraRegistered(true);
+
+        // A successful QR join does not guarantee media arrived. After a
+        // stalled or lost SDP exchange, request a fresh Director offer.
+        // The server verifies and rate-limits requests for this camera only.
+        if (cameraRecoveryTimerRef.current) clearInterval(cameraRecoveryTimerRef.current);
+        cameraLastOfferAtRef.current = Date.now();
+        cameraRecoveryTimerRef.current = window.setInterval(() => {
+          if (!socket.connected || document.visibilityState === "hidden") return;
+          const connected = Object.values(peers.current).some(peer => peer.connectionState === "connected");
+          if (connected || Date.now() - cameraLastOfferAtRef.current < 11000) return;
+          cameraLastOfferAtRef.current = Date.now();
+          setSignalStatus("RETRYING CAMERA VIDEO CONNECTION");
+          socket.emit("camera:request-offer", { room: roomCode });
+        }, 8000);
 
         if (slotId) {
           assignedSlotRef.current = Number(slotId);
@@ -2960,6 +2995,10 @@ async function enableCamera() {
   }
 
   function stopCamera() {
+    if (cameraRecoveryTimerRef.current) {
+      clearInterval(cameraRecoveryTimerRef.current);
+      cameraRecoveryTimerRef.current = null;
+    }
     stream?.getTracks().forEach(track => track.stop());
     if (cameraSourceMode === "smart-glasses") {
       stopSmartGlassesStream();
