@@ -1651,13 +1651,17 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       ctx.fillText("UPDATE", 22, y + 35);
       ctx.font = "700 18px Arial";
       const tickerText = String(graphics.tickerText || "");
-      const offset = -((Date.now() / 35) % Math.max(1, width + ctx.measureText(tickerText).width));
+      const clipX = 125;
+      const clipWidth = width - 250;
+      const tickerWidth = ctx.measureText(tickerText).width;
+      const travel = clipWidth + tickerWidth + 24;
+      const elapsed = (Date.now() / 35) % Math.max(1, travel);
       ctx.save();
       ctx.beginPath();
-      ctx.rect(125, y, width - 250, 58);
+      ctx.rect(clipX, y, clipWidth, 58);
       ctx.clip();
-      ctx.fillText(tickerText, 140 + offset + width, y + 35);
-      ctx.fillText(tickerText, 420 + offset + width, y + 35);
+      // Exactly one instance of the sentence traverses the live feed per pass.
+      ctx.fillText(tickerText, clipX + clipWidth - elapsed, y + 35);
       ctx.restore();
       ctx.font = "700 16px Arial";
       ctx.fillText(now.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}), width - 110, y + 35);
