@@ -436,7 +436,6 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           realtimeRef.current = null;
         }
 
-        usageAlertRef.current = "";
         setBroadcasting(true);
         setShowShare(true);
 
@@ -482,7 +481,6 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         });
 
         setBroadcasting(false);
-        usageAlertRef.current = "";
         const refreshed = await api("/api/broadcast/usage").catch(() => null);
         if (refreshed?.usage) setUsage(refreshed.usage);
         setStatus(data.status ? `Encoder: ${data.status}` : "Broadcast stop accepted.");
