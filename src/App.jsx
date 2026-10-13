@@ -15,6 +15,7 @@ import "./App.css";
 import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
 import { getDirectorIceServers } from "./iceServers";
+import { acquireDirectorCamera } from "./directorCameraSwitch";
 import { disposeGraphicAsset, drawGraphicAsset, updateGraphicAsset } from "./programGraphicAssets";
 import {
   smartGlassesSupportedHere,
@@ -215,6 +216,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [draftCameraNames, setDraftCameraNames] = useState({});
   const [mainCamera, setMainCamera] = useState(1);
   const [directorStream, setDirectorStream] = useState(null);
+  const directorStreamRef = useRef(null);
+  const directorCameraSwitchingRef = useRef(false);
   const [directorFacingMode, setDirectorFacingMode] = useState("user");
   const [directorCameraStatus, setDirectorCameraStatus] = useState("OFF");
   const [previewDirty, setPreviewDirty] = useState(false);
@@ -247,6 +250,17 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     primary: 1,
     secondary: null
   });
+  // The canvas capture runs in a single requestAnimationFrame callback for
+  // the entire broadcast. Read the latest React state, never a stale closure.
+  const programSourcesRef = useRef(null);
+  programSourcesRef.current = {
+    directorStream,
+    wirelessCameras,
+    remoteStreams,
+    programComposition,
+    programTransition,
+    cameras
+  };
   const [draggingCamera, setDraggingCamera] = useState(null);
   const [expandedMonitor, setExpandedMonitor] = useState(null);
   const [_localClip, setLocalClip] = useState(null);
@@ -378,11 +392,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     };
   }, []);
 
-  useEffect(() => {
-    return () => {
-      directorStream?.getTracks?.().forEach(track => track.stop());
-    };
-  }, [directorStream]);
+  useEffect(() => () => {
+    directorStreamRef.current?.getTracks?.().forEach(track => track.stop());
+    directorStreamRef.current = null;
+  }, []);
 
   useEffect(() => {
     if (!showCamera) return;
@@ -1394,12 +1407,13 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   }
 
   function sourceVideoForSlot(slotId) {
+    const live = programSourcesRef.current;
     if (slotId === DIRECTOR_SOURCE) {
-      return getVideoElementForStream("director", directorStream);
+      return getVideoElementForStream("director", live?.directorStream);
     }
-    const camera = wirelessCameras.find(item => item.slotId === slotId);
+    const camera = live?.wirelessCameras?.find(item => item.slotId === slotId);
     if (!camera) return null;
-    return getVideoElementForStream(camera.socketId, remoteStreams[camera.socketId]);
+    return getVideoElementForStream(camera.socketId, live?.remoteStreams?.[camera.socketId]);
   }
 
   function drawVideoCover(ctx, video, x, y, width, height) {
@@ -1431,9 +1445,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   }
 
   function drawProgramLayout(ctx, width, height) {
-    const mode = programComposition.mode;
-    const primary = programComposition.primary;
-    const secondary = programComposition.secondary;
+    const live = programSourcesRef.current;
+    const mode = live?.programComposition?.mode || "single";
+    const primary = live?.programComposition?.primary;
+    const secondary = live?.programComposition?.secondary;
 
     if (mode === "split") {
       drawVideoCover(ctx, sourceVideoForSlot(primary), 0, 0, width / 2, height);
@@ -1461,7 +1476,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       drawVideoCover(ctx, sourceVideoForSlot(primary), 0, 0, mainWidth, height);
       drawSourceLabel(ctx, `MAIN • ${displayNameForCamera(primary)}`, 18, height - 34);
 
-      const others = cameras.filter(camera => camera.id !== primary).slice(0, 8);
+      const others = (live?.cameras || []).filter(camera => camera.id !== primary).slice(0, 8);
       const gridX = mainWidth;
       const gridWidth = width - mainWidth;
       const cellWidth = gridWidth / 2;
@@ -1665,20 +1680,21 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     lastFrame.height = canvas.height;
     programLastFrameRef.current = lastFrame;
 
-    let lastTransitionKey = programTransition.key;
+    let lastTransitionKey = programSourcesRef.current?.programTransition?.key || 0;
 
     const render = () => {
       const width = canvas.width;
       const height = canvas.height;
+      const transitionNow = programSourcesRef.current?.programTransition;
 
-      if (programTransition.key !== lastTransitionKey) {
+      if (transitionNow && transitionNow.key !== lastTransitionKey) {
         lastFrame.getContext("2d").drawImage(canvas, 0, 0);
-        lastTransitionKey = programTransition.key;
+        lastTransitionKey = transitionNow.key;
         programTransitionStateRef.current = {
-          key: programTransition.key,
+          key: transitionNow.key,
           startedAt: performance.now(),
-          duration: Number(programTransition.duration || 0),
-          type: programTransition.type || "CUT"
+          duration: Number(transitionNow.duration || 0),
+          type: transitionNow.type || "CUT"
         };
       }
 
@@ -2836,59 +2852,63 @@ async function enableCamera() {
   }
 
   async function openDirectorCamera(facing = directorFacingMode) {
-    if (showCamera) return;
+    if (showCamera || directorCameraSwitchingRef.current) return;
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setDirectorCameraStatus("UNSUPPORTED");
       return;
     }
 
+    directorCameraSwitchingRef.current = true;
+    const previous = directorStreamRef.current;
+    const previousFacing = directorFacingMode;
+
     try {
-      setDirectorCameraStatus("REQUESTING");
-
-      directorStream?.getTracks?.().forEach(track => track.stop());
-
-      const media = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: facing },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30, max: 30 }
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
+      setDirectorCameraStatus(previous ? "SWITCHING CAMERA" : "REQUESTING");
+      const result = await acquireDirectorCamera(navigator.mediaDevices, {
+        facing,
+        previousStream: previous,
+        previousFacing
       });
 
-      setDirectorFacingMode(facing);
-      setDirectorStream(media);
-      setDirectorCameraStatus(
-        facing === "environment" ? "REAR CAMERA READY" : "FRONT CAMERA READY"
-      );
+      directorStreamRef.current = result.stream;
+      setDirectorFacingMode(result.facing);
+      setDirectorStream(result.stream);
+      setDirectorCameraStatus(result.restored
+        ? "CAMERA SWITCH FAILED — ORIGINAL CAMERA RESTORED"
+        : result.facing === "environment"
+          ? "REAR CAMERA READY"
+          : "FRONT CAMERA READY");
     } catch (error) {
       console.error("Urban Director Studio Director Cam failed", error);
-      setDirectorCameraStatus("CAMERA BLOCKED");
+      // Keep the running Program compositor and ingest alive even if the lens
+      // could not change. Never stop its capture stream here.
+      setDirectorCameraStatus(
+        previous && previous.getVideoTracks().some(track => track.readyState === "live")
+          ? "CAMERA SWITCH FAILED — LIVE FEED KEPT"
+          : "CAMERA UNAVAILABLE — BROADCAST CONTINUES"
+      );
+    } finally {
+      directorCameraSwitchingRef.current = false;
     }
   }
 
   async function enableDirectorCamera() {
-    if (directorStream) return;
+    if (directorStreamRef.current) return;
     await openDirectorCamera("user");
   }
 
   async function switchDirectorCamera() {
-    if (!directorStream) return;
-
+    if (!directorStreamRef.current) return;
     const nextFacing =
       directorFacingMode === "user" ? "environment" : "user";
-
     await openDirectorCamera(nextFacing);
   }
 
   function stopDirectorCamera() {
-    directorStream?.getTracks?.().forEach(track => track.stop());
+    const previous = directorStreamRef.current;
+    directorStreamRef.current = null;
+    previous?.getTracks?.().forEach(track => track.stop());
     setDirectorStream(null);
     setDirectorCameraStatus("OFF");
 
