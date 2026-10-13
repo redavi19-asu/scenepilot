@@ -50,6 +50,8 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const [showSettings, setShowSettings] = useState(false);
   const [showSecrets, setShowSecrets] = useState(false);
   const [broadcasting, setBroadcasting] = useState(false);
+  const [sessionActive, setSessionActive] = useState(false);
+  const [serverMode, setServerMode] = useState("off");
   const [encoderConnected, setEncoderConnected] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
@@ -134,6 +136,34 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!broadcastNetworkId) return undefined;
+    let cancelled = false;
+    const refresh = () => {
+      api(`/api/broadcast/status?room=${encodeURIComponent(serviceRoomCode)}`)
+        .then(session => {
+          if (cancelled) return;
+          setSessionActive(Boolean(session.active));
+          setServerMode(session.mode || "off");
+          if (session.active) {
+            setShowShare(true);
+            setSelected(current => current.length
+              ? current
+              : (session.destinations || []).filter(id => DESTINATIONS.some(item => item.id === id)));
+          }
+        })
+        .catch(() => {
+          // A server failure is not permission to mark a broadcast ended.
+        });
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [broadcastNetworkId, serviceRoomCode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,22 +253,28 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         socket.send(event.data);
       }
     };
-    recorder.onerror = () => setStatus("Program ingest recorder failed.");
+    recorder.onerror = () => setStatus("Program ingest interrupted — server standby remains active.");
     socket.onclose = event => {
       if (ingestRef.current.socket !== socket) return;
 
+      if (recorder.state !== "inactive") {
+        try { recorder.stop(); } catch { /* Recorder already finished. */ }
+      }
       if (event.code === 4008) {
         void realtimeRef.current?.stop?.();
         realtimeRef.current = null;
-        setStatus("Streaming limit reached. Start another session if monthly minutes remain.");
+        setSessionActive(false);
+        setServerMode("off");
+        setStatus("Streaming allowance reached. This session has ended.");
         setBroadcasting(false);
         return;
       }
 
-      if (event.code !== 1000) {
-        setStatus("Program ingest connection closed unexpectedly.");
-        setBroadcasting(false);
-      }
+      void realtimeRef.current?.stop?.();
+      realtimeRef.current = null;
+      setStatus("Director feed disconnected — the server is keeping the audience on standby. Use RESUME LIVE to reconnect.");
+      setServerMode("standby");
+      setBroadcasting(false);
     };
 
     ingestRef.current = { recorder, socket };
@@ -382,10 +418,54 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     shareBroadcast();
   }
 
+  async function endSession() {
+    if (limitTimerRef.current) window.clearTimeout(limitTimerRef.current);
+    limitTimerRef.current = null;
+    await realtimeRef.current?.stop?.();
+    realtimeRef.current = null;
+    await stopBrowserIngest();
+    const result = await api("/api/broadcast/stop", {
+      method: "POST",
+      body: JSON.stringify({ room: serviceRoomCode, destinations: selected })
+    });
+    setBroadcasting(false);
+    setSessionActive(false);
+    setServerMode("off");
+    const refreshed = await api("/api/broadcast/usage").catch(() => null);
+    if (refreshed?.usage) setUsage(refreshed.usage);
+    setStatus(result.status ? `Encoder: ${result.status}` : "Session ended.");
+  }
+
   async function toggleBroadcast() {
     setStatus("");
 
     try {
+      if (sessionActive && broadcasting) {
+        await endSession();
+        return;
+      }
+
+      if (sessionActive && !broadcasting) {
+        const resumed = await api("/api/broadcast/resume", {
+          method: "POST",
+          body: JSON.stringify({ room: serviceRoomCode })
+        });
+        await startBrowserIngest(resumed.ingest);
+        if ((resumed.destinations || []).includes("self")) {
+          try {
+            realtimeRef.current = await publishProgramToRealtime(
+              serviceRoomCode, getProgramStream?.()
+            );
+          } catch (error) {
+            console.warn("Realtime recovery pending; server HLS fallback remains available.", error);
+          }
+        }
+        setBroadcasting(true);
+        setServerMode("program");
+        setStatus("PROGRAM RESTORED — existing public session continued without interruption.");
+        return;
+      }
+
       if (!broadcasting) {
         if (!broadcastNetworkId) {
           setStatus("Production network is still loading. Try again in a moment.");
@@ -412,14 +492,15 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           })
         });
 
+        // The server owns the session from START until END or allowance expiry.
+        // Even if browser capture fails, it publishes a standby frame.
+        setSessionActive(true);
+        setServerMode("connecting");
         try {
           await startBrowserIngest(data.encoder?.ingest);
         } catch (error) {
-          await api("/api/broadcast/stop", {
-            method: "POST",
-            body: JSON.stringify({ room: serviceRoomCode, destinations: selected })
-          }).catch(() => {});
-          throw error;
+          setStatus(`Live camera ingest failed: ${error.message}. Public session remains active on server standby; tap RESUME LIVE to reconnect.`);
+          return;
         }
 
         if (selected.includes("self")) {
@@ -437,6 +518,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         }
 
         setBroadcasting(true);
+        setServerMode("program");
         setShowShare(true);
 
         const sessionLimitSeconds = Number(
@@ -464,26 +546,6 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
             ? `Encoder: ${data.status}${Number.isFinite(remaining) ? ` · ${remaining} monthly minutes remaining` : ""}`
             : "Broadcast start accepted."
         );
-      } else {
-        if (limitTimerRef.current) {
-          window.clearTimeout(limitTimerRef.current);
-          limitTimerRef.current = null;
-        }
-        await realtimeRef.current?.stop?.();
-        realtimeRef.current = null;
-        await stopBrowserIngest();
-        const data = await api("/api/broadcast/stop", {
-          method: "POST",
-          body: JSON.stringify({
-            room: serviceRoomCode,
-            destinations: selected
-          })
-        });
-
-        setBroadcasting(false);
-        const refreshed = await api("/api/broadcast/usage").catch(() => null);
-        if (refreshed?.usage) setUsage(refreshed.usage);
-        setStatus(data.status ? `Encoder: ${data.status}` : "Broadcast stop accepted.");
       }
     } catch (error) {
       if (limitTimerRef.current) {
@@ -691,21 +753,30 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
             <strong>
               {broadcasting
                 ? "LIVE"
-                : encoderConnected
-                  ? "READY"
-                  : "BACKEND PENDING"}
+                : sessionActive
+                  ? serverMode === "standby" ? "SERVER STANDBY" : "SESSION ACTIVE"
+                  : encoderConnected
+                    ? "READY"
+                    : "BACKEND PENDING"}
             </strong>
           </div>
         </div>
 
         <button
           className={`broadcast-go-live ${broadcasting ? "is-live" : ""}`}
-          disabled={!selected.length}
+          disabled={!selected.length && !sessionActive}
           onClick={toggleBroadcast}
         >
           {broadcasting ? <Square size={17}/> : <Play size={17}/>}
-          {broadcasting ? "END STREAM" : "GO LIVE"}
+          {broadcasting ? "END SESSION" : sessionActive ? "RESUME LIVE" : "START SESSION / GO LIVE"}
         </button>
+        {sessionActive && !broadcasting && (
+          <button type="button" className="broadcast-go-live is-live" onClick={() => {
+            void endSession().catch(error => setStatus(error.message));
+          }}>
+            <Square size={17}/> END SESSION
+          </button>
+        )}
       </div>
 
       {(usageStatus || status) && <div className="broadcast-status-message">{usageStatus || status}</div>}
