@@ -553,12 +553,13 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   }, [cameraInvite, roomCode]);
 
   function cameraInviteQuery(invite = cameraInvite) {
+    const inviteNetworkId = invite?.networkId || network?.id;
     return (
-      network?.id &&
+      inviteNetworkId &&
       invite?.token
         ? new URLSearchParams({
             camera: "1",
-            network: network.id,
+            network: inviteNetworkId,
             room: invite.room || roomCode,
             join: invite.token
           }).toString()
@@ -577,9 +578,6 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const cameraJoinQuery = cameraInviteQuery();
   const joinUrl = cameraJoinQuery
     ? `${publicOrigin()}/app?${cameraJoinQuery}`
-    : "";
-  const cameraHandoffUrl = cameraJoinQuery
-    ? `${publicOrigin()}/camera-open?${cameraJoinQuery}`
     : "";
 
   useEffect(() => {
@@ -601,7 +599,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   async function shareCameraInvite(method) {
     try {
       const invite = await requestCameraInvite();
-      const url = cameraInviteUrl(invite, true);
+      // Go straight to browser camera mode. Optional installed-app handoff must never block a QR invite.
+      const url = cameraInviteUrl(invite, false);
       const title = "Urban Director Studio Camera Invite";
       const message =
         `Join ${network?.name || "this production"} as a camera for room ${invite.room || roomCode}. This secure invite expires automatically.`;
@@ -4994,12 +4993,12 @@ async function enableCamera() {
             <span className="eyebrow">ADD WIRELESS CAMERA</span>
             <h2>Join this production</h2>
             <p>
-              This QR code is locked to <strong>{network?.name || "this company network"}</strong>
+              This QR code is locked to <strong>{cameraInvite?.networkName || network?.name || "this company network"}</strong>
               {" "}and room {roomCode}. Cameras using another company's QR code cannot enter this production.
             </p>
             <div className="qr-wrap">
-              {cameraHandoffUrl ? (
-                <QRCodeSVG value={cameraHandoffUrl} size={190}/>
+              {joinUrl ? (
+                <QRCodeSVG value={joinUrl} size={190}/>
               ) : (
                 <span>{cameraInviteStatus || "CREATING SECURE CAMERA QR…"}</span>
               )}
