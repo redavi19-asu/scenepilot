@@ -64,6 +64,8 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const ingestRef = useRef({ recorder: null, socket: null });
   const realtimeRef = useRef(null);
   const limitTimerRef = useRef(null);
+  const autoResumeRoomRef = useRef("");
+  const resumeInProgressRef = useRef(false);
 
   const usagePercent = useMemo(() => {
     if (!usage?.includedMinutes) return 0;
@@ -140,6 +142,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   useEffect(() => {
     if (!broadcastNetworkId) return undefined;
     let cancelled = false;
+    let autoResumeTimer = null;
     const refresh = () => {
       api(`/api/broadcast/status?room=${encodeURIComponent(serviceRoomCode)}`)
         .then(session => {
@@ -151,6 +154,19 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
             setSelected(current => current.length
               ? current
               : (session.destinations || []).filter(id => DESTINATIONS.some(item => item.id === id)));
+            // A closed or refreshed Director should recover its former live
+            // broadcast automatically, with a manual RESUME LIVE fallback.
+            // Only attempt if the server is not already receiving Program.
+            if (session.mode !== "program" &&
+                autoResumeRoomRef.current !== serviceRoomCode) {
+              autoResumeRoomRef.current = serviceRoomCode;
+              autoResumeTimer = window.setTimeout(() => {
+                if (cancelled || ingestRef.current.socket) return;
+                void resumeServerSession(true).catch(error => {
+                  if (!cancelled) setStatus(`Automatic resume unavailable: ${error.message}. Tap RESUME LIVE to retry.`);
+                });
+              }, 3000);
+            }
           }
         })
         .catch(() => {
@@ -162,6 +178,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      if (autoResumeTimer) window.clearTimeout(autoResumeTimer);
     };
   }, [broadcastNetworkId, serviceRoomCode]);
 
@@ -436,6 +453,35 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     setStatus(result.status ? `Encoder: ${result.status}` : "Session ended.");
   }
 
+  async function resumeServerSession(automatic = false) {
+    if (resumeInProgressRef.current || ingestRef.current.socket) return;
+    resumeInProgressRef.current = true;
+    try {
+      const resumed = await api("/api/broadcast/resume", {
+        method: "POST",
+        body: JSON.stringify({ room: serviceRoomCode })
+      });
+      await startBrowserIngest(resumed.ingest);
+      if ((resumed.destinations || []).includes("self")) {
+        try {
+          realtimeRef.current = await publishProgramToRealtime(
+            serviceRoomCode, getProgramStream?.()
+          );
+        } catch (error) {
+          console.warn("Realtime recovery pending; server HLS fallback remains available.", error);
+        }
+      }
+      setBroadcasting(true);
+      setSessionActive(true);
+      setServerMode("program");
+      setStatus(automatic
+        ? "PROGRAM RECONNECTED AUTOMATICALLY — public watch link preserved."
+        : "PROGRAM RESTORED — existing public session continued without interruption.");
+    } finally {
+      resumeInProgressRef.current = false;
+    }
+  }
+
   async function toggleBroadcast() {
     setStatus("");
 
@@ -446,23 +492,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
       }
 
       if (sessionActive && !broadcasting) {
-        const resumed = await api("/api/broadcast/resume", {
-          method: "POST",
-          body: JSON.stringify({ room: serviceRoomCode })
-        });
-        await startBrowserIngest(resumed.ingest);
-        if ((resumed.destinations || []).includes("self")) {
-          try {
-            realtimeRef.current = await publishProgramToRealtime(
-              serviceRoomCode, getProgramStream?.()
-            );
-          } catch (error) {
-            console.warn("Realtime recovery pending; server HLS fallback remains available.", error);
-          }
-        }
-        setBroadcasting(true);
-        setServerMode("program");
-        setStatus("PROGRAM RESTORED — existing public session continued without interruption.");
+        await resumeServerSession();
         return;
       }
 
