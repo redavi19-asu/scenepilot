@@ -90,6 +90,31 @@ export async function subscribeToRealtimeProgram(room, video) {
       sessionDescription: { type: answer.type, sdp: answer.sdp }
     });
 
+    // Do not call a negotiated session LIVE until media ICE actually connects.
+    // If a viewer's firewall blocks realtime transport, the caller must fall back to HLS.
+    await new Promise((resolve, reject) => {
+      if (peer.connectionState === "connected") return resolve();
+      let timer;
+      const onState = () => {
+        if (peer.connectionState === "connected") finish();
+        else if (peer.connectionState === "failed" || peer.connectionState === "closed") {
+          finish(new Error("Realtime video transport could not connect."));
+        }
+      };
+      const finish = error => {
+        window.clearTimeout(timer);
+        peer.removeEventListener("connectionstatechange", onState);
+        if (error) reject(error);
+        else resolve();
+      };
+      peer.addEventListener("connectionstatechange", onState);
+      timer = window.setTimeout(
+        () => finish(new Error("Realtime video transport timed out.")),
+        12000
+      );
+      onState();
+    });
+
     let heartbeatTimer = null;
 
     if (subscription.viewerToken) {
