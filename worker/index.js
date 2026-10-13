@@ -2021,8 +2021,10 @@ export class ScenePilotRoom {
     session.lastSeenAt = Date.now();
 
     if (event === "session:heartbeat") {
-      // Standby heartbeats also expire an orphaned Director and trigger
-      // director:available so another device can claim the room.
+      // Acknowledged heartbeats let Safari clients detect half-open sockets
+      // that otherwise look CONNECTED despite losing all room messages.
+      this.send(session, "session:pong", { ts: Date.now() });
+      // A resumed Director can reclaim after an old lease expires.
       this.getActiveDirector();
       return;
     }
