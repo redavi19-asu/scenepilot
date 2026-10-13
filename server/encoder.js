@@ -4,6 +4,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, readdir, rename, stat, statfs, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { WebSocketServer } from "ws";
+import { sessionStatus, standbyFfmpegArgs } from "./standby.js";
 
 const HOST = process.env.ENCODER_HOST || "127.0.0.1";
 const PORT = Number(process.env.ENCODER_PORT || 8788);
@@ -31,6 +32,60 @@ const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const RECORDING_EXTENSIONS = new Set([".flv", ".mkv", ".mov", ".mp4", ".webm"]);
 
 const jobs = new Map();
+
+function scheduleStandby(job, delayMs = 1500) {
+  if (
+    !job || job.stopped || jobs.get(job.room) !== job ||
+    job.socket || job.ingestProcess || job.standbyProcess || job.reconnecting ||
+    Date.now() >= job.streamExpiresAt
+  ) return;
+  clearTimeout(job.standbyTimer);
+  job.standbyTimer = setTimeout(() => {
+    job.standbyTimer = null;
+    if (
+      job.stopped || jobs.get(job.room) !== job || job.socket ||
+      job.ingestProcess || job.standbyProcess || job.reconnecting
+    ) return;
+
+    const proc = spawn("/usr/bin/ffmpeg", standbyFfmpegArgs(INPUT_BASE, job.room), {
+      stdio: ["ignore", "ignore", "pipe"]
+    });
+    job.standbyProcess = proc;
+    console.log(`[${job.eventId}:standby] Server fallback broadcast started.`);
+    proc.stderr.on("data", data => {
+      process.stderr.write(`[${job.eventId}:standby] ${data}`);
+    });
+    proc.on("error", error => console.error("[standby] Encoder failed:", error.message));
+    proc.once("close", (code, signal) => {
+      if (job.standbyProcess !== proc) return;
+      job.standbyProcess = null;
+      console.log(`[${job.eventId}:standby] Closed code=${code} signal=${signal}`);
+      // Avoid tight process restart loops if FFmpeg is missing or unsupported.
+      scheduleStandby(job, 30000);
+    });
+  }, delayMs);
+  job.standbyTimer.unref?.();
+}
+
+function stopStandby(job) {
+  clearTimeout(job?.standbyTimer);
+  if (job) job.standbyTimer = null;
+  const proc = job?.standbyProcess;
+  if (!proc) return Promise.resolve();
+  job.standbyProcess = null;
+  return new Promise(resolve => {
+    if (proc.exitCode !== null || proc.signalCode !== null) return resolve();
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      resolve();
+    }, 2500);
+    proc.once("close", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    proc.kill("SIGTERM");
+  });
+}
 
 async function archiveOwnerRecordings(job) {
   if (!job || job.retentionClass !== "owner") return { movedFiles: 0, movedBytes: 0 };
@@ -185,6 +240,9 @@ function outputUrl(destination) {
 }
 
 function stopJob(job, closeCode = 1000, closeReason = "Broadcast stopped") {
+  if (!job) return;
+  job.stopped = true;
+  void stopStandby(job);
   if (job?.limitTimer) {
     clearTimeout(job.limitTimer);
     job.limitTimer = null;
@@ -284,6 +342,37 @@ const server = createServer(async (request, response) => {
   }
 
   try {
+    if (request.method === "GET" && url.pathname === "/broadcast/status") {
+      const room = safeRoom(url.searchParams.get("room"));
+      const job = jobs.get(room);
+      return json(response, 200, sessionStatus(job));
+    }
+
+    if (request.method === "POST" && url.pathname === "/broadcast/resume") {
+      const body = await readJson(request);
+      const room = safeRoom(body.room);
+      const job = jobs.get(room);
+      if (!job || job.stopped || job.streamExpiresAt <= Date.now()) {
+        return json(response, 404, { error: "Broadcast session is no longer active." });
+      }
+      if (job.networkId !== String(body.networkId || "")) {
+        return json(response, 403, { error: "Broadcast network access denied." });
+      }
+      if (job.socket || job.reconnecting) {
+        return json(response, 409, { error: "Another Director is already publishing this program." });
+      }
+      job.ingestToken = randomBytes(32).toString("base64url");
+      job.ingestExpiresAt = Date.now() + INGEST_TOKEN_TTL_MS;
+      return json(response, 200, {
+        ...sessionStatus(job),
+        ingest: {
+          url: `${PUBLIC_INGEST_URL}/ingest/${encodeURIComponent(room)}`,
+          protocol: `scenepilot-ingest.${job.ingestToken}`,
+          expiresAt: job.ingestExpiresAt
+        }
+      });
+    }
+
     if (request.method === "POST" && url.pathname === "/broadcast/start") {
       const body = await readJson(request);
       const room = safeRoom(body.room);
@@ -345,12 +434,19 @@ const server = createServer(async (request, response) => {
         ingestExpiresAt: Date.now() + INGEST_TOKEN_TTL_MS,
         ingestProcess: null,
         socket: null,
+        standbyProcess: null,
+        standbyTimer: null,
+        reconnecting: false,
+        stopped: false,
         startedAt: Date.now(),
         maxDurationSeconds,
         streamExpiresAt: Date.now() + maxDurationSeconds * 1000,
         limitTimer: null
       };
       jobs.set(room, job);
+      // Keep the public room populated if the Director never connects, or
+      // loses its browser/tab later. Only explicit END or quota expiry stops it.
+      scheduleStandby(job, 2500);
 
       job.limitTimer = setTimeout(async () => {
         if (jobs.get(room) !== job) return;
@@ -426,7 +522,7 @@ const websocketServer = new WebSocketServer({
   maxPayload: 4 * 1024 * 1024
 });
 
-server.on("upgrade", (request, socket, head) => {
+server.on("upgrade", async (request, socket, head) => {
   try {
     const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
     const match = url.pathname.match(/^\/ingest\/([A-Za-z0-9_-]{1,80})$/);
@@ -443,14 +539,23 @@ server.on("upgrade", (request, socket, head) => {
       !requestedProtocol ||
       Date.now() > job.ingestExpiresAt ||
       !equalSecret(token, job.ingestToken) ||
-      job.socket
+      job.socket ||
+      job.reconnecting
     ) {
       socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
       socket.destroy();
       return;
     }
 
+    job.reconnecting = true;
+    await stopStandby(job);
+    if (job.stopped || jobs.get(room) !== job) {
+      job.reconnecting = false;
+      socket.destroy();
+      return;
+    }
     websocketServer.handleUpgrade(request, socket, head, ws => {
+      job.reconnecting = false;
       websocketServer.emit("connection", ws, request, { room, job, requestedProtocol });
     });
   } catch {
@@ -501,6 +606,7 @@ websocketServer.on("connection", (ws, _request, context) => {
     finish(1011, "Encoder stopped");
     clearTimeout(killTimer);
     if (job.ingestProcess === ingestProcess) job.ingestProcess = null;
+    if (!job.socket) scheduleStandby(job);
   });
 
   ws.on("message", (data, isBinary) => {
@@ -512,6 +618,7 @@ websocketServer.on("connection", (ws, _request, context) => {
   ws.on("close", () => {
     finish(1000, "Producer disconnected");
     if (job.socket === ws) job.socket = null;
+    if (!job.ingestProcess) scheduleStandby(job);
   });
 
   ws.on("error", error => {
