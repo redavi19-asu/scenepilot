@@ -2847,7 +2847,7 @@ async function handleBroadcastDestinations(request, env) {
   if (request.method === "GET") {
     // Configuration is not connectivity. Check the encoder before displaying ONLINE.
     let encoderOnline = false;
-    const encoderBase = String(env.ENCODER_API_URL || "").trim().replace(/\\/+$/, "");
+    const encoderBase = String(env.ENCODER_API_URL || "").trim().replace(new RegExp("/+$"), "");
     if (encoderBase) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3500);
