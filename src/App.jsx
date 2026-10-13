@@ -854,10 +854,19 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
 
     const startPeer = async (camera, iceRestart = false) => {
       if (!camera?.socketId) return;
+      let iceServers;
+      try {
+        iceServers = await getDirectorIceServers({ network: networkId, room: roomCode, force: iceRestart });
+      } catch (error) {
+        setSignalStatus("MEDIA RELAY UNAVAILABLE — CAMERA CANNOT CONNECT");
+        console.error("Director relay configuration failed", error);
+        return;
+      }
 
       peers.current[camera.socketId]?.close();
 
       const peer = createPeerConnection({
+        iceServers,
         onIceCandidate: candidate => {
           socket.emit("webrtc:ice", {
             target: camera.socketId,
