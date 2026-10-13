@@ -164,13 +164,28 @@ class ScenePilotSocket {
 
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = setInterval(() => {
-        if (this.ws === ws && ws.readyState === WebSocket.OPEN) {
-          try {
-            ws.send(JSON.stringify({
-              event: "session:heartbeat",
-              payload: { ts: Date.now() }
-            }));
-          } catch {}
+        if (this.ws !== ws || ws.readyState !== WebSocket.OPEN) return;
+        // When a Cloudflare Worker/room upgrades, Safari can leave an
+        // apparently OPEN socket that never receives another message.
+        // Force a new authenticated room join rather than leaving cameras
+        // invisible to Director indefinitely. Ignore backgrounded tabs:
+        // restoreForeground handles their recovery on resume.
+        if (document.visibilityState !== "hidden" &&
+            this.lastPongAt &&
+            Date.now() - this.lastPongAt > 25000) {
+          console.warn("Urban Director Studio signaling heartbeat expired; reconnecting.");
+          this.dispatch("disconnect");
+          this.reconnect();
+          return;
+        }
+        try {
+          ws.send(JSON.stringify({
+            event: "session:heartbeat",
+            payload: { ts: Date.now() }
+          }));
+        } catch (error) {
+          console.warn("Urban Director Studio heartbeat failed; reconnecting.", error);
+          this.reconnect();
         }
       }, 5000);
     });
