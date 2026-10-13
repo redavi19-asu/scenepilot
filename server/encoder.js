@@ -216,9 +216,10 @@ function equalSecret(left, right) {
 function startIngest(input, room) {
   return spawn("/usr/bin/ffmpeg", [
     "-hide_banner", "-loglevel", "warning",
-    "-fflags", "+genpts+discardcorrupt+nobuffer",
-    "-flags", "low_delay",
-    "-avioflags", "direct",
+    // MediaRecorder containers arrive on a non-seekable pipe. Direct AVIO
+    // bypasses the probe buffer and loses the WebM header before demuxing.
+    // Preserve probe packets (including the first keyframe) for decoding.
+    "-fflags", "+genpts+discardcorrupt",
     "-i", "pipe:0",
     "-c:v", "libx264",
     "-preset", "veryfast",
@@ -464,27 +465,58 @@ websocketServer.on("connection", (ws, _request, context) => {
   job.ingestProcess = ingestProcess;
   job.ingestToken = "";
 
+  let finished = false;
+  let killTimer;
+  function finish(code, reason) {
+    if (finished) return;
+    finished = true;
+    console.log(`[${job.eventId}:ingest] ${reason}`);
+    ws.resume();
+    if (ws.readyState < 2) ws.close(code, reason);
+    try { ingestProcess.stdin.end(); } catch {}
+    // Allow FFmpeg to flush its final packets, but never leave an orphan
+    // encoder waiting forever after a disconnected or failed producer.
+    killTimer = setTimeout(() => {
+      if (ingestProcess.exitCode === null && ingestProcess.signalCode === null) {
+        ingestProcess.kill("SIGKILL");
+      }
+    }, 5000);
+    killTimer.unref();
+  }
+
+  ingestProcess.on("error", () => finish(1011, "Encoder could not start"));
+  // An FFmpeg failure closes stdin. Handle EPIPE so a bad broadcast cannot
+  // crash the API process and disconnect every production.
+  ingestProcess.stdin.on("error", () => finish(1011, "Encoder input failed"));
+  ingestProcess.stdin.on("drain", () => {
+    if (!finished && ws.readyState === 1) ws.resume();
+  });
+
   ingestProcess.stderr.on("data", chunk => {
     process.stderr.write(`[${job.eventId}:ingest] ${chunk}`);
   });
 
-  ingestProcess.once("exit", code => {
-    if (code && ws.readyState < 2) ws.close(1011, "Encoder stopped");
+  ingestProcess.once("close", (code, signal) => {
+    console.log(`[${job.eventId}:ingest] FFmpeg closed: code=${code} signal=${signal}`);
+    finish(1011, "Encoder stopped");
+    clearTimeout(killTimer);
+    if (job.ingestProcess === ingestProcess) job.ingestProcess = null;
   });
 
   ws.on("message", (data, isBinary) => {
-    if (!isBinary || !ingestProcess.stdin.writable) return;
-    ingestProcess.stdin.write(data);
+    if (finished || !isBinary || !ingestProcess.stdin.writable) return;
+    // Bound the queue when the encoder cannot keep up with the producer.
+    if (!ingestProcess.stdin.write(data)) ws.pause();
   });
 
   ws.on("close", () => {
-    try { ingestProcess.stdin.end(); } catch {}
-    job.socket = null;
-    job.ingestProcess = null;
+    finish(1000, "Producer disconnected");
+    if (job.socket === ws) job.socket = null;
   });
 
   ws.on("error", error => {
     process.stderr.write(`[${job.eventId}:websocket] ${error.message}\n`);
+    finish(1011, "Ingest transport failed");
   });
 });
 
@@ -498,7 +530,7 @@ process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
 server.listen(PORT, HOST, () => {
-  console.log(`ScenePilot encoder API listening on http://${HOST}:${PORT}`);
+  console.log(`ScenePilot encoder API listening on http://${HOST}:${server.address().port}`);
   console.log(
     `ScenePilot recording retention: ${RECORDING_RETENTION_HOURS} hours; ` +
     `storage warning: ${STORAGE_WARNING_PERCENT}%.`
