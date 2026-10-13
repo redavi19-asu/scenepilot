@@ -2845,6 +2845,27 @@ async function handleBroadcastDestinations(request, env) {
   if (auth.response) return auth.response;
 
   if (request.method === "GET") {
+    // Configuration is not connectivity. Check the encoder before displaying ONLINE.
+    let encoderOnline = false;
+    const encoderBase = String(env.ENCODER_API_URL || "").trim().replace(/\\/+$/, "");
+    if (encoderBase) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3500);
+      try {
+        const res = await fetch(`${encoderBase}/health`, {
+          headers: String(env.ENCODER_API_TOKEN || "").trim()
+            ? { Authorization: `Bearer ${String(env.ENCODER_API_TOKEN).trim()}` }
+            : {},
+          signal: controller.signal
+        });
+        const health = await res.json().catch(() => ({}));
+        encoderOnline = Boolean(res.ok && health.ok);
+      } catch {
+        encoderOnline = false;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
     const result = await env.DB.prepare(
       `SELECT
         destination_id,
@@ -2872,7 +2893,7 @@ async function handleBroadcastDestinations(request, env) {
         id: "self",
         label: "Urban Director Studio Self-Hosted",
         url: "",
-        configured: Boolean(String(env.ENCODER_API_URL || "").trim()),
+        configured: encoderOnline,
         status: "configured",
         updatedAt: null
       });
@@ -2883,7 +2904,7 @@ async function handleBroadcastDestinations(request, env) {
         id: auth.network.id,
         name: auth.network.name
       },
-      encoderConnected: Boolean(String(env.ENCODER_API_URL || "").trim()),
+      encoderConnected: encoderOnline,
       destinations
     });
   }
