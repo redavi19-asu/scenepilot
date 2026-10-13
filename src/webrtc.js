@@ -4,8 +4,8 @@ export function createPeerConnection({
   onConnectionState,
   iceServers
 } = {}) {
-  if (!iceServers?.some(server => server.username && server.credential)) {
-    throw new Error("Secure Director TURN relay settings are missing.");
+  if (!Array.isArray(iceServers) || !iceServers.length) {
+    throw new Error("Director ICE configuration is missing.");
   }
   const peer = new RTCPeerConnection({
     iceServers,

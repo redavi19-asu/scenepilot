@@ -169,6 +169,12 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [wirelessCameras, setWirelessCameras] = useState([]);
   const wirelessCamerasRef = useRef([]);
   const [signalStatus, setSignalStatus] = useState("OFFLINE");
+  const [mediaRelayLimited, setMediaRelayLimited] = useState(false);
+  useEffect(() => {
+    const handler = event => setMediaRelayLimited(event.detail?.available === false);
+    window.addEventListener("scenepilot:relay-health", handler);
+    return () => window.removeEventListener("scenepilot:relay-health", handler);
+  }, []);
   const [directorLockMessage, setDirectorLockMessage] = useState("");
   const [isOnAir, setIsOnAir] = useState(false);
   const [cameraRegistered, setCameraRegistered] = useState(false);
@@ -3104,6 +3110,7 @@ async function enableCamera() {
   if (showCamera) {
     return (
       <div className={`operator-shell ${operatorControlsCollapsed ? "controls-collapsed" : ""} ${cameraSetupOpen ? "setup-active" : ""}`}>
+        {mediaRelayLimited && <div role="alert" style={{ padding: 8, background: "#624100", color: "#fff", fontSize: 11, fontWeight: 800 }}>TURN RELAY UNAVAILABLE — VIDEO MAY FAIL BETWEEN DIFFERENT NETWORKS</div>}
         <header className="operator-header">
           <div>
             <span className="eyebrow">URBAN DIRECTOR STUDIO CAMERA</span>
@@ -3705,7 +3712,7 @@ async function enableCamera() {
         </div>
 
         <div className="top-actions">
-          <span className="network"><i/> {signalStatus}</span>
+          <span className="network"><i/> {signalStatus}{mediaRelayLimited && " • ⚠ RELAY OFFLINE — LIMITED NETWORK"}</span>
           <div className="camera-share-control">
             <button
               className="camera-share-trigger"
