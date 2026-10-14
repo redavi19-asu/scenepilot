@@ -89,4 +89,25 @@ requireText(
   "Apple purchases must be verified by the backend"
 );
 
+// Apple rejects an alpha channel even when every pixel is fully opaque.
+const appIcon = fs.readFileSync(
+  "ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png"
+);
+let hasTransparencyChunk = false;
+for (let offset = 8; offset + 12 <= appIcon.length;) {
+  const chunkType = appIcon.toString("ascii", offset + 4, offset + 8);
+  if (chunkType === "tRNS") hasTransparencyChunk = true;
+  offset += appIcon.readUInt32BE(offset) + 12;
+}
+if (
+  appIcon.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a" ||
+  appIcon.toString("ascii", 12, 16) !== "IHDR" ||
+  appIcon.readUInt32BE(16) !== 1024 ||
+  appIcon.readUInt32BE(20) !== 1024 ||
+  ![0, 2].includes(appIcon[25]) ||
+  hasTransparencyChunk
+) {
+  throw new Error("Release invariant failed: iOS app icon must be a 1024x1024 PNG without transparency");
+}
+
 console.log("Urban Director Studio release invariants: PASS");
