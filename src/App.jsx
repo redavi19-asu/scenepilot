@@ -100,8 +100,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const isOwner = user?.role === "owner";
   const [showSplash, setShowSplash] = useState(true);
   const [cameras] = useState(initialCameras);
-  const [_program, setProgram] = useState(1);
-  const [preview, setPreview] = useState(2);
+  const [_program, setProgram] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [transition, setTransition] = useState("DISSOLVE");
   const [duration, setDuration] = useState(500);
   const [mobilePanels, setMobilePanels] = useState({
@@ -217,7 +217,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [cameraNames, setCameraNames] = useState({});
   const [showSetNames, setShowSetNames] = useState(false);
   const [draftCameraNames, setDraftCameraNames] = useState({});
-  const [mainCamera, setMainCamera] = useState(1);
+  const [mainCamera, setMainCamera] = useState(null);
   const [directorStream, setDirectorStream] = useState(null);
   const directorStreamRef = useRef(null);
   const directorCameraSwitchingRef = useRef(false);
@@ -247,10 +247,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [cameraSourceMode, setCameraSourceMode] = useState("phone");
   const [_showReplayEditor, setShowReplayEditor] = useState(true);
   const [compositionMode, setCompositionMode] = useState("single");
-  const [secondaryPreview, setSecondaryPreview] = useState(8);
+  const [secondaryPreview, setSecondaryPreview] = useState(null);
   const [programComposition, setProgramComposition] = useState({
     mode: "single",
-    primary: 1,
+    primary: null,
     secondary: null
   });
   // The canvas capture runs in a single requestAnimationFrame callback for
@@ -492,10 +492,13 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       if (cancelled) return;
       setCameraNames({});
       setDraftCameraNames({});
-      setMainCamera(1);
-      setPreview(1);
-      setProgram(1);
-      setSecondaryPreview(2);
+      setMainCamera(null);
+      setPreview(null);
+      setProgram(null);
+      setProgramComposition({ mode: "single", primary: null, secondary: null });
+      setCompositionMode("single");
+      setSecondaryPreview(null);
+      setPreviewDirty(false);
     });
 
     try {
@@ -923,11 +926,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
             [camera.socketId]: incomingStream
           }));
 
-          if (camera.slotId) {
-            setPreview(camera.slotId);
-            setPreviewDirty(true);
-          }
-
+          // Connecting media only populates Multiview. Routing requires an operator action.
           setSignalStatus("VIDEO CONNECTED");
         },
 
@@ -2958,24 +2957,17 @@ async function enableCamera() {
     setDirectorCameraStatus("OFF");
 
     if (preview === DIRECTOR_SOURCE) {
-      setPreview(mainCamera);
+      setPreview(mainCamera === DIRECTOR_SOURCE ? null : mainCamera);
       setPreviewDirty(true);
     }
 
     if (secondaryPreview === DIRECTOR_SOURCE) {
-      const fallbackSecondary =
-        mainCamera === DIRECTOR_SOURCE
-          ? wirelessCameras[0]?.slotId || 1
-          : mainCamera === preview
-            ? wirelessCameras.find(camera => camera.slotId !== preview)?.slotId || 1
-            : mainCamera;
-      setSecondaryPreview(fallbackSecondary);
+      setSecondaryPreview(null);
       setPreviewDirty(true);
     }
 
     if (mainCamera === DIRECTOR_SOURCE) {
-      const fallbackMain = wirelessCameras[0]?.slotId || 1;
-      setMainCamera(fallbackMain);
+      setMainCamera(null);
     }
   }
 
@@ -3068,8 +3060,10 @@ async function enableCamera() {
     }
 
     if (
-      programComposition.mode !== "single" ||
-      programComposition.primary !== mainCamera
+      mainCamera && (
+        programComposition.mode !== "single" ||
+        programComposition.primary !== mainCamera
+      )
     ) {
       applyProgramComposition({
         mode: "single",
@@ -3107,7 +3101,7 @@ async function enableCamera() {
   function dropCameraOnPreview(slotId) {
     if (!slotId) return;
 
-    if (compositionMode === "single" || compositionMode === "nine") {
+    if (!preview || compositionMode === "single" || compositionMode === "nine") {
       setPreview(slotId);
       setPreviewDirty(true);
       return;
@@ -3707,6 +3701,7 @@ async function enableCamera() {
   };
 
   const displayNameForCamera = slotId => {
+    if (!slotId) return "NO SOURCE SELECTED";
     if (slotId === DIRECTOR_SOURCE) return "DIRECTOR CAM";
 
     const savedName = cameraNames[String(slotId)] || cameraNames[slotId];
@@ -3766,6 +3761,7 @@ async function enableCamera() {
   };
 
   const isProgramSlot = slotId => {
+    if (!slotId) return false;
     if (instantReplayMode === "program") return false;
 
     if (programComposition.mode === "nine") return true;
@@ -3776,6 +3772,15 @@ async function enableCamera() {
   };
 
   const renderSource = (slotId, variant = "preview") => {
+    if (!slotId) {
+      return (
+        <div className={`fake-feed ${variant === "program" ? "program-feed" : "preview-feed"}`}>
+          <Camera size={44}/>
+          <strong>{variant === "program" ? "PROGRAM EMPTY" : "PREVIEW EMPTY"}</strong>
+          <span>{variant === "program" ? "SELECT PREVIEW, THEN PRESS TAKE" : "SELECT A CAMERA FROM MULTIVIEW"}</span>
+        </div>
+      );
+    }
     const liveStream = streamForSlot(slotId);
     const fallbackCamera = cameras.find(camera => camera.id === slotId);
     const liveCamera = cameraForSlot(slotId);
@@ -4110,8 +4115,8 @@ async function enableCamera() {
             <div className="monitor-head">
               <span>PROGRAM</span>
               <div className="program-head-status">
-                <span className={`program-live-status ${standby ? "standby" : "live"}`}>
-                  <i/> {standby ? "PROGRAM STANDBY" : "PROGRAM LIVE"}
+                <span className={`program-live-status ${standby || (!programComposition.primary && instantReplayMode !== "program") ? "standby" : "live"}`}>
+                  <i/> {standby ? "PROGRAM STANDBY" : !programComposition.primary && instantReplayMode !== "program" ? "PROGRAM EMPTY" : "PROGRAM LIVE"}
                 </span>
                 <strong>PGM</strong>
               </div>
@@ -4437,14 +4442,14 @@ async function enableCamera() {
                   <span>
                     {mainCamera === DIRECTOR_SOURCE
                       ? "WAITING FOR DIRECTOR CAM"
-                      : `WAITING FOR CAM ${String(mainCamera).padStart(2, "0")}`}
+                      : mainCamera ? `WAITING FOR CAM ${String(mainCamera).padStart(2, "0")}` : "NO MAIN CAM SELECTED"}
                   </span>
                 </div>
               )}
               <span className="main-camera-name">
                 {mainCamera === DIRECTOR_SOURCE
                   ? "DIRECTOR CAM • LOCAL SOURCE"
-                  : `${displayNameForCamera(mainCamera)} • CAM ${String(mainCamera).padStart(2, "0")}`}
+                  : mainCamera ? `${displayNameForCamera(mainCamera)} • CAM ${String(mainCamera).padStart(2, "0")}` : "CHOOSE MAIN CAM"}
               </span>
               {isProgramSlot(mainCamera) && (
                 <span className="home-live-badge"><i/> HOME LIVE</span>
@@ -4812,15 +4817,16 @@ async function enableCamera() {
               <div className="secondary-source-picker">
                 <label>SECOND CAMERA</label>
                 <select
-                  value={secondaryPreview}
+                  value={secondaryPreview ?? ""}
                   onChange={event => {
                     const value = event.target.value;
                     setSecondaryPreview(
-                      value === DIRECTOR_SOURCE ? DIRECTOR_SOURCE : Number(value)
+                      value === DIRECTOR_SOURCE ? DIRECTOR_SOURCE : value ? Number(value) : null
                     );
                     setPreviewDirty(true);
                   }}
                 >
+                  <option value="">CHOOSE SECOND CAMERA</option>
                   {cameras.map(camera => (
                     <option key={camera.id} value={camera.id}>
                       CAM {String(camera.id).padStart(2,"0")} • {displayNameForCamera(camera.id)}
