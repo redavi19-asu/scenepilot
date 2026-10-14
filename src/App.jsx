@@ -16,6 +16,7 @@ import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
 import { getDirectorIceServers } from "./iceServers";
 import { acquireDirectorCamera } from "./directorCameraSwitch";
+import { cameraConstraints, cameraTorchSupported, queueCameraTrackChange, setTrackTorch } from "./cameraTrackControls";
 import { disposeGraphicAsset, drawGraphicAsset, updateGraphicAsset } from "./programGraphicAssets";
 import {
   smartGlassesSupportedHere,
@@ -236,6 +237,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const zoomHoldTimer = useRef(null);
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
+  const torchRequestedRef = useRef(false);
   const [remoteTorchState, setRemoteTorchState] = useState({});
   const [selectedRemoteCameraId, setSelectedRemoteCameraId] = useState(null);
   const [operatorControlsCollapsed, setOperatorControlsCollapsed] = useState(false);
@@ -2259,8 +2261,9 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     const videoTrack = mediaStream?.getVideoTracks?.()[0];
     const capabilities = videoTrack?.getCapabilities?.();
     const zoom = capabilities?.zoom;
-    setTorchSupported(Boolean(capabilities?.torch));
-    setTorchOn(false);
+    setTorchSupported(cameraTorchSupported(videoTrack));
+    torchRequestedRef.current = videoTrack?.getSettings?.()?.torch === true;
+    setTorchOn(torchRequestedRef.current);
 
     if (
       zoom &&
@@ -2290,61 +2293,63 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     const videoTrack = mediaStream?.getVideoTracks?.()[0];
     if (!videoTrack) return false;
 
-    const capabilities = videoTrack.getCapabilities?.() || {};
-    const settings = videoTrack.getSettings?.() || {};
-    const liveZoomRange = capabilities.zoom;
+    return queueCameraTrackChange(videoTrack, async () => {
+      const capabilities = videoTrack.getCapabilities?.() || {};
+      const settings = videoTrack.getSettings?.() || {};
+      const liveZoomRange = capabilities.zoom;
 
-    // Some iOS/Android browsers accept zoom constraints even when they do not
-    // expose a zoom capability object. Do not bail out just because the
-    // capability is missing.
-    const min = Number.isFinite(liveZoomRange?.min) ? liveZoomRange.min : 1;
-    const max = Number.isFinite(liveZoomRange?.max) ? liveZoomRange.max : 5;
-    const step = Math.max(
-      Number.isFinite(liveZoomRange?.step) ? liveZoomRange.step : 0.15,
-      0.1
-    );
+      // Some iOS/Android browsers accept zoom constraints even when they do not
+      // expose a zoom capability object. Do not bail out just because the
+      // capability is missing.
+      const min = Number.isFinite(liveZoomRange?.min) ? liveZoomRange.min : 1;
+      const max = Number.isFinite(liveZoomRange?.max) ? liveZoomRange.max : 5;
+      const step = Math.max(
+        Number.isFinite(liveZoomRange?.step) ? liveZoomRange.step : 0.15,
+        0.1
+      );
 
-    const reportedZoom = Number(settings.zoom);
-    const current = Number.isFinite(reportedZoom)
-      ? reportedZoom
-      : Math.min(max, Math.max(min, zoomValueRef.current || min));
+      const reportedZoom = Number(settings.zoom);
+      const current = Number.isFinite(reportedZoom)
+        ? reportedZoom
+        : Math.min(max, Math.max(min, zoomValueRef.current || min));
 
-    const next = Math.min(
-      max,
-      Math.max(min, current + (direction * step))
-    );
+      const next = Math.min(
+        max,
+        Math.max(min, current + (direction * step))
+      );
 
-    if (Math.abs(next - current) < 0.0001) return true;
+      if (Math.abs(next - current) < 0.0001) return true;
 
-    const attempts = [
-      { advanced: [{ zoom: next }] },
-      { zoom: next },
-      { advanced: [{ zoom: { ideal: next } }] }
-    ];
+      const attempts = [
+        { advanced: [{ zoom: next }] },
+        { zoom: next },
+        { advanced: [{ zoom: { ideal: next } }] }
+      ];
 
-    let lastError = null;
+      let lastError = null;
 
-    for (const constraints of attempts) {
-      try {
-        await videoTrack.applyConstraints(constraints);
+      for (const constraints of attempts) {
+        try {
+          await videoTrack.applyConstraints(cameraConstraints(videoTrack, constraints));
 
-        const after = videoTrack.getSettings?.() || {};
-        const actualZoom = Number(after.zoom);
+          const after = videoTrack.getSettings?.() || {};
+          const actualZoom = Number(after.zoom);
 
-        zoomValueRef.current = Number.isFinite(actualZoom)
-          ? actualZoom
-          : next;
-        setZoomValue(zoomValueRef.current);
-        setZoomRange({ min, max, step });
+          zoomValueRef.current = Number.isFinite(actualZoom)
+            ? actualZoom
+            : next;
+          setZoomValue(zoomValueRef.current);
+          setZoomRange({ min, max, step });
 
-        return true;
-      } catch (error) {
-        lastError = error;
+          return true;
+        } catch (error) {
+          lastError = error;
+        }
       }
-    }
 
-    console.warn("Urban Director Studio zoom unavailable", lastError);
-    return false;
+      console.warn("Urban Director Studio zoom unavailable", lastError);
+      return false;
+    });
   }
 
   function stopZoomHold() {
@@ -2375,23 +2380,27 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
 
   async function setCameraTorch(enabled, mediaStream = stream) {
     const videoTrack = mediaStream?.getVideoTracks?.()[0];
-    const capabilities = videoTrack?.getCapabilities?.();
-    if (!videoTrack || !capabilities?.torch) return false;
-
+    if (!videoTrack) return false;
+    torchRequestedRef.current = Boolean(enabled);
     try {
-      await videoTrack.applyConstraints({
-        advanced: [{ torch: Boolean(enabled) }]
-      });
-      setTorchOn(Boolean(enabled));
+      const actual = await setTrackTorch(videoTrack, enabled);
+      setTorchOn(actual);
+      setSignalStatus(actual ? "CAMERA LIGHT ON" : "CAMERA LIGHT OFF");
       return true;
     } catch (error) {
+      const actual = videoTrack.getSettings?.()?.torch;
+      if (typeof actual === "boolean") {
+        setTorchOn(actual);
+        torchRequestedRef.current = actual;
+      }
+      setSignalStatus("CAMERA LIGHT DID NOT CHANGE — TRY AGAIN");
       console.warn("Urban Director Studio camera light unavailable", error);
       return false;
     }
   }
 
   async function toggleCameraTorch() {
-    await setCameraTorch(!torchOn);
+    await setCameraTorch(!torchRequestedRef.current);
   }
 
   function sendDirectorTorch(camera) {
@@ -3432,7 +3441,7 @@ async function enableCamera() {
                     type="button"
                     className={`camera-control-button light-control ${torchOn ? "active" : ""}`}
                     onClick={toggleCameraTorch}
-                    disabled={!torchSupported}
+                    disabled={!torchSupported && !torchOn}
                     title={torchSupported ? "Turn camera light on or off" : "Camera light is unavailable on this device/browser"}
                   >
                     <Flashlight size={24}/>
