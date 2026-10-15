@@ -395,7 +395,7 @@ export default function AIStudio() {
               ))}
             </div>
             <button className="ai-buy-button" type="button" onClick={() => setStoreOpen(true)}>
-              <ShoppingBag size={16}/> BUY TOKENS
+              <ShoppingBag size={16}/> AI CREDITS
             </button>
           </div>
 
