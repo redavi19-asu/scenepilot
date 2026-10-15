@@ -554,7 +554,6 @@ async function handleGenerate(request, env, user) {
   }
 
   const jobId = crypto.randomUUID();
-  const now = Date.now();
   const reserved = await reserveTokens(
     env,
     user,

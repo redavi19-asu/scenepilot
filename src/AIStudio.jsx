@@ -567,10 +567,9 @@ export default function AIStudio() {
           <div className="ai-token-store" onClick={event => event.stopPropagation()}>
             <button type="button" className="ai-store-close" onClick={() => setStoreOpen(false)}><X size={19}/></button>
             <span className="ai-kicker"><Coins size={14}/> DIRECTOR AI TOKENS</span>
-            <h3>Keep creating when the monthly tokens run out.</h3>
+            <h3>Your monthly AI credits</h3>
             <p>Monthly AI credits are included with eligible Director plans. Additional token packs are not available yet.</p>
             <span>Pro members receive {Number(studio?.wallet?.monthlyAllowance || 0).toLocaleString()} AI tokens each month. Failed generations are automatically refunded.</span>
-            </div>
           </div>
         </div>
       )}
