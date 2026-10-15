@@ -4,7 +4,7 @@
 
 - **App name:** Urban Director Studio
 - **Version:** 1.0
-- **Build:** 1
+- **Build:** select the newest tested release build in App Store Connect
 - **Bundle ID:** com.icomputeranything.scenepilot
 - **Primary category:** Photo & Video
 - **Suggested subtitle:** Multi-Camera Live Production
@@ -34,13 +34,13 @@ Urban Director Studio is built by I Computer Anything.
 
 ## Subscription
 
-**Urban Director Studio Pro — $29.99/month**
+**Urban Director Studio Pro — $39.99/month**
 
 Includes **1,500 broadcast minutes per month**, with a **4-hour maximum per live session**. These limits protect hosted streaming capacity and may be adjusted in future subscription tiers.
 
 For iPhone and iPad, the subscription must be configured as an Apple auto-renewable subscription through App Store Connect / StoreKit. Do not place Stripe checkout inside the iOS app.
 
-StoreKit configuration and sandbox purchase testing are intentionally held until the Apple Developer account is fully activated.
+Distribution signing and the StoreKit integration are configured. Complete the subscription review screenshot and verify sandbox purchase/restore before submission.
 
 ## App Review account
 
@@ -48,8 +48,8 @@ Before submitting for review, create a permanent active reviewer account that do
 
 Enter the final credentials in App Store Connect under App Review Information.
 
-- Username: **TO BE CREATED**
-- Password: **TO BE CREATED**
+- Username: **Already configured in App Store Connect; retrieve there securely**
+- Password: **Already configured in App Store Connect; retrieve there securely**
 
 Do not store the reviewer password in this repository.
 
@@ -91,14 +91,14 @@ No advertising SDK, IDFA use, or app-tracking permission is currently present in
 
 1. Confirm Apple Developer Program enrollment/payment is active.
 2. Create the App Store Connect app using the existing bundle ID.
-3. Configure Urban Director Studio Pro at **$29.99/month** as an auto-renewable subscription.
+3. Configure Urban Director Studio Pro at **$39.99/month** as an auto-renewable subscription.
 4. Run subscription sandbox tests including purchase, renewal, cancellation/expiration, restore, and entitlement recovery.
 5. Run `npm ci`.
 6. Run `npm run lint`.
 7. Run `npm run build`.
 8. Run `npm run mobile:sync`.
 9. Open the iOS project in Xcode.
-10. Confirm signing team, bundle ID, version 1.0, and build 1.
+10. Confirm signing team, bundle ID, version 1.0, and the intended release build.
 11. Inspect the installed 1024×1024 App Store icon visually.
 12. Test on a physical iPhone and, because the target includes iPad, a supported iPad or iPad simulator/device.
 13. Test camera and microphone permission prompts.
@@ -126,7 +126,7 @@ The app includes in-app account deletion, an Urban Director Studio privacy page,
 Urban Director Studio Pro uses an auto-renewable StoreKit 2 subscription.
 
 - **Product ID:** `com.icomputeranything.scenepilot.pro.monthly`
-- **Price target:** $29.99 USD / month (localized by App Store storefront)
+- **Price target:** $39.99 USD / month (localized by App Store storefront)
 - **Bundle ID:** `com.icomputeranything.scenepilot`
 - **App Store Server Notifications V2 URL:** `https://scenepilot.ryanedavis.workers.dev/api/billing/apple/notifications`
 
@@ -140,4 +140,4 @@ Cloudflare production secrets required before the first live purchase:
 
 Non-secret product identifiers are already configured in `wrangler.jsonc`.
 
-Before App Review, create the auto-renewable subscription in App Store Connect using the exact product ID above, configure the $29.99 monthly price, attach it to a subscription group, and configure the Server Notifications V2 URL above for production and sandbox testing as appropriate.
+Before App Review, create the auto-renewable subscription in App Store Connect using the exact product ID above, configure the $39.99 monthly price, attach it to a subscription group, and configure the Server Notifications V2 URL above for production and sandbox testing as appropriate.

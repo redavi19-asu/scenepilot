@@ -1,0 +1,82 @@
+name: Urban Director Studio Android Internal Build
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', 'src/**', 'public/**', 'package*.json', 'capacitor.config.*', '.github/workflows/android-release.yml']
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: Unique positive Google Play version code (blank uses workflow run number)
+        type: string
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: urban-director-android-internal
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANDROID_VERSION_CODE: ${{ inputs.build_number || github.run_number }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check signing credentials
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            test -n "${!name}" || { echo "::error::Missing Android signing credential $name"; exit 1; }
+          done
+          [[ "$ANDROID_VERSION_CODE" =~ ^[0-9]+$ ]] && [ "$ANDROID_VERSION_CODE" -gt 0 ] && [ "$ANDROID_VERSION_CODE" -le 2100000000 ]
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build and check web assets
+        run: |
+          npm ci
+          npm run lint
+          npm run validate:release
+          npm run build
+          npx cap sync android
+      - name: Restore upload key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          printf '%s' "$KEYSTORE" | base64 --decode > "$RUNNER_TEMP/director-upload.jks"
+      - name: Build signed test packages
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/director-upload.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon bundleRelease assembleRelease
+      - name: Verify bundle and APK signatures
+        run: |
+          set -euo pipefail
+          jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab | tee "$RUNNER_TEMP/bundle-signature.log"
+          grep -q 'jar verified' "$RUNNER_TEMP/bundle-signature.log"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          "$APKSIGNER" verify --verbose --print-certs android/app/build/outputs/apk/release/app-release.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Urban-Director-Android-Internal-${{ env.ANDROID_VERSION_CODE }}
+          path: |
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 14
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/director-upload.jks"

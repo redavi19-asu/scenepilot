@@ -1,3 +1,4 @@
+import { handleGooglePlayBilling } from "./google-play-billing.js";
 import { readMasterFreeAccess } from './master-free-access.js';
 import { handleStripeBilling, stripeConfig } from "./stripe-billing.js";
 import { ensureBundledMigrations } from "./migrations.js";
@@ -245,7 +246,7 @@ export async function getCurrentUser(request, env) {
   if (row.status !== "active") return null;
 
   if (
-    (row.entitlement_source === "stripe" || row.entitlement_source === "apple" ||
+    (row.entitlement_source === "stripe" || row.entitlement_source === "apple" || row.entitlement_source === "google" ||
       row.entitlement_source === "app-review") &&
     Number(row.entitlement_expires_at || 0) > 0 &&
     Number(row.entitlement_expires_at) <= now &&
@@ -256,7 +257,7 @@ export async function getCurrentUser(request, env) {
        SET plan = 'free', access_status = 'suspended'
        WHERE user_id = ?
          AND product_id = 'product_scenepilot'
-         AND source IN ('stripe','apple','app-review')`
+         AND source IN ('stripe','apple','google','app-review')`
     ).bind(row.id).run();
 
     row.plan = "free";
@@ -3756,6 +3757,10 @@ async function handleRealtimeRenegotiate(request, env) {
 }
 
 async function handleApi(request, env, url) {
+  if (url.pathname.startsWith("/api/billing/google/")) {
+    const user = url.pathname.endsWith("/config") ? null : await getCurrentUser(request, env);
+    return handleGooglePlayBilling(request, env, user);
+  }
   if (url.pathname.startsWith("/api/billing/stripe/")) {
     await ensureBundledMigrations(env.DB);
     const user = url.pathname.endsWith("/webhook") || url.pathname.endsWith("/config") ? null : await getCurrentUser(request, env);

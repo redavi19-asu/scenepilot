@@ -1,3 +1,5 @@
+import GooglePlayBillingCard from "./GooglePlayBillingCard";
+import { isGooglePlayAvailable, restoreGoogleSubscription, watchGooglePurchases } from "./googlePlaySubscription";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Radio, LogIn, UserPlus, LockKeyhole, MessageSquare,
@@ -730,7 +732,7 @@ function PrivacyPage() {
         <button className="sp-auth-back sp-privacy-back" onClick={() => go("/")}>← Urban Director Studio home</button>
         <span className="sp-kicker">PRIVACY</span>
         <h1>Urban Director Studio Privacy Policy</h1>
-        <p className="sp-privacy-updated">Last updated: October 7, 2026</p>
+        <p className="sp-privacy-updated">Last updated: October 15, 2026</p>
 
         <h2>Information we collect</h2>
         <p>
@@ -763,8 +765,11 @@ function PrivacyPage() {
           process and retain submitted media under their own policies. Review the linked provider
           privacy policy before agreeing. You can decline AI sharing and continue using live production.
           We store generation job identifiers, status, results, token transactions, and error information
-          associated with your account to deliver results, track usage, and troubleshoot failures.
+          associated with your account to deliver results, track usage, and troubleshoot failures. We also store reports you submit about generated content so moderators can review issues.
         </p>
+
+        <h2>Google Play subscriptions</h2>
+        <p>On Android, Google Play processes subscription payments. We verify purchase tokens and subscription status with Google to manage access. Purchase tokens stored by our backend are encrypted.</p>
 
         <h2>Device and connection information</h2>
         <p>
@@ -1163,17 +1168,18 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
   const pending = user?.accessStatus === "pending";
   const suspended = user?.accessStatus === "suspended";
   const appleNative = isAppleStoreKitAvailable();
+  const googleNative = isGooglePlayAvailable();
   const [appleProduct, setAppleProduct] = useState(null);
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingStatus, setBillingStatus] = useState("");
   const [accessBusy, setAccessBusy] = useState(false);
   const [stripeReady, setStripeReady] = useState(false);
   useEffect(() => {
-    if (appleNative) return;
+    if (appleNative || googleNative) return;
     let cancelled = false;
     api("/api/billing/stripe/config").then(data => { if (!cancelled) setStripeReady(data.ready); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [appleNative]);
+  }, [appleNative, googleNative]);
   async function openWebBilling(action) {
     setBillingBusy(true);
     setBillingStatus("");
@@ -1350,7 +1356,8 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
           </div>
         )}
 
-        {!appleNative && !user.freeAccessVerificationRequired && (
+        {googleNative && !user.freeAccessVerificationRequired && <GooglePlayBillingCard user={user} onAccessUpdated={onAccessUpdated} onNavigate={go}/> }
+        {!appleNative && !googleNative && !user.freeAccessVerificationRequired && (
           <div className="sp-apple-billing-card">
             <strong>Urban Director Studio Pro — $39.99 / month</strong>
             <small>Includes 1,500 broadcast minutes each billing period. Auto-renews until cancelled. Payment details are handled securely by Stripe.</small>
@@ -2688,6 +2695,16 @@ export default function ScenePilotPortal() {
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, [cameraMode]);
+
+  useEffect(() => {
+    if (!user?.id || !isGooglePlayAvailable()) return;
+    let cancelled = false;
+    let stop;
+    const update = next => { if (!cancelled) setUser(next); };
+    void restoreGoogleSubscription().then(result => { if (result.user) update(result.user); }).catch(() => {});
+    void watchGooglePurchases(update).then(cleanup => { if (cancelled) cleanup(); else stop = cleanup; }).catch(() => {});
+    return () => { cancelled = true; stop?.(); };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id || !isAppleStoreKitAvailable()) return;

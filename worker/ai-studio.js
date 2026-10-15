@@ -247,6 +247,11 @@ async function ensureAiSchema(env) {
         FOREIGN KEY (job_id) REFERENCES uds_ai_jobs(id) ON DELETE SET NULL
       )`
     ),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS uds_ai_reports (
+      id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES uds_ai_jobs(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE(job_id,user_id)
+    )`),
     env.DB.prepare(
       `CREATE INDEX IF NOT EXISTS uds_ai_jobs_user_idx
        ON uds_ai_jobs(user_id, created_at DESC)`
@@ -342,64 +347,52 @@ async function ensureWallet(env, user) {
   };
 }
 
-async function reserveTokens(env, user, amount, jobId, description) {
-  if (isUnlimitedUser(user)) return true;
-  await ensureWallet(env, user);
+async function reserveTokens(env, user, template, jobId, description) {
+  const unlimited = isUnlimitedUser(user);
+  if (!unlimited) await ensureWallet(env, user);
   const now = Date.now();
-  const result = await env.DB.prepare(
-    `UPDATE uds_ai_wallets
-     SET balance = balance - ?,
-         lifetime_spent = lifetime_spent + ?,
-         updated_at = ?
-     WHERE user_id = ? AND balance >= ?`
-  ).bind(amount, amount, now, user.id, amount).run();
-
-  if (Number(result?.meta?.changes || 0) < 1) return false;
-
-  await env.DB.prepare(
-    `INSERT INTO uds_ai_transactions (
+  const amount = template.tokens;
+  // D1 executes the job, debit and ledger entry in one transaction.
+  // Create the job before its ledger reference, including on older schemas.
+  const results = await env.DB.batch([
+    env.DB.prepare(`INSERT INTO uds_ai_jobs (
+      id, user_id, template_id, provider, model_id, status, token_cost, created_at, updated_at
+    ) SELECT ?, ?, ?, 'fal', ?, 'submitting', ?, ?, ?
+      WHERE ? = 1 OR EXISTS (SELECT 1 FROM uds_ai_wallets WHERE user_id = ? AND balance >= ?)`
+    ).bind(jobId, user.id, template.id, template.model, amount, now, now, unlimited ? 1 : 0, user.id, amount),
+    env.DB.prepare(`UPDATE uds_ai_wallets
+      SET balance = balance - ?, lifetime_spent = lifetime_spent + ?, updated_at = ?
+      WHERE user_id = ? AND ? = 0 AND EXISTS (SELECT 1 FROM uds_ai_jobs WHERE id = ?)`
+    ).bind(amount, amount, now, user.id, unlimited ? 1 : 0, jobId),
+    env.DB.prepare(`INSERT INTO uds_ai_transactions (
       id, user_id, amount, kind, description, job_id, created_at
-    ) VALUES (?, ?, ?, 'generation', ?, ?, ?)`
-  ).bind(
-    crypto.randomUUID(),
-    user.id,
-    -amount,
-    description,
-    jobId,
-    now
-  ).run();
-  return true;
+    ) SELECT ?, ?, ?, 'generation', ?, ?, ?
+      WHERE ? = 0 AND EXISTS (SELECT 1 FROM uds_ai_jobs WHERE id = ?)`
+    ).bind(crypto.randomUUID(), user.id, -amount, description, jobId, now, unlimited ? 1 : 0, jobId)
+  ]);
+  return Number(results[0]?.meta?.changes || 0) === 1;
 }
 
 async function refundJob(env, row, user) {
   if (!row || Number(row.tokens_refunded || 0) === 1 || isUnlimitedUser(user)) return;
   const now = Date.now();
-  const lock = await env.DB.prepare(
-    `UPDATE uds_ai_jobs SET tokens_refunded = 1, updated_at = ?
-     WHERE id = ? AND tokens_refunded = 0`
-  ).bind(now, row.id).run();
-  if (Number(lock?.meta?.changes || 0) < 1) return;
-
+  // Keep the refund marker in the same transaction as the balance and ledger.
+  // A failed write is retryable, and concurrent status polls cannot double-refund.
   await env.DB.batch([
-    env.DB.prepare(
-      `UPDATE uds_ai_wallets
-       SET balance = balance + ?,
-           lifetime_spent = MAX(0, lifetime_spent - ?),
-           updated_at = ?
-       WHERE user_id = ?`
-    ).bind(row.token_cost, row.token_cost, now, user.id),
-    env.DB.prepare(
-      `INSERT INTO uds_ai_transactions (
-        id, user_id, amount, kind, description, job_id, created_at
-      ) VALUES (?, ?, ?, 'refund', ?, ?, ?)`
-    ).bind(
-      crypto.randomUUID(),
-      user.id,
-      row.token_cost,
-      "AI generation refund",
-      row.id,
-      now
-    )
+    env.DB.prepare(`UPDATE uds_ai_wallets
+      SET balance = balance + ?, lifetime_spent = MAX(0, lifetime_spent - ?), updated_at = ?
+      WHERE user_id = ? AND EXISTS (
+        SELECT 1 FROM uds_ai_jobs WHERE id = ? AND user_id = ? AND tokens_refunded = 0
+      )`
+    ).bind(row.token_cost, row.token_cost, now, user.id, row.id, user.id),
+    env.DB.prepare(`INSERT INTO uds_ai_transactions (
+      id, user_id, amount, kind, description, job_id, created_at
+    ) SELECT ?, ?, ?, 'refund', 'AI generation refund', ?, ?
+      WHERE EXISTS (SELECT 1 FROM uds_ai_jobs WHERE id = ? AND user_id = ? AND tokens_refunded = 0)`
+    ).bind(crypto.randomUUID(), user.id, row.token_cost, row.id, now, row.id, user.id),
+    env.DB.prepare(`UPDATE uds_ai_jobs SET tokens_refunded = 1, updated_at = ?
+      WHERE id = ? AND user_id = ? AND tokens_refunded = 0`
+    ).bind(now, row.id, user.id)
   ]);
 }
 
@@ -478,6 +471,7 @@ async function falRequest(env, url, options = {}) {
 
   const response = await fetch(url, {
     ...options,
+    signal: AbortSignal.timeout(30000),
     headers: {
       Authorization: `Key ${key}`,
       ...(options.body ? { "Content-Type": "application/json" } : {}),
@@ -564,7 +558,7 @@ async function handleGenerate(request, env, user) {
   const reserved = await reserveTokens(
     env,
     user,
-    template.tokens,
+    template,
     jobId,
     `${template.title} generation`
   );
@@ -579,19 +573,17 @@ async function handleGenerate(request, env, user) {
     }, 402);
   }
 
-  await env.DB.prepare(
-    `INSERT INTO uds_ai_jobs (
-      id, user_id, template_id, provider, model_id, status,
-      token_cost, created_at, updated_at
-    ) VALUES (?, ?, ?, 'fal', ?, 'submitting', ?, ?, ?)`
-  ).bind(jobId, user.id, template.id, template.model, template.tokens, now, now).run();
-
   const input = buildProviderInput(template, images, body.customPrompt);
-  const provider = await falRequest(
-    env,
-    `https://queue.fal.run/${template.model}`,
-    { method: "POST", body: JSON.stringify(input) }
-  );
+  let provider;
+  try {
+    provider = await falRequest(
+      env,
+      `https://queue.fal.run/${template.model}`,
+      { method: "POST", body: JSON.stringify(input) }
+    );
+  } catch {
+    provider = { ok: false, status: 502, data: { error: "The generator connection failed. Your tokens were returned." } };
+  }
 
   if (!provider.ok || !provider.data?.request_id) {
     const failure = errorText(provider.data?.detail || provider.data?.error, "Generator did not accept the request.");
@@ -653,6 +645,13 @@ async function handleJobStatus(env, user, jobId) {
       },
       wallet: await ensureWallet(env, user)
     });
+  }
+
+  if (row.status === "submitting" && !row.provider_request_id && Date.now() - row.created_at > 120000) {
+    await env.DB.prepare(`UPDATE uds_ai_jobs SET status = 'failed', error = ?, updated_at = ?
+      WHERE id = ? AND status = 'submitting' AND provider_request_id IS NULL`
+    ).bind("The generator connection was interrupted. Your tokens were returned.", Date.now(), row.id).run();
+    row = await loadOwnedJob(env, user, jobId);
   }
 
   if (row.status === "failed") {
@@ -805,6 +804,28 @@ export async function handleAiStudio(request, env, user) {
 
     if (url.pathname === "/api/ai/generate" && request.method === "POST") {
       return withCors(await handleGenerate(request, env, user), request);
+    }
+
+    if (url.pathname === "/api/ai/reports" && request.method === "GET") {
+      if (!isUnlimitedUser(user)) return withCors(json({ error: "Admin access required." }, 403), request);
+      const rows = await env.DB.prepare(`SELECT r.id,r.job_id,r.reason,r.created_at,j.result_json
+        FROM uds_ai_reports r JOIN uds_ai_jobs j ON j.id=r.job_id ORDER BY r.created_at DESC LIMIT 50`).all();
+      return withCors(json({ reports: (rows.results || []).map(row => ({
+        id: row.id, jobId: row.job_id, reason: row.reason, createdAt: row.created_at,
+        result: row.result_json ? JSON.parse(row.result_json) : null
+      })) }), request);
+    }
+    const reportMatch = url.pathname.match(/^\/api\/ai\/jobs\/([^/]+)\/report$/);
+    if (reportMatch && request.method === "POST") {
+      const job = await loadOwnedJob(env, user, decodeURIComponent(reportMatch[1]));
+      if (!job) return withCors(json({ error: "Generation not found." }, 404), request);
+      const body = await request.json().catch(() => ({}));
+      const reason = String(body.reason || "").trim();
+      if (reason.length < 5 || reason.length > 1000) return withCors(json({ error: "Describe the issue in 5 to 1,000 characters." }, 400), request);
+      await env.DB.prepare(`INSERT INTO uds_ai_reports(id,job_id,user_id,reason,created_at)
+        VALUES(?,?,?,?,?) ON CONFLICT(job_id,user_id) DO UPDATE SET reason=excluded.reason,created_at=excluded.created_at`
+      ).bind(crypto.randomUUID(), job.id, user.id, reason, Date.now()).run();
+      return withCors(json({ ok: true }), request);
     }
 
     const assetMatch = url.pathname.match(/^\/api\/ai\/jobs\/([^/]+)\/asset$/);

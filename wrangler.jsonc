@@ -3,6 +3,7 @@
   "name": "scenepilot",
   "main": "worker/entry.js",
   "compatibility_date": "2026-09-10",
+  "triggers": { "crons": ["*/5 * * * *"] },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1

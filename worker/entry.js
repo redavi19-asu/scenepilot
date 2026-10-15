@@ -1,3 +1,4 @@
+import { refreshGoogleSubscriptions } from "./google-play-billing.js";
 import baseWorker, { ScenePilotRoom } from "./index.js";
 import { handleAiStudio } from "./ai-studio.js";
 import { applyProfitSafeAiPricing } from "./ai-pricing.js";
@@ -22,8 +23,8 @@ async function currentUserForAi(request, env, ctx) {
 
 async function ensureAiTransactionBootstrap(env) {
   if (!env.DB) return;
-  // Token reservations are written immediately before the provider job row is
-  // finalized, so job_id is intentionally an audit field instead of a FK.
+  // Preserve the existing ledger schema. New reservations create the job and
+  // debit atomically; historical job_id values remain audit references.
   await env.DB.prepare(
     `CREATE TABLE IF NOT EXISTS uds_ai_transactions (
       id TEXT PRIMARY KEY,
@@ -54,6 +55,9 @@ async function applyPricingToStudioResponse(response) {
 }
 
 export default {
+  scheduled(_event, env, ctx) {
+    ctx.waitUntil(refreshGoogleSubscriptions(env));
+  },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 

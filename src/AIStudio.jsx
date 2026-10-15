@@ -70,6 +70,30 @@ function fileExtension(contentType, kind) {
 }
 
 export default function AIStudio() {
+  const [reportJobId, setReportJobId] = useState(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportSending, setReportSending] = useState(false);
+  const [reports, setReports] = useState(null);
+  async function reportGeneration(event) {
+    event.preventDefault(); setReportSending(true);
+    try {
+      const response = await apiFetch(`/api/ai/jobs/${encodeURIComponent(reportJobId)}/report`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: reportReason })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Report could not be sent.");
+      setReportJobId(null); setReportReason(""); setStatus("REPORT SENT FOR REVIEW");
+    } catch (error) { setStatus(error.message); }
+    finally { setReportSending(false); }
+  }
+  async function reviewReports() {
+    try {
+      const response = await apiFetch("/api/ai/reports"); const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Reports could not load.");
+      setReports(data.reports);
+    } catch (error) { setStatus(error.message); }
+  }
+
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [studio, setStudio] = useState(null);
@@ -481,6 +505,11 @@ export default function AIStudio() {
 
               {status && <div className="ai-status" role="status">{status}</div>}
 
+              {reportJobId && <form onSubmit={reportGeneration} className="ai-status">
+                <label>What should we review about this result?<textarea value={reportReason} onChange={event => setReportReason(event.target.value)} minLength={5} maxLength={1000} required/></label>
+                <button type="submit" disabled={reportSending}>SEND REPORT</button>
+                <button type="button" disabled={reportSending} onClick={() => setReportJobId(null)}>CANCEL</button>
+              </form>}
               {result && (
                 <div className="ai-result-card">
                   <div className="ai-result-preview">
@@ -498,6 +527,7 @@ export default function AIStudio() {
                     <button type="button" className="primary" onClick={() => void sendToEditor()}>
                       <Send size={16}/> SEND TO EDITOR
                     </button>
+                    <button type="button" onClick={() => { setReportJobId(activeJob?.id); setReportReason(""); }}>REPORT RESULT</button>
                     <button type="button" onClick={() => void downloadResult()}>
                       <Download size={16}/> SAVE
                     </button>
@@ -510,8 +540,12 @@ export default function AIStudio() {
           <div className="ai-history-strip">
             <div className="ai-history-head">
               <span><Clapperboard size={15}/> MY GENERATIONS</span>
+              {studio?.wallet?.unlimited && <button type="button" onClick={() => void reviewReports()}>REVIEW REPORTS</button>}
               <button type="button" onClick={() => void loadStudio()}><RefreshCw size={14}/> REFRESH</button>
             </div>
+            {reports && <div className="ai-status"><strong>GENERATED CONTENT REPORTS</strong>
+              {reports.length ? reports.map(item => <div key={item.id}><p>{item.reason}</p><small>{new Date(item.createdAt).toLocaleString()}</small>{item.result?.url?.startsWith("https://") && <a href={item.result.url} target="_blank" rel="noopener noreferrer">VIEW REPORTED RESULT</a>}</div>) : <p>No reports received.</p>}
+            </div>}
             <div className="ai-history-items">
               {(studio?.jobs || []).length ? studio.jobs.slice(0, 6).map(job => {
                 const template = templates.find(item => item.id === job.templateId);
@@ -519,6 +553,7 @@ export default function AIStudio() {
                   <div className="ai-history-item" key={job.id}>
                     <strong>{template?.title || job.templateId}</strong>
                     <span>{job.status.toUpperCase()} • {job.tokenCost} TOKENS</span>
+                    {job.status === "complete" && <button type="button" onClick={() => { setReportJobId(job.id); setReportReason(""); }}>REPORT RESULT</button>}
                   </div>
                 );
               }) : <span className="ai-history-empty">Your generated photos and videos will show up here.</span>}
@@ -533,24 +568,8 @@ export default function AIStudio() {
             <button type="button" className="ai-store-close" onClick={() => setStoreOpen(false)}><X size={19}/></button>
             <span className="ai-kicker"><Coins size={14}/> DIRECTOR AI TOKENS</span>
             <h3>Keep creating when the monthly tokens run out.</h3>
-            <p>These pack IDs are wired for the store layer. The final purchase buttons turn on after the matching Google Play in-app products are created.</p>
-            <div className="ai-pack-grid">
-              {(studio?.tokenPacks || []).map(pack => (
-                <button
-                  type="button"
-                  key={pack.id}
-                  onClick={() => setStatus(`${pack.label.toUpperCase()} PACK • CREATE ${pack.id} IN GOOGLE PLAY TO ACTIVATE PURCHASES.`)}
-                >
-                  <small>{pack.label.toUpperCase()}</small>
-                  <strong>{pack.tokens.toLocaleString()}</strong>
-                  <span>TOKENS</span>
-                  <b>{pack.priceLabel}</b>
-                </button>
-              ))}
-            </div>
-            <div className="ai-store-note">
-              <Sparkles size={15}/>
-              <span>Pro members receive {Number(studio?.wallet?.monthlyAllowance || 0).toLocaleString()} AI tokens each month. Failed generations are automatically refunded.</span>
+            <p>Monthly AI credits are included with eligible Director plans. Additional token packs are not available yet.</p>
+            <span>Pro members receive {Number(studio?.wallet?.monthlyAllowance || 0).toLocaleString()} AI tokens each month. Failed generations are automatically refunded.</span>
             </div>
           </div>
         </div>
