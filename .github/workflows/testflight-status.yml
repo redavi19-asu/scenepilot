@@ -41,12 +41,12 @@ jobs:
           const builds=await api(`/v1/builds?filter[app]=${app.id}&filter[version]=${encodeURIComponent(process.env.BUILD_NUMBER)}&limit=5`);
           const build=builds.data.find(item=>item.attributes.version===process.env.BUILD_NUMBER);
           if(!build)throw new Error('Apple build not found');
-          console.log('BUILD',JSON.stringify(build.attributes));
+          console.log('BUILD',JSON.stringify({version:build.attributes.version,processingState:build.attributes.processingState,expired:build.attributes.expired,usesNonExemptEncryption:build.attributes.usesNonExemptEncryption}));
           const detail=await api(`/v1/builds/${build.id}/buildBetaDetail`);
           console.log('TESTFLIGHT',JSON.stringify(detail.data.attributes));
           const groups=await api(`/v1/apps/${app.id}/betaGroups?limit=200`);
           for(const group of groups.data){
-            console.log('GROUP',JSON.stringify({id:group.id,...group.attributes}));
+            console.log('GROUP',JSON.stringify({id:group.id,isInternalGroup:group.attributes.isInternalGroup,hasAccessToAllBuilds:group.attributes.hasAccessToAllBuilds,iosBuildsAvailableForAppleSiliconMac:group.attributes.iosBuildsAvailableForAppleSiliconMac}));
             const assigned=await api(`/v1/betaGroups/${group.id}/relationships/builds?limit=200`);
             console.log('ASSIGNED',JSON.stringify({group:group.id,currentBuild:assigned.data.some(item=>item.id===build.id)}));
           }
