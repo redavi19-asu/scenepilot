@@ -14,6 +14,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 import "./App.css";
 import { createProgramAudioMixer, syncProgramAudioMixer, stopProgramAudioMixer } from "./programAudioMixer";
 import StudioGuide, { StudioGuideWelcome } from "./StudioGuide";
+import { usePopoutWorkspace, PopoutPortals } from "./PopoutMonitors";
 import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
 import { getDirectorIceServers } from "./iceServers";
@@ -293,6 +294,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   };
   const [draggingCamera, setDraggingCamera] = useState(null);
   const [expandedMonitor, setExpandedMonitor] = useState(null);
+  const [showMultiMonitor, setShowMultiMonitor] = useState(false);
+  const popoutWorkspace = usePopoutWorkspace();
   const [_localClip, setLocalClip] = useState(null);
   const localClipUrl = useRef(null);
   const [instantReplayMode, setInstantReplayMode] = useState("live");
@@ -4138,6 +4141,12 @@ async function enableCamera() {
                 <Settings size={17}/> CAMERA LABELS / SETTINGS
               </button>
               <button type="button" onClick={() => {
+                setShowMultiMonitor(true);
+                setDirectorMenuOpen(false);
+              }}>
+                <MonitorUp size={17}/> MULTI-MONITOR / POP-OUT WINDOWS
+              </button>
+              <button type="button" onClick={() => {
                 setShowTips(true);
                 setDirectorMenuOpen(false);
               }}>
@@ -4209,12 +4218,67 @@ async function enableCamera() {
 
       <StudioGuideWelcome onOpen={() => setShowTips(true)} />
 
+      {popoutWorkspace.desktop && (
+        <div className="uds-multimonitor-shortcut">
+          <button type="button" onClick={() => setShowMultiMonitor(v => !v)} aria-expanded={showMultiMonitor} aria-controls="uds-multimonitor-controls">
+            <MonitorUp size={16}/> MULTI-MONITOR DESKTOP {popoutWorkspace.windows.length ? `• ${popoutWorkspace.windows.length} OPEN` : ""}
+          </button>
+        </div>
+      )}
+      {showMultiMonitor && (
+        <section className="uds-multimonitor-panel" id="uds-multimonitor-controls" aria-label="Desktop multi-monitor production workspace">
+          <div className="uds-multimonitor-panel-heading">
+            <div><span>DESKTOP CONTROL ROOM</span><h2>POP-OUT MONITORS</h2>
+              <p>Duplicate any feed into a separate draggable desktop window. Existing camera connections are shared. Window audio is muted.</p>
+            </div>
+            <button type="button" className="uds-multimonitor-close" aria-label="Hide multi-monitor controls" onClick={() => setShowMultiMonitor(false)}><X size={17}/></button>
+          </div>
+          {popoutWorkspace.desktop ? (
+            <>
+              <div className="uds-multimonitor-quick">
+                {[
+                  ["program", "PROGRAM (PGM)"], ["preview", "PREVIEW (PVW)"],
+                  ["main", "MAIN CAM"], ["multiview", "ALL 9 CAMERAS"],
+                  ["director", "DIRECTOR CAM"], ["screen", "SHARED SCREEN"]
+                ].map(([view,title]) => (
+                  <button type="button" key={view} onClick={() => popoutWorkspace.open(view)}>
+                    <MonitorUp size={15}/> {title}
+                  </button>
+                ))}
+              </div>
+              <div className="uds-multimonitor-cameras" role="group" aria-label="Open an individual camera in a separate monitor window">
+                {Array.from({length:9},(_,i)=>i+1).map(id => (
+                  <button key={id} type="button" onClick={() => popoutWorkspace.open(`camera-${id}`)}
+                    title={`Pop out camera ${id}; it remains connected to the same source`}>
+                    CAM {String(id).padStart(2,"0")}
+                  </button>
+                ))}
+              </div>
+              <div className="uds-multimonitor-actions">
+                <button type="button" onClick={() => {popoutWorkspace.save();}}>SAVE MY WINDOW LAYOUT</button>
+                <button type="button" onClick={popoutWorkspace.restore}>RESTORE MY WORKSPACE</button>
+                <button type="button" onClick={popoutWorkspace.closeAll}>CLOSE ALL POP-OUTS</button>
+              </div>
+            </>
+          ) : (
+            <p role="status">Desktop pop-out windows work on compatible Mac/Windows desktop browsers. On iPhone and iPad, use the built-in monitors.</p>
+          )}
+          <p className="uds-multimonitor-status" role="status">{popoutWorkspace.message || "Drag any opened window by its system title bar to your second or third display. Popup-blocker approval may be required."}</p>
+        </section>
+      )}
+
       <main className="workspace">
         <section className="monitor-section">
           <div className="monitor preview-monitor">
             <div className="monitor-head">
               <span>PREVIEW</span>
-              <strong>PVW</strong>
+              <div className="uds-monitor-head-tools">
+                {popoutWorkspace.desktop && <button type="button" className="uds-monitor-popout"
+                  title="Pop Preview into a separate desktop window" onClick={() => popoutWorkspace.open("preview")}>
+                  <MonitorUp size={14}/> POP OUT
+                </button>}
+                <strong>PVW</strong>
+              </div>
             </div>
             <div
               className={`screen preview-drop-zone ${draggingCamera ? "drag-active" : ""} ${expandedMonitor === "preview" ? "monitor-expanded" : ""}`}
@@ -4306,6 +4370,10 @@ async function enableCamera() {
             <div className="monitor-head">
               <span>PROGRAM</span>
               <div className="program-head-status">
+                {popoutWorkspace.desktop && <button type="button" className="uds-monitor-popout"
+                  title="Pop Program into a separate desktop window" onClick={() => popoutWorkspace.open("program")}>
+                  <MonitorUp size={14}/> POP OUT
+                </button>}
                 <span className={`program-live-status ${standby || (!programComposition.primary && instantReplayMode !== "program") ? "standby" : "live"}`}>
                   <i/> {standby ? "PROGRAM STANDBY" : !programComposition.primary && instantReplayMode !== "program" ? "PROGRAM EMPTY" : "PROGRAM LIVE"}
                 </span>
@@ -4424,6 +4492,10 @@ async function enableCamera() {
                   Boolean(cameraForSlot(c.id))
                 ).length
               } / 9 CONNECTED</span>
+              {popoutWorkspace.desktop && <button type="button" className="set-names-button"
+                title="Open all nine cameras in a separate desktop window" onClick={() => popoutWorkspace.open("multiview")}>
+                <MonitorUp size={14}/> POP OUT 9-CAM
+              </button>}
               <button className="set-names-button" onClick={openSetNames}>
                 <Type size={14}/> SET NAMES
               </button>
@@ -4461,6 +4533,8 @@ async function enableCamera() {
                   setPreview(cam.id);
                   setPreviewDirty(true);
                 }}
+                onDoubleClick={() => { if (popoutWorkspace.desktop) popoutWorkspace.open(`camera-${cam.id}`); }}
+                title={popoutWorkspace.desktop ? "Click to Preview; double-click to pop out on another monitor" : "Click to Preview"}
                 className={`camera-tile
                   ${isProgramSlot(cam.id) && cameraForSlot(cam.id) ? "is-program" : ""}
                   ${cam.id === preview ? "is-preview" : ""}
@@ -5373,6 +5447,21 @@ async function enableCamera() {
           </form>
         </div>
       )}
+
+      <PopoutPortals
+        workspace={popoutWorkspace}
+        sources={{ directorStream, screenStream, wirelessCameras, remoteStreams, demoStills }}
+        preview={preview}
+        program={programComposition}
+        main={mainCamera}
+        mode={compositionMode}
+        secondary={secondaryPreview}
+        standby={standby}
+        replay={{ mode: instantReplayMode, url: instantReplayUrl }}
+        roomCode={roomCode}
+        cameraNames={cameraNames}
+        acquireProgramStream={() => startProgramCompositor()}
+      />
 
       <StudioGuide open={showTips} onClose={() => setShowTips(false)} />
 
