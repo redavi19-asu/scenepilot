@@ -33,6 +33,35 @@ const WINDOW_STYLE = `
 @media(max-width:550px){.uds-window-head{padding:8px}.uds-window-head strong{font-size:11px}.uds-window-footer{font-size:9px}.uds-layout.pip>.uds-feed:nth-child(2){margin:6px}}
 `;
 
+// Pointer capture lets the handle follow the mouse outside the monitor. Open
+// during the gesture, while Chrome still has the operator's user activation.
+export function PopoutHandle({ workspace, view, children = "POP OUT" }) {
+  const start = useRef(null);
+  const dragged = useRef(false);
+  if (!workspace.desktop) return null;
+  return <button type="button" className="uds-monitor-popout"
+    title="Click to pop out, or drag this handle to detach; then move the new window by its title bar"
+    onPointerDown={event => {
+      if (event.button !== 0) return;
+      start.current = { x: event.clientX, y: event.clientY };
+      dragged.current = false;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }}
+    onPointerMove={event => {
+      if (!start.current || Math.hypot(event.clientX - start.current.x, event.clientY - start.current.y) < 32) return;
+      start.current = null;
+      dragged.current = true;
+      workspace.open(view);
+    }}
+    onPointerUp={() => { start.current = null; }}
+    onPointerCancel={() => { start.current = null; }}
+    onClick={event => {
+      event.stopPropagation();
+      if (!dragged.current) workspace.open(view);
+      dragged.current = false;
+    }}>{children}</button>;
+}
+
 export function usePopoutWorkspace() {
   const windowsRef = useRef(new Map());
   const rememberedRef = useRef(readWorkspace(typeof window !== "undefined" ? window.localStorage : null));

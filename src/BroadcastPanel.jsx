@@ -8,6 +8,7 @@ import {
 import { publishProgramToRealtime } from "./cloudflareRealtime";
 import { apiFetch, publicOrigin } from "./runtimeApi";
 import "./BroadcastPanel.css";
+import { waitForIngestSocket, releaseIngestConnection } from "./ingestConnection";
 
 const DESTINATIONS = [
   { id: "facebook", name: "Facebook", icon: Users, kind: "external" },
@@ -249,30 +250,19 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     const socket = new WebSocket(ingest.url, ingest.protocol);
     socket.binaryType = "arraybuffer";
 
-    await new Promise((resolve, reject) => {
-      const timer = window.setTimeout(
-        () => reject(new Error("Urban Director Studio ingest connection timed out.")),
-        12000
-      );
-
-      socket.onopen = () => {
-        window.clearTimeout(timer);
-        resolve();
-      };
-      socket.onerror = () => {
-        window.clearTimeout(timer);
-        reject(new Error("Urban Director Studio could not open the secure ingest connection."));
-      };
-    });
+    await waitForIngestSocket(socket);
 
     recorder.ondataavailable = event => {
       if (event.data?.size && socket.readyState === WebSocket.OPEN) {
         socket.send(event.data);
       }
     };
-    recorder.onerror = () => setStatus("Program ingest interrupted — server standby remains active.");
+    recorder.onerror = () => {
+      setStatus("Program ingest interrupted — server standby remains active.");
+      socket.close();
+    };
     socket.onclose = event => {
-      if (ingestRef.current.socket !== socket) return;
+      if (!releaseIngestConnection(ingestRef, socket)) return;
 
       if (recorder.state !== "inactive") {
         try { recorder.stop(); } catch { /* Recorder already finished. */ }
@@ -297,7 +287,13 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
     ingestRef.current = { recorder, socket };
     // Feed FFmpeg four times per second instead of making it wait for a full
     // one-second MediaRecorder slice before each WebSocket delivery.
-    recorder.start(250);
+    try {
+      recorder.start(250);
+    } catch (error) {
+      releaseIngestConnection(ingestRef, socket);
+      socket.close();
+      throw error;
+    }
   }
 
   async function stopBrowserIngest() {

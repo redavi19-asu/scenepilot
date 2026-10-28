@@ -116,7 +116,6 @@ export default function AIStudio() {
   const pollRun = useRef(0);
 
   const templates = studio?.templates || [];
-  const selected = templates.find(item => item.id === selectedId) || templates[0] || null;
 
   const visibleTemplates = useMemo(() => {
     if (filter === "featured") return templates.filter(item => item.featured);
@@ -128,6 +127,8 @@ export default function AIStudio() {
     return templates.filter(item => item.category === filter || item.kind === (filter === "video" ? "video" : "image"));
   }, [filter, templates]);
 
+  const selected = visibleTemplates.find(item => item.id === selectedId) || visibleTemplates[0] || null;
+
   async function loadStudio() {
     setLoading(true);
     try {
@@ -135,7 +136,7 @@ export default function AIStudio() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Director AI Studio could not load.");
       setStudio(data);
-      setSelectedId(current => current || data.templates?.[0]?.id || "");
+      setSelectedId(current => current || data.templates?.find(item => item.featured)?.id || data.templates?.[0]?.id || "");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
@@ -159,7 +160,7 @@ export default function AIStudio() {
     setResult(null);
     setActiveJob(null);
     pollRun.current += 1;
-  }, [selectedId]);
+  }, [selected?.id]);
 
   async function choosePhoto(index, file) {
     if (!file) return;

@@ -14,7 +14,8 @@ import { App as CapacitorApp } from "@capacitor/app";
 import "./App.css";
 import { createProgramAudioMixer, syncProgramAudioMixer, stopProgramAudioMixer } from "./programAudioMixer";
 import StudioGuide, { StudioGuideWelcome } from "./StudioGuide";
-import { usePopoutWorkspace, PopoutPortals } from "./PopoutMonitors";
+import { usePopoutWorkspace, PopoutPortals, PopoutHandle } from "./PopoutMonitors";
+import { screenCaptureError, validateScreenCapture } from "./screenCapture";
 import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
 import { getDirectorIceServers } from "./iceServers";
@@ -3103,12 +3104,12 @@ async function enableCamera() {
 
   async function startScreenShare() {
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      setScreenShareStatus("SCREEN CAPTURE NOT SUPPORTED ON THIS DEVICE");
+      setScreenShareStatus("SCREEN / WINDOW SHARING REQUIRES A SUPPORTED DESKTOP BROWSER. iPhone / iPad cannot share other apps here; open Studio in desktop Chrome to share a screen.");
       return;
     }
     try {
       // Permission must follow the operator's button click.
-      const capture = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      const capture = validateScreenCapture(await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }));
       stopScreenShare();
       screenStreamRef.current = capture;
       capture.getVideoTracks()[0]?.addEventListener("ended", () => {
@@ -3119,11 +3120,12 @@ async function enableCamera() {
         setScreenShareStatus("SCREEN CAPTURE ENDED — RETURN TO A CAMERA");
       }, { once: true });
       setScreenStream(capture);
-      setScreenShareStatus("SOURCE READY — PREVIEW, THEN TAKE");
+      setCompositionMode("single");
+      setPreview(SCREEN_SOURCE);
+      setPreviewDirty(true);
+      setScreenShareStatus(`SCREEN IS IN PREVIEW — press TAKE to send it to Program and the broadcast. ${capture.getAudioTracks().length ? "Source audio available in the mixer." : "No shared audio: Chrome tab sharing offers audio when supported; window audio depends on your browser / Mac."}`);
     } catch (error) {
-      setScreenShareStatus(error?.name === "NotAllowedError"
-        ? "SCREEN CAPTURE CANCELLED OR NOT PERMITTED"
-        : "SCREEN CAPTURE FAILED — TRY ANOTHER WINDOW");
+      setScreenShareStatus(screenCaptureError(error));
     }
   }
 
@@ -4241,17 +4243,16 @@ async function enableCamera() {
                   ["main", "MAIN CAM"], ["multiview", "ALL 9 CAMERAS"],
                   ["director", "DIRECTOR CAM"], ["screen", "SHARED SCREEN"]
                 ].map(([view,title]) => (
-                  <button type="button" key={view} onClick={() => popoutWorkspace.open(view)}>
+                  <PopoutHandle key={view} workspace={popoutWorkspace} view={view}>
                     <MonitorUp size={15}/> {title}
-                  </button>
+                  </PopoutHandle>
                 ))}
               </div>
               <div className="uds-multimonitor-cameras" role="group" aria-label="Open an individual camera in a separate monitor window">
                 {Array.from({length:9},(_,i)=>i+1).map(id => (
-                  <button key={id} type="button" onClick={() => popoutWorkspace.open(`camera-${id}`)}
-                    title={`Pop out camera ${id}; it remains connected to the same source`}>
+                  <PopoutHandle key={id} workspace={popoutWorkspace} view={`camera-${id}`}>
                     CAM {String(id).padStart(2,"0")}
-                  </button>
+                  </PopoutHandle>
                 ))}
               </div>
               <div className="uds-multimonitor-actions">
@@ -4269,14 +4270,12 @@ async function enableCamera() {
 
       <main className="workspace">
         <section className="monitor-section">
+          {Capacitor.isNativePlatform() && <p role="status" className="native-monitor-note">This TestFlight / mobile app uses built-in monitors. Separate desktop windows and screen sharing are available in Studio on desktop Chrome; running the iPad app on a Mac does not add these browser features.</p>}
           <div className="monitor preview-monitor">
             <div className="monitor-head">
               <span>PREVIEW</span>
               <div className="uds-monitor-head-tools">
-                {popoutWorkspace.desktop && <button type="button" className="uds-monitor-popout"
-                  title="Pop Preview into a separate desktop window" onClick={() => popoutWorkspace.open("preview")}>
-                  <MonitorUp size={14}/> POP OUT
-                </button>}
+                <PopoutHandle workspace={popoutWorkspace} view="preview"><MonitorUp size={14}/> DRAG / POP OUT</PopoutHandle>
                 <strong>PVW</strong>
               </div>
             </div>
@@ -4370,10 +4369,7 @@ async function enableCamera() {
             <div className="monitor-head">
               <span>PROGRAM</span>
               <div className="program-head-status">
-                {popoutWorkspace.desktop && <button type="button" className="uds-monitor-popout"
-                  title="Pop Program into a separate desktop window" onClick={() => popoutWorkspace.open("program")}>
-                  <MonitorUp size={14}/> POP OUT
-                </button>}
+                <PopoutHandle workspace={popoutWorkspace} view="program"><MonitorUp size={14}/> DRAG / POP OUT</PopoutHandle>
                 <span className={`program-live-status ${standby || (!programComposition.primary && instantReplayMode !== "program") ? "standby" : "live"}`}>
                   <i/> {standby ? "PROGRAM STANDBY" : !programComposition.primary && instantReplayMode !== "program" ? "PROGRAM EMPTY" : "PROGRAM LIVE"}
                 </span>
@@ -4695,6 +4691,7 @@ async function enableCamera() {
             <div className="main-camera-home-copy">
               <span>HOME SHOT</span>
               <strong>MAIN CAM</strong>
+              <PopoutHandle workspace={popoutWorkspace} view="main">DRAG / POP OUT</PopoutHandle>
               <small>Drag a connected camera here, or tap below to set Main Cam. TAKE returns to the selected source.</small>
               <select
                 className="main-camera-source-select"
