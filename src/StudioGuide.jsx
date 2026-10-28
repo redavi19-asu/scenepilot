@@ -106,6 +106,15 @@ export const STUDIO_MANUAL = [
     "Send a completed clip to the editor to arrange it with other media, audio, text and other supported editing tools.",
     "Use original or properly licensed music, footage and appearances."
   ]},
+  { id: "monitors", title: "Desktop multi-monitor pop-out windows", tags: "mac windows three monitors pop out duplicate main camera preview program multiview restore", steps: [
+    "On a compatible desktop Mac/Windows browser, open MULTI-MONITOR DESKTOP or Menu → MULTI-MONITOR / POP-OUT WINDOWS.",
+    "Select PROGRAM, PREVIEW, MAIN CAM or ALL 9 CAMERAS to open a separate window. Each camera can also be opened individually; double-click its Multiview tile.",
+    "Drag the new window using its operating-system title bar to a second or third display. Resize or maximize it as needed.",
+    "Recommended layout: Monitor 1 = Director controls and Master Audio; Monitor 2 = Program; Monitor 3 = Preview or 9-Camera Multiview.",
+    "The pop-outs use the existing room and camera video tracks. They DO NOT join another room, create a new camera connection, press TAKE, or change on-air audio. Duplicate window playback is muted to prevent feedback.",
+    "Choose SAVE MY WINDOW LAYOUT, then RESTORE MY WORKSPACE after reopening Director Studio. Browsers normally block automatic multi-window opening, so click Restore yourself and permit pop-ups for the site.",
+    "Windows and native app support vary. This feature is designed for a desktop browser, not the iPhone/iPad native app. Closing a pop-out leaves Program running."
+  ]},
   { id: "output", title: "Broadcast output and external feeds", tags: "broadcast output stream OBS recording external feed", steps: [
     "Program is the finished mixed output. A camera in Preview alone is not on air.",
     "For external broadcasts, verify that your selected output or encoding workflow is configured and that the destination accepts your stream.",
