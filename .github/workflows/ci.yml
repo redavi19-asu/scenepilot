@@ -54,6 +54,11 @@ jobs:
           grep -q "NSPrivacyCollectedDataTypeAudioData" ios/App/App/PrivacyInfo.xcprivacy
           grep -q "PrivacyInfo.xcprivacy in Resources" ios/App/App.xcodeproj/project.pbxproj
 
+      - name: Preview narrow lockfile remediation for recent vulnerabilities
+        run: |
+          npm update --package-lock-only --ignore-scripts body-parser qs
+          git diff -- package-lock.json
+
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
