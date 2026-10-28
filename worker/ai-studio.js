@@ -7,6 +7,7 @@ const NATIVE_APP_ORIGINS = new Set([
 
 const IMAGE_MODEL = "fal-ai/flux-pro/kontext/max/multi";
 const KLING_MODEL = "fal-ai/kling-video/v3/pro/image-to-video";
+const KLING_REFERENCE_MODEL = "fal-ai/kling-video/o3/pro/reference-to-video";
 const VEO_MODEL = "fal-ai/veo3.1/reference-to-video";
 
 const AI_TEMPLATES = [
@@ -32,14 +33,14 @@ const AI_TEMPLATES = [
     category: "video",
     featured: true,
     kind: "video",
-    model: VEO_MODEL,
+    model: KLING_REFERENCE_MODEL,
     tokens: 500,
     minImages: 1,
     maxImages: 3,
-    duration: "8s",
+    duration: "12",
     badge: "COMEDY",
     prompt:
-      "Create an original eight-second lighthearted fictional commercial in a brightly lit neighborhood store using the uploaded adult actor as the central character. A younger adult starts offering unsolicited advice to a stranger about grocery prices, reusable bags, and coupons as if they have become an overly practical parent. A calm original friend gently interrupts with a funny dry reaction. Build a clear setup, humorous awkward beat, and memorable reaction shot, natural conversational English dialogue with synchronized mouth movement, cinematic multi-shot commercial coverage, crisp production sound, lifelike people. Invent all characters and lines. No existing advertising characters, brand names, insurance mascots, known catchphrases, recognizable celebrities, logos, or copyrighted music."
+      "Create an original twelve-second lighthearted fictional commercial in a brightly lit neighborhood store using the uploaded adult actor as the central character. A younger adult starts offering unsolicited advice to a stranger about grocery prices, reusable bags, and coupons as if they have become an overly practical parent. A calm original friend gently interrupts with a funny dry reaction. Build a clear setup, humorous awkward beat, and memorable reaction shot, natural conversational English dialogue with synchronized mouth movement, cinematic multi-shot commercial coverage, crisp production sound, lifelike people. Invent all characters and lines. No existing advertising characters, brand names, insurance mascots, known catchphrases, recognizable celebrities, logos, or copyrighted music."
   },
   {
     id: "parents-neighbor",
@@ -48,14 +49,14 @@ const AI_TEMPLATES = [
     category: "video",
     featured: true,
     kind: "video",
-    model: VEO_MODEL,
+    model: KLING_REFERENCE_MODEL,
     tokens: 500,
     minImages: 1,
     maxImages: 3,
-    duration: "8s",
+    duration: "12",
     badge: "COMEDY",
     prompt:
-      "Create an original eight-second observational comedy commercial with the uploaded adult actor in the driveway of a contemporary suburban home. A well-meaning young homeowner enthusiastically starts lecturing a passing neighbor about lawn care, neighborhood parking, and the weather, speaking with a comically parent-like confidence. An original sidekick gently tries to steer them away, ending with a quick deadpan reaction. New original dialogue, characters and visual staging, professional grounded ensemble acting, crisp natural lighting, alternating medium and close-up reaction shots, synced natural dialogue and sound. Do not reference or reproduce any real insurance ad, commercial slogan, mascot, celebrity, brand logo, or copyrighted music."
+      "Create an original twelve-second observational comedy commercial with the uploaded adult actor in the driveway of a contemporary suburban home. A well-meaning young homeowner enthusiastically starts lecturing a passing neighbor about lawn care, neighborhood parking, and the weather, speaking with a comically parent-like confidence. An original sidekick gently tries to steer them away, ending with a quick deadpan reaction. New original dialogue, characters and visual staging, professional grounded ensemble acting, crisp natural lighting, alternating medium and close-up reaction shots, synced natural dialogue and sound. Do not reference or reproduce any real insurance ad, commercial slogan, mascot, celebrity, brand logo, or copyrighted music."
   },
   {
     id: "lobby-music-video",
@@ -64,14 +65,14 @@ const AI_TEMPLATES = [
     category: "video",
     featured: true,
     kind: "video",
-    model: VEO_MODEL,
+    model: KLING_REFERENCE_MODEL,
     tokens: 500,
     minImages: 2,
     maxImages: 2,
-    duration: "8s",
+    duration: "12",
     badge: "MUSIC VIDEO",
     prompt:
-      "Create an original eight-second two-person rap performance video using the two uploaded consenting adult performers, preserving both identities. Use a minimalist seamless solid orange studio background and matching orange floor, with exactly one silver studio microphone hanging vertically from a thin ceiling cable between the performers. Keep both performers clearly visible on opposite sides of the hanging microphone as they trade relaxed complementary performance gestures, natural head movement and confident eye contact. Frame a steady medium-wide two-shot with subtle cinematic camera movement, even warm studio lighting, realistic skin texture and tasteful casual streetwear. This is an orange studio performance, not a literal hotel interior: no hotel lobby, marble, staircase, chandeliers or luxury architecture. Use an original rhythm and performance, leaving music replacement to the editor. Do not substitute celebrity faces or reproduce existing lyrics, copyrighted recordings, branding or show logos."
+      "Create an original twelve-second two-person rap performance video using the two uploaded consenting adult performers, preserving both identities. Use a minimalist seamless solid orange studio background and matching orange floor, with exactly one silver studio microphone hanging vertically from a thin ceiling cable between the performers. Keep both performers clearly visible on opposite sides of the hanging microphone as they trade relaxed complementary performance gestures, natural head movement and confident eye contact. Frame a steady medium-wide two-shot with subtle cinematic camera movement, even warm studio lighting, realistic skin texture and tasteful casual streetwear. This is an orange studio performance, not a literal hotel interior: no hotel lobby, marble, staircase, chandeliers or luxury architecture. Use an original rhythm and performance, leaving music replacement to the editor. Do not substitute celebrity faces or reproduce existing lyrics, copyrighted recordings, branding or show logos."
   },
   {
     id: "street-freestyle-video",
@@ -96,13 +97,13 @@ const AI_TEMPLATES = [
     category: "video",
     featured: true,
     kind: "video",
-    model: VEO_MODEL,
+    model: KLING_REFERENCE_MODEL,
     tokens: 500,
     minImages: 1,
     maxImages: 3,
-    duration: "8s",
+    duration: "12",
     badge: "LIFESTYLE VIDEO",
-    prompt: "Create an original eight-second cinematic street-lifestyle music-video scene using the uploaded consenting adult performer, preserving their identity. Build a confident fashion-forward performance with tailored casual streetwear, expressive direct-to-camera delivery, crisp daylight on a golf course, a tasteful golf cart and lively cutaways to polished lifestyle details. Balance playful golf-course energy with premium editorial fashion framing and rhythmic camera movement. Use an original performance and rhythm, allowing the editor to add their own licensed music. The reference is a lifestyle direction: do not substitute Lil Baby or another celebrity for the uploaded person, reproduce an existing music-video sequence, existing lyrics, logos or copyrighted recordings."
+    prompt: "Create an original twelve-second cinematic street-lifestyle music-video scene using the uploaded consenting adult performer, preserving their identity. Build a confident fashion-forward performance with tailored casual streetwear, expressive direct-to-camera delivery, crisp daylight on a golf course, a tasteful golf cart and lively cutaways to polished lifestyle details. Balance playful golf-course energy with premium editorial fashion framing and rhythmic camera movement. Use an original performance and rhythm, allowing the editor to add their own licensed music. The reference is a lifestyle direction: do not substitute Lil Baby or another celebrity for the uploaded person, reproduce an existing music-video sequence, existing lyrics, logos or copyrighted recordings."
   },
   {
     id: "album-cover",
@@ -501,6 +502,20 @@ function buildProviderInput(template, images, customPrompt = "") {
     ? `${template.prompt}\nCreative direction from the user: ${extra}`
     : template.prompt;
 
+  if (template.model === KLING_REFERENCE_MODEL) {
+    // Preserve every uploaded reference; image-to-video only uses its first frame.
+    const references = images.map((_, index) => `@Image${index + 1}`).join(", ");
+    return {
+      prompt: `${prompt}\nUse ${references} as the uploaded performer identity references. Preserve each depicted person's appearance consistently.`,
+      image_urls: images,
+      duration: template.duration,
+      generate_audio: true,
+      aspect_ratio: "16:9",
+      shot_type: "intelligent",
+      enable_safety_checker: true
+    };
+  }
+
   if (template.model === KLING_MODEL) {
     return {
       prompt,
@@ -587,7 +602,7 @@ async function studioPayload(env, user) {
       id: "fal",
       ready: Boolean(String(env.FAL_KEY || "").trim()),
       imageModel: IMAGE_MODEL,
-      videoModels: [KLING_MODEL, VEO_MODEL]
+      videoModels: [KLING_MODEL, KLING_REFERENCE_MODEL, VEO_MODEL]
     },
     wallet,
     templates: AI_TEMPLATES.map(publicTemplate),
