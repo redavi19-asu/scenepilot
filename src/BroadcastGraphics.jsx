@@ -40,6 +40,11 @@ export default function BroadcastGraphics() {
   const topicUrl = useRef("");
   const logoUrl = useRef("");
   const [collapsed, setCollapsed] = useState(true);
+  useEffect(() => {
+    const fold = () => setCollapsed(true);
+    window.addEventListener('scenepilot:collapse-tools', fold);
+    return () => window.removeEventListener('scenepilot:collapse-tools', fold);
+  }, []);
 
   useEffect(() => {
     const findTarget = () => {

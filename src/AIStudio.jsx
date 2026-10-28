@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Sparkles, Coins, ImagePlus, Film, Upload, Download,
   Send, ChevronDown, X, RefreshCw, ShoppingBag, Check,
-  Clapperboard, WandSparkles
+  Clapperboard, WandSparkles, Play
 } from "lucide-react";
 import { apiFetch } from "./runtimeApi";
 import { AI_TEMPLATE_ARTWORK } from "./aiTemplateArtwork";
 import "./AIStudio.css";
+import TemplatePreview from "./TemplatePreview";
+import { TEMPLATE_REFERENCES, referenceThumbnail } from "./templateReferences";
 
 const FILTERS = [
   ["featured", "FEATURED VIDEO"],
@@ -78,6 +80,8 @@ function fileExtension(contentType, kind) {
 export default function AIStudio() {
   const [reportJobId, setReportJobId] = useState(null);
   const [reportReason, setReportReason] = useState("");
+  const reportFormRef = useRef(null);
+  useEffect(() => { if (reportJobId) reportFormRef.current?.scrollIntoView({block:"center"}); }, [reportJobId]);
   const [reportSending, setReportSending] = useState(false);
   const [reports, setReports] = useState(null);
   async function reportGeneration(event) {
@@ -114,6 +118,18 @@ export default function AIStudio() {
   const [activeJob, setActiveJob] = useState(null);
   const [result, setResult] = useState(null);
   const [storeOpen, setStoreOpen] = useState(false);
+  const [previewItem, setPreviewItem] = useState(null);
+  const [generatorOpen, setGeneratorOpen] = useState(false);
+  const generatorRef = useRef(null);
+  function chooseTemplate(id) { if (busy) return; setSelectedId(id); setGeneratorOpen(true); setPreviewItem(null); }
+  useEffect(() => {
+    const fold = () => { setOpen(false); setGeneratorOpen(false); setPreviewItem(null); setStoreOpen(false); };
+    window.addEventListener('scenepilot:collapse-tools', fold);
+    return () => window.removeEventListener('scenepilot:collapse-tools', fold);
+  }, []);
+  useEffect(() => {
+    if (generatorOpen) generatorRef.current?.scrollIntoView({ block: 'start' });
+  }, [generatorOpen, selectedId]);
   const pollRun = useRef(0);
 
   const templates = studio?.templates || [];
@@ -252,7 +268,7 @@ export default function AIStudio() {
       return;
     }
     if (!studio?.provider?.ready) {
-      setStatus("GENERATOR IS WIRED • ADD FAL_KEY IN CLOUDFLARE TO TURN IT ON.");
+      setStatus("AI GENERATION IS TEMPORARILY UNAVAILABLE. PLEASE TRY AGAIN LATER.");
       return;
     }
     if (!studio?.wallet?.unlimited && Number(studio?.wallet?.balance || 0) < selected.tokens) {
@@ -358,7 +374,7 @@ export default function AIStudio() {
 
   return (
     <section className={`ai-studio ${open ? "open" : "collapsed"}`}>
-      <button className="ai-studio-head" type="button" onClick={() => setOpen(value => !value)}>
+      <button className="ai-studio-head" type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}>
         <div className="ai-studio-title">
           <span className="ai-studio-mark"><WandSparkles size={20}/></span>
           <div>
@@ -380,12 +396,12 @@ export default function AIStudio() {
           <div className="ai-studio-hero">
             <div>
               <span className="ai-kicker"><Sparkles size={14}/> CREATE WITH AI</span>
-              <h2>Photos, scenes and cinematic video — then send it straight to Director Edit.</h2>
-              <p>Pick a look, add your photos, spend the shown tokens, and generate. You choose whether to share your photos and instructions with fal.ai for generation.</p>
+              <h2>Choose a look. Make it yours.</h2>
+              <p>Watch an original reference for free, then choose a template and add your photos. Generation uses the tokens shown.</p>
             </div>
             <div className={`ai-provider-state ${studio?.provider?.ready ? "ready" : "waiting"}`}>
               <i/>
-              <span>{studio?.provider?.ready ? "AI GENERATORS READY" : "WAITING FOR FAL_KEY"}</span>
+              <span>{studio?.provider?.ready ? "AI GENERATORS READY" : "GENERATORS UNAVAILABLE"}</span>
             </div>
           </div>
 
@@ -396,6 +412,7 @@ export default function AIStudio() {
                   type="button"
                   key={id}
                   className={filter === id ? "active" : ""}
+                  disabled={busy}
                   onClick={() => setFilter(id)}
                 >
                   {label}
@@ -408,31 +425,30 @@ export default function AIStudio() {
           </div>
 
           <div className="ai-template-grid">
-            {visibleTemplates.map(template => (
-              <button
-                type="button"
-                key={template.id}
-                className={`ai-template-card tone-${templateTone(template.id)} ${selected?.id === template.id ? "selected" : ""}`}
-                onClick={() => setSelectedId(template.id)}
-              >
-                <span className="ai-template-badge">{template.badge}</span>
-                {AI_TEMPLATE_ARTWORK[template.id] ? <>
-                  <img className="ai-template-thumbnail" src={`/${AI_TEMPLATE_ARTWORK[template.id].src}`} alt={AI_TEMPLATE_ARTWORK[template.id].alt} loading="lazy" width="960" height="540"/>
-                  <span className="ai-template-preview-label">LOOK PREVIEW</span>
-                </> : <span className="ai-template-art">
-                  {template.kind === "video" ? <Film size={30}/> : <ImagePlus size={30}/>}
-                </span>}
-                <span className="ai-template-copy">
-                  <strong>{template.title}</strong>
-                  <small>{template.subtitle}</small>
-                </span>
-                <span className="ai-template-price"><Coins size={13}/> {template.tokens}</span>
-              </button>
-            ))}
+            {visibleTemplates.map(template => {
+              const reference = TEMPLATE_REFERENCES[template.id];
+              const artwork = AI_TEMPLATE_ARTWORK[template.id];
+              const preview = () => setPreviewItem({ template, reference, artwork });
+              return <article key={template.id} className={`ai-template-card tone-${templateTone(template.id)} ${selected?.id === template.id && generatorOpen ? "selected" : ""}`}>
+                <button type="button" className="ai-template-poster" onClick={preview} aria-label={`${reference ? "Preview" : artwork ? "View image for" : "About"} ${template.title}`}>
+                  {artwork && <img className="ai-template-thumbnail" src={referenceThumbnail(reference) || `/${artwork.src}`} alt={reference ? reference.title : artwork.alt} loading="lazy" width="480" height="270"
+                    onError={event => { event.currentTarget.style.visibility = "hidden"; event.currentTarget.parentElement.dataset.imageUnavailable = "true"; }}/>}
+                  {artwork ? <span className="ai-preview-play">{reference ? <Play size={24}/> : <ImagePlus size={24}/>}</span> : <span className="ai-template-placeholder">{template.kind === "video" ? <Film size={30}/> : <ImagePlus size={30}/>}<small>Template details</small></span>}
+                </button>
+                <div className="ai-template-info"><strong>{template.title}</strong><small>{template.subtitle}</small>
+                  <span className="ai-reference-attribution">{reference ? `Original reference: ${reference.credit}` : "Illustrative concept"}</span>
+                </div>
+                <div className="ai-template-actions">
+                  <button type="button" onClick={preview}>{reference ? 'Watch preview' : artwork ? 'View image' : 'Details'}</button>
+                  <button type="button" disabled={busy} onClick={() => chooseTemplate(template.id)}>Use · {template.tokens} tokens</button>
+                </div>
+              </article>;
+            })}
           </div>
 
           {selected && (
-            <div className="ai-generator-panel">
+            <details ref={generatorRef} className="ai-generator-panel" open={generatorOpen} onToggle={event => setGeneratorOpen(event.currentTarget.open)}>
+              <summary className="ai-generator-summary">Create: {selected.title}<ChevronDown size={18}/></summary>
               <div className="ai-generator-heading">
                 <div>
                   <span>{selected.kind === "video" ? "AI VIDEO" : "AI PHOTOSHOOT"}</span>
@@ -514,13 +530,7 @@ export default function AIStudio() {
                 {busy ? "GENERATING…" : `GENERATE • ${selected.tokens} TOKENS`}
               </button>
 
-              {status && <div className="ai-status" role="status">{status}</div>}
 
-              {reportJobId && <form onSubmit={reportGeneration} className="ai-status">
-                <label>What should we review about this result?<textarea value={reportReason} onChange={event => setReportReason(event.target.value)} minLength={5} maxLength={1000} required/></label>
-                <button type="submit" disabled={reportSending}>SEND REPORT</button>
-                <button type="button" disabled={reportSending} onClick={() => setReportJobId(null)}>CANCEL</button>
-              </form>}
               {result && (
                 <div className="ai-result-card">
                   <div className="ai-result-preview">
@@ -538,25 +548,22 @@ export default function AIStudio() {
                     <button type="button" className="primary" onClick={() => void sendToEditor()}>
                       <Send size={16}/> SEND TO EDITOR
                     </button>
-                    <button type="button" onClick={() => { setReportJobId(activeJob?.id); setReportReason(""); }}>REPORT RESULT</button>
+                    <button type="button" onClick={() => { setReportJobId(activeJob?.id); setReportReason(""); }}>Report a problem</button>
                     <button type="button" onClick={() => void downloadResult()}>
                       <Download size={16}/> SAVE
                     </button>
                   </div>
                 </div>
               )}
-            </div>
+            </details>
           )}
 
-          <div className="ai-history-strip">
-            <div className="ai-history-head">
-              <span><Clapperboard size={15}/> MY GENERATIONS</span>
-              {studio?.wallet?.unlimited && <button type="button" onClick={() => void reviewReports()}>REVIEW REPORTS</button>}
-              <button type="button" onClick={() => void loadStudio()}><RefreshCw size={14}/> REFRESH</button>
-            </div>
-            {reports && <div className="ai-status"><strong>GENERATED CONTENT REPORTS</strong>
-              {reports.length ? reports.map(item => <div key={item.id}><p>{item.reason}</p><small>{new Date(item.createdAt).toLocaleString()}</small>{item.result?.url?.startsWith("https://") && <a href={item.result.url} target="_blank" rel="noopener noreferrer">VIEW REPORTED RESULT</a>}</div>) : <p>No reports received.</p>}
-            </div>}
+              {status && <div className="ai-status" role="status">{status}</div>}
+
+          <details className="ai-history-strip">
+            <summary><Clapperboard size={16}/> My creations <span>{studio?.jobs?.length || 0}</span></summary>
+            <p className="ai-section-help">Your saved generation jobs and their status. Failed jobs return their tokens.</p>
+            <button className="ai-check-updates" type="button" disabled={loading} onClick={() => void loadStudio()}><RefreshCw size={16}/> {loading ? "Checking…" : "Check for updates"}</button>
             <div className="ai-history-items">
               {(studio?.jobs || []).length ? studio.jobs.slice(0, 6).map(job => {
                 const template = templates.find(item => item.id === job.templateId);
@@ -564,14 +571,30 @@ export default function AIStudio() {
                   <div className="ai-history-item" key={job.id}>
                     <strong>{template?.title || job.templateId}</strong>
                     <span>{job.status.toUpperCase()} • {job.tokenCost} TOKENS</span>
-                    {job.status === "complete" && <button type="button" onClick={() => { setReportJobId(job.id); setReportReason(""); }}>REPORT RESULT</button>}
+                    {job.status === "complete" && job.result?.url?.startsWith("https://") && <a className="ai-open-result" href={job.result.url} target="_blank" rel="noopener noreferrer">Open saved result</a>}
+                    {job.status === "complete" && <button type="button" onClick={() => { setReportJobId(job.id); setReportReason(""); }}>Report a problem</button>}
                   </div>
                 );
               }) : <span className="ai-history-empty">Your generated photos and videos will show up here.</span>}
             </div>
-          </div>
+          </details>
+              {reportJobId && <form onSubmit={reportGeneration} className="ai-status ai-report-form" ref={reportFormRef}>
+                <label>What should we review about this result?<textarea value={reportReason} onChange={event => setReportReason(event.target.value)} minLength={5} maxLength={1000} required/></label>
+                <button type="submit" disabled={reportSending}>SEND REPORT</button>
+                <button type="button" disabled={reportSending} onClick={() => setReportJobId(null)}>CANCEL</button>
+              </form>}
+          {studio?.wallet?.unlimited && <details className="ai-admin-tools">
+            <summary>Owner tools</summary>
+            <p className="ai-section-help">Moderation reports submitted about generated content. These are not your creation history.</p>
+            <button type="button" onClick={() => void reviewReports()}>Open content reports</button>
+            {reports && <div className="ai-content-reports">
+              {reports.length ? reports.map(item => <div key={item.id}><p>{item.reason}</p><small>{new Date(item.createdAt).toLocaleString()}</small>{item.result?.url?.startsWith("https://") && <a href={item.result.url} target="_blank" rel="noopener noreferrer">View reported result</a>}</div>) : <p>No content has been reported.</p>}
+            </div>}
+          </details>}
         </div>
       )}
+
+      {previewItem && <TemplatePreview busy={busy} item={previewItem} onClose={() => setPreviewItem(null)} onUse={chooseTemplate}/>}
 
       {storeOpen && (
         <div className="ai-store-backdrop" onClick={() => setStoreOpen(false)}>

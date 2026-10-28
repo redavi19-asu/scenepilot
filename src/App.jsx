@@ -114,15 +114,15 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [preview, setPreview] = useState(null);
   const [transition, setTransition] = useState("DISSOLVE");
   const [duration, setDuration] = useState(500);
-  const [mobilePanels, setMobilePanels] = useState({
-    sources: true,
+  const [mobilePanels, setMobilePanels] = useState(() => ({
+    sources: !window.matchMedia?.("(max-width: 760px)").matches,
     transition: false,
     audio: false,
     remoteCamera: false,
     layout: false,
     recording: false,
     replay: false
-  });
+  }));
   const [recording, setRecording] = useState(false);
   const [recordMode, setRecordMode] = useState(isOwner ? "both" : "iso");
   const [recordStatus, setRecordStatus] = useState("READY");
@@ -325,6 +325,17 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   ));
   const networkId = network?.id || cameraNetworkId;
   const directorSignalTicket = network?.signalTicket || "";
+
+  function collapseProductionTools() {
+    setMobilePanels(current => Object.fromEntries(Object.keys(current).map(key => [key, false])));
+    window.dispatchEvent(new CustomEvent('scenepilot:collapse-tools'));
+  }
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)');
+    const foldOnMobile = event => { if (event.matches) collapseProductionTools(); };
+    media.addEventListener('change', foldOnMobile);
+    return () => media.removeEventListener('change', foldOnMobile);
+  }, []);
 
   function toggleMobilePanel(panel) {
     setMobilePanels(current => ({ ...current, [panel]: !current[panel] }));
@@ -4198,6 +4209,7 @@ async function enableCamera() {
         </div>
       )}
 
+      <div className="mobile-production-dock" aria-hidden="true"/>
       <div className="director-floating-switcher" aria-label="Quick Program controls">
         <button
           type="button"
@@ -4478,6 +4490,7 @@ async function enableCamera() {
           </div>
         </section>
 
+        <div className="mobile-workspace-tools"><span>Production tools</span><button type="button" onClick={collapseProductionTools}>Collapse all</button></div>
         <section className={`camera-bank ${mobilePanels.sources ? "" : "mobile-panel-collapsed"}`}>
           <div className="section-title">
             <div><span>SOURCES</span><strong>CAMERA MULTIVIEW</strong></div>

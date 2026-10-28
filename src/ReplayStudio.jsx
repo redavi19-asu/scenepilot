@@ -84,6 +84,11 @@ export default function ReplayStudio({
   onDeleteProgram = null
 }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const fold = () => setOpen(false);
+    window.addEventListener('scenepilot:collapse-tools', fold);
+    return () => window.removeEventListener('scenepilot:collapse-tools', fold);
+  }, []);
   const [assets, setAssets] = useState([]);
   const [clips, setClips] = useState([]);
   const [selectedClipId, setSelectedClipId] = useState(null);

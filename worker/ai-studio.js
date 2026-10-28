@@ -78,7 +78,7 @@ const AI_TEMPLATES = [
     title: "Street Freestyle Music Video",
     subtitle: "Raw street performance and crew energy",
     category: "video",
-    featured: true,
+    featured: false,
     kind: "video",
     model: VEO_MODEL,
     tokens: 500,
@@ -88,6 +88,21 @@ const AI_TEMPLATES = [
     badge: "MUSIC VIDEO",
     prompt:
       "Create an original eight-second raw, kinetic street rap performance video featuring the uploaded adult performer with their identity preserved. Outdoor neighborhood setting at golden hour, friends in the background with natural non-staged reactions, handheld camera with smooth operator control, punchy close-ups and medium shots, authentic confident direct-to-camera delivery, realistic wardrobe and skin texture, polished but spontaneous music-video pacing. Use original performance energy and ambient sound; do not reproduce an existing artist, exact music video shots, lyrics, copyrighted recording, music, logos, or celebrity likenesses."
+  },
+  {
+    id: "dead-fresh-lifestyle-video",
+    title: "Dead Fresh — Street Lifestyle",
+    subtitle: "Fashion, golf-course energy and cinematic lifestyle shots",
+    category: "video",
+    featured: true,
+    kind: "video",
+    model: VEO_MODEL,
+    tokens: 500,
+    minImages: 1,
+    maxImages: 3,
+    duration: "8s",
+    badge: "LIFESTYLE VIDEO",
+    prompt: "Create an original eight-second cinematic street-lifestyle music-video scene using the uploaded consenting adult performer, preserving their identity. Build a confident fashion-forward performance with tailored casual streetwear, expressive direct-to-camera delivery, crisp daylight on a golf course, a tasteful golf cart and lively cutaways to polished lifestyle details. Balance playful golf-course energy with premium editorial fashion framing and rhythmic camera movement. Use an original performance and rhythm, allowing the editor to add their own licensed music. The reference is a lifestyle direction: do not substitute Lil Baby or another celebrity for the uploaded person, reproduce an existing music-video sequence, existing lyrics, logos or copyrighted recordings."
   },
   {
     id: "album-cover",
