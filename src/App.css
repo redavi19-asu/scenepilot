@@ -4705,3 +4705,7 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
 .uds-multimonitor-status{border-top:1px solid #344c4c;padding-top:9px;margin:12px 0 0;font-size:11px;color:#b8e1ca;line-height:1.5}
 @media(max-width:920px){.uds-multimonitor-cameras{grid-template-columns:repeat(5,minmax(0,1fr))}.uds-multimonitor-quick{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:580px){.uds-multimonitor-cameras{grid-template-columns:repeat(3,minmax(0,1fr))}.uds-multimonitor-quick{grid-template-columns:1fr}.uds-multimonitor-panel{margin:9px;padding:11px}.uds-monitor-popout{display:none}}
+
+.uds-monitor-popout{touch-action:none;user-select:none;cursor:grab}.uds-monitor-popout:active{cursor:grabbing}
+
+.native-monitor-note{grid-column:1/-1;color:#c7cfc7;font-size:12px;line-height:1.5;margin:0}

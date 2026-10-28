@@ -5,6 +5,7 @@ import {
   Clapperboard, WandSparkles
 } from "lucide-react";
 import { apiFetch } from "./runtimeApi";
+import { AI_TEMPLATE_ARTWORK } from "./aiTemplateArtwork";
 import "./AIStudio.css";
 
 const FILTERS = [
@@ -116,7 +117,6 @@ export default function AIStudio() {
   const pollRun = useRef(0);
 
   const templates = studio?.templates || [];
-  const selected = templates.find(item => item.id === selectedId) || templates[0] || null;
 
   const visibleTemplates = useMemo(() => {
     if (filter === "featured") return templates.filter(item => item.featured);
@@ -128,6 +128,8 @@ export default function AIStudio() {
     return templates.filter(item => item.category === filter || item.kind === (filter === "video" ? "video" : "image"));
   }, [filter, templates]);
 
+  const selected = visibleTemplates.find(item => item.id === selectedId) || visibleTemplates[0] || null;
+
   async function loadStudio() {
     setLoading(true);
     try {
@@ -135,7 +137,7 @@ export default function AIStudio() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Director AI Studio could not load.");
       setStudio(data);
-      setSelectedId(current => current || data.templates?.[0]?.id || "");
+      setSelectedId(current => current || data.templates?.find(item => item.featured)?.id || data.templates?.[0]?.id || "");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
@@ -159,7 +161,7 @@ export default function AIStudio() {
     setResult(null);
     setActiveJob(null);
     pollRun.current += 1;
-  }, [selectedId]);
+  }, [selected?.id]);
 
   async function choosePhoto(index, file) {
     if (!file) return;
@@ -414,9 +416,12 @@ export default function AIStudio() {
                 onClick={() => setSelectedId(template.id)}
               >
                 <span className="ai-template-badge">{template.badge}</span>
-                <span className="ai-template-art">
+                {AI_TEMPLATE_ARTWORK[template.id] ? <>
+                  <img className="ai-template-thumbnail" src={`/${AI_TEMPLATE_ARTWORK[template.id].src}`} alt={AI_TEMPLATE_ARTWORK[template.id].alt} loading="lazy" width="960" height="540"/>
+                  <span className="ai-template-preview-label">LOOK PREVIEW</span>
+                </> : <span className="ai-template-art">
                   {template.kind === "video" ? <Film size={30}/> : <ImagePlus size={30}/>}
-                </span>
+                </span>}
                 <span className="ai-template-copy">
                   <strong>{template.title}</strong>
                   <small>{template.subtitle}</small>

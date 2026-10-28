@@ -13,6 +13,7 @@ on:
       - 'capacitor.config.*'
       - 'vite.config.*'
       - 'scripts/validate-release-invariants.mjs'
+      - 'scripts/verify-testflight-build.mjs'
   workflow_dispatch:
     inputs:
       upload:
@@ -117,6 +118,14 @@ jobs:
           test -n "$IPA"
           xcrun altool --validate-app -f "$IPA" -t ios --apiKey "$APP_STORE_KEY_ID" --apiIssuer "$APP_STORE_ISSUER_ID"
           xcrun altool --upload-app -f "$IPA" -t ios --apiKey "$APP_STORE_KEY_ID" --apiIssuer "$APP_STORE_ISSUER_ID"
+      - name: Verify Apple processing and TestFlight internal distribution
+        if: env.UPLOAD == 'true'
+        timeout-minutes: 15
+        env:
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
+        run: node scripts/verify-testflight-build.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: Urban-Director-iOS-Archive
