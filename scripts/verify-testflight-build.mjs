@@ -29,14 +29,6 @@ export async function verifyTestflight({api, buildNumber, wait = ms => new Promi
     const page=await api(next); groups.push(...(page.data||[])); next=page.links?.next || null;
   }
   const internal = groups.filter(group=>group.attributes.isInternalGroup);
-  for(const group of internal) {
-    // Reuse the existing internal tester audience; never create groups/testers
-    // or submit this build for public App Review or external Beta App Review.
-    const relation = await api(`/v1/betaGroups/${encodeURIComponent(group.id)}/relationships/builds?limit=200`);
-    if (!relation.data?.some(item=>item.id===build.id)) {
-      await api(`/v1/betaGroups/${encodeURIComponent(group.id)}/relationships/builds`,'POST',{data:[{type:'builds',id:build.id}]});
-    }
-  }
   let detail;
   for(let i=0;i<10;i++) {
     detail = await api(`/v1/builds/${encodeURIComponent(build.id)}/buildBetaDetail`);
@@ -44,15 +36,25 @@ export async function verifyTestflight({api, buildNumber, wait = ms => new Promi
     if(i===9) throw new Error(`Apple processed the build, but internal TestFlight availability is ${detail.data?.attributes.internalBuildState || 'unknown'}. Check App Store Connect.`);
     await wait(20000);
   }
+  const assigned = [];
+  for(const group of internal) {
+    let next = `/v1/betaGroups/${encodeURIComponent(group.id)}/relationships/builds?limit=200`;
+    while(next) {
+      const relation = await api(next);
+      if(relation.data?.some(item=>item.id===build.id)) { assigned.push(group); break; }
+      next=relation.links?.next || null;
+    }
+  }
   const report = {
     buildNumber:String(buildNumber), processingState:build.attributes.processingState,
     internalBuildState:detail.data?.attributes.internalBuildState,
     externalBuildState:detail.data?.attributes.externalBuildState,
-    existingInternalGroups:internal.length,
-    internalMacEnabledGroups:internal.filter(group=>group.attributes.iosBuildsAvailableForAppleSiliconMac).length
+    existingInternalGroups:internal.length, assignedInternalGroups:assigned.length,
+    internalMacEnabledGroups:assigned.filter(group=>group.attributes.iosBuildsAvailableForAppleSiliconMac).length
   };
   log(JSON.stringify(report));
   if (!internal.length) throw new Error('Apple processed the upload, but no existing internal tester group was found. Tester distribution needs attention in App Store Connect.');
+  if (!assigned.length) throw new Error('Build is processed but not assigned to an existing internal tester group. Assign it in App Store Connect before claiming availability.');
   return report;
 }
 
@@ -71,6 +73,6 @@ async function main() {
     return response.status===204?{}:response.json();
   };
   const report=await verifyTestflight({api,buildNumber});
-  if(summary) await appendFile(summary,`\n## TestFlight upload verification\n\nBuild **${buildNumber}** processed by Apple: **${report.processingState}**. Internal state: **${report.internalBuildState}**. Assigned to ${report.existingInternalGroups} existing internal groups; ${report.internalMacEnabledGroups} permit Apple Silicon Mac testing. External state: **${report.externalBuildState}**. Public App Store review was not submitted.\n`);
+  if(summary) await appendFile(summary,`\n## TestFlight upload verification\n\nBuild **${buildNumber}** processed by Apple: **${report.processingState}**. Internal state: **${report.internalBuildState}**. Assigned to ${report.assignedInternalGroups} existing internal groups; ${report.internalMacEnabledGroups} permit Apple Silicon Mac testing. External state: **${report.externalBuildState}**. Public App Store review was not submitted.\n`);
 }
 if(process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href) main().catch(error=>{console.error(error.message);process.exitCode=1;});

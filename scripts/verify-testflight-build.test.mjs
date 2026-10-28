@@ -9,7 +9,7 @@ test('Apple JWT is a valid ES256 signature with short expiry',()=>{
   assert.equal(JSON.parse(Buffer.from(body,'base64url')).exp,1600);
   assert.equal(verify('sha256',Buffer.from(`${head}.${body}`),{key:publicKey,dsaEncoding:'ieee-p1363'},Buffer.from(sig,'base64url')),true);
 });
-function fake({processing='VALID',groups=[{id:'internal',attributes:{isInternalGroup:true,iosBuildsAvailableForAppleSiliconMac:true}},{id:'external',attributes:{isInternalGroup:false}}],assigned=false}={}){
+function fake({processing='VALID',groups=[{id:'internal',attributes:{isInternalGroup:true,iosBuildsAvailableForAppleSiliconMac:true}},{id:'external',attributes:{isInternalGroup:false}}],assigned=true}={}){
   const mutations=[];
   return {mutations,api:async(path,method='GET',body)=>{
     if(method==='POST'){mutations.push({path,body});return {};}
@@ -21,10 +21,9 @@ function fake({processing='VALID',groups=[{id:'internal',attributes:{isInternalG
     throw new Error(path);
   }};
 }
-test('processed build is assigned only to existing internal group, without expanding tester audience',async()=>{
+test('processed build already available to an internal group needs no assignment mutation',async()=>{
   const f=fake();const result=await verifyTestflight({...f,buildNumber:'22',log(){}});
-  assert.equal(result.internalMacEnabledGroups,1);assert.equal(f.mutations.length,1);
-  assert.equal(f.mutations[0].path,'/v1/betaGroups/internal/relationships/builds');
+  assert.equal(result.internalMacEnabledGroups,1);assert.equal(result.assignedInternalGroups,1);assert.equal(f.mutations.length,0);
 });
 test('already-assigned build requires no mutation',async()=>{
   const f=fake({assigned:true});await verifyTestflight({...f,buildNumber:'22',log(){}});assert.equal(f.mutations.length,0);
@@ -36,4 +35,8 @@ test('invalid and pending Apple processing never claim tester availability',asyn
 });
 test('absence of existing internal groups reports distribution needs attention',async()=>{
   const f=fake({groups:[]});await assert.rejects(verifyTestflight({...f,buildNumber:'22',log(){}}),/no existing internal tester/);
+});
+
+test('processed but unassigned builds do not claim TestFlight availability',async()=>{
+  const f=fake({assigned:false});await assert.rejects(verifyTestflight({...f,buildNumber:'22',log(){}}),/not assigned/);assert.equal(f.mutations.length,0);
 });
