@@ -34,7 +34,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
 
       - name: Test Apple signing, video export and Stripe billing
-        run: node --test worker/test/*.test.js src/movieExport.test.js
+        run: node --test worker/test/*.test.js src/movieExport.test.js src/programAudioMixer.test.js
 
       - name: Lint
         run: npm run lint

@@ -12,6 +12,7 @@ import { Capacitor } from "@capacitor/core";
 import { Device } from "@capacitor/device";
 import { App as CapacitorApp } from "@capacitor/app";
 import "./App.css";
+import { createProgramAudioMixer, syncProgramAudioMixer, stopProgramAudioMixer } from "./programAudioMixer";
 import StudioGuide, { StudioGuideWelcome } from "./StudioGuide";
 import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
@@ -128,6 +129,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [standby, setStandby] = useState(false);
   const standbyRef = useRef(false);
   const programCompositeAudioTracksRef = useRef([]);
+  const programAudioMixerRef = useRef(null);
+  const [programAudioStatus, setProgramAudioStatus] = useState("AUDIO MIXER STANDBY");
   const productionRecordersRef = useRef([]);
   const productionChunksRef = useRef([]);
   const recordingBufferedBytesRef = useRef(0);
@@ -267,6 +270,17 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   // The canvas capture runs in a single requestAnimationFrame callback for
   // the entire broadcast. Read the latest React state, never a stale closure.
   const programSourcesRef = useRef(null);
+  const programAudioStateRef = useRef(null);
+  programAudioStateRef.current = {
+    directorStream,
+    screenStream,
+    wirelessCameras,
+    remoteStreams,
+    cameraAudio,
+    masterAudioSource,
+    primarySlot: programComposition.primary,
+    standby
+  };
   programSourcesRef.current = {
     directorStream,
     screenStream,
@@ -283,6 +297,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const localClipUrl = useRef(null);
   const [instantReplayMode, setInstantReplayMode] = useState("live");
   const [instantReplayUrl, setInstantReplayUrl] = useState(null);
+  const instantReplayUrlRef = useRef(null);
+  instantReplayUrlRef.current = instantReplayUrl;
   const [instantReplaySeconds, setInstantReplaySeconds] = useState(10);
   const [instantReplayRate, setInstantReplayRate] = useState(1);
   const [instantReplayStatus, setInstantReplayStatus] = useState("BUFFER WAITING");
@@ -1296,8 +1312,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       if (localClipUrl.current) {
         URL.revokeObjectURL(localClipUrl.current);
       }
-      if (instantReplayUrl) {
-        URL.revokeObjectURL(instantReplayUrl);
+      if (instantReplayUrlRef.current) {
+        URL.revokeObjectURL(instantReplayUrlRef.current);
       }
       try {
         replayRecorderRef.current?.stop?.();
@@ -1310,7 +1326,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       productionRecordersRef.current = [];
       stopProgramCompositor();
     };
-  }, [instantReplayUrl]);
+  }, []); // Unmount only: changing replay clips must NOT kill a live Program stream.
 
   useEffect(() => {
     if (showCamera || !socket.connected) return;
@@ -1707,7 +1723,15 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   }
 
   function startProgramCompositor() {
-    if (programCompositeStreamRef.current) return programCompositeStreamRef.current;
+    if (programCompositeStreamRef.current) {
+      // A suspended Web Audio context may need an explicit user action to resume.
+      if (programAudioMixerRef.current?.context?.state === "suspended") {
+        void programAudioMixerRef.current.context.resume().catch(() => {
+          setProgramAudioStatus("AUDIO BLOCKED — CHECK DEVICE PERMISSIONS");
+        });
+      }
+      return programCompositeStreamRef.current;
+    }
 
     const canvas = document.createElement("canvas");
     canvas.width = 1280;
@@ -1778,18 +1802,30 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     if (!canvas.captureStream) return null;
     const composite = canvas.captureStream(30);
 
-    const sourceAudio = currentProgramMediaStream();
-    const compositeAudioTracks = [];
-    sourceAudio?.getAudioTracks?.().forEach(track => {
-      try {
-        const outputTrack = track.clone ? track.clone() : track;
-        outputTrack.enabled = !standbyRef.current;
-        composite.addTrack(outputTrack);
-        compositeAudioTracks.push(outputTrack);
-      } catch {}
-    });
-
-    programCompositeAudioTracksRef.current = compositeAudioTracks;
+    // The outgoing Web Audio destination is a SINGLE, STABLE audio track.
+    // Unlike cloning the first camera's microphone, it can change inputs
+    // while MediaRecorder / WebSocket streaming is already active.
+    try {
+      const mixer = createProgramAudioMixer(window.AudioContext || window.webkitAudioContext);
+      if (mixer) {
+        programAudioMixerRef.current = mixer;
+        syncProgramAudioMixer(mixer, programAudioStateRef.current);
+        mixer.outputTrack.enabled = !standbyRef.current;
+        composite.addTrack(mixer.outputTrack);
+        programCompositeAudioTracksRef.current = [mixer.outputTrack];
+        setProgramAudioStatus("PROGRAM MIX CONNECTED");
+        void mixer.context.resume().catch(() => {
+          setProgramAudioStatus("AUDIO BLOCKED — TAP START AGAIN OR CHECK PERMISSIONS");
+        });
+      } else {
+        programCompositeAudioTracksRef.current = [];
+        setProgramAudioStatus("AUDIO OUTPUT NOT SUPPORTED ON THIS DEVICE");
+      }
+    } catch (error) {
+      console.warn("Urban Director Studio Program audio mixer could not start", error);
+      programCompositeAudioTracksRef.current = [];
+      setProgramAudioStatus("AUDIO MIXER FAILED — PROGRAM MAY BE SILENT");
+    }
     programCompositeStreamRef.current = composite;
     return composite;
   }
@@ -1806,10 +1842,20 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       try { track.stop?.(); } catch {}
     });
     programCompositeAudioTracksRef.current = [];
+    stopProgramAudioMixer(programAudioMixerRef.current);
+    programAudioMixerRef.current = null;
     programCompositeStreamRef.current = null;
     programCanvasRef.current = null;
     programLastFrameRef.current = null;
   }
+
+  // Synchronize routing whenever a source, fader, solo/mute, main picture,
+  // master selection, or standby changes. Never replace the output track.
+  useEffect(() => {
+    if (programAudioMixerRef.current) {
+      syncProgramAudioMixer(programAudioMixerRef.current, programAudioStateRef.current);
+    }
+  }, [directorStream, screenStream, wirelessCameras, remoteStreams, cameraAudio, masterAudioSource, programComposition.primary, standby]);
 
   function chooseRecordingMimeType() {
     if (typeof MediaRecorder === "undefined") return "";
@@ -3260,14 +3306,19 @@ async function enableCamera() {
         if (directorStream && !next[DIRECTOR_SOURCE]) {
           next[DIRECTOR_SOURCE] = { volume: 1, muted: true, solo: false };
         }
+        if (screenStream?.getAudioTracks?.().length && !next[SCREEN_SOURCE]) {
+          next[SCREEN_SOURCE] = { volume: 1, muted: true, solo: false };
+        }
 
         Object.keys(next).forEach(id => {
           const isRemoteCamera =
             wirelessCameras.some(camera => camera.socketId === id);
           const isDirectorCamera =
             id === DIRECTOR_SOURCE && Boolean(directorStream);
+          const isSharedScreen = id === SCREEN_SOURCE &&
+            Boolean(screenStream?.getAudioTracks?.().length);
 
-          if (!isRemoteCamera && !isDirectorCamera) {
+          if (!isRemoteCamera && !isDirectorCamera && !isSharedScreen) {
             delete next[id];
           }
         });
@@ -3279,19 +3330,24 @@ async function enableCamera() {
     return () => {
       cancelled = true;
     };
-  }, [wirelessCameras, directorStream]);
+  }, [wirelessCameras, directorStream, screenStream]);
 
   const anySolo = Object.values(cameraAudio).some(channel => channel.solo);
+  const followingProgramAudioId =
+    programComposition.primary === DIRECTOR_SOURCE || programComposition.primary === SCREEN_SOURCE
+      ? programComposition.primary
+      : wirelessCameras.find(camera => camera.slotId === programComposition.primary)?.socketId;
 
   const effectiveCameraVolume = useCallback(camera => {
     const channel = cameraAudio[camera.socketId] || { volume: 1, muted: true, solo: false };
     const selectedByMaster =
-      masterAudioSource === "mix" || masterAudioSource === camera.socketId;
+      masterAudioSource === "mix" || masterAudioSource === camera.socketId ||
+      (masterAudioSource === "follow" && followingProgramAudioId === camera.socketId);
     const audibleBySolo = !anySolo || channel.solo;
 
     if (!selectedByMaster || !audibleBySolo || channel.muted) return 0;
     return Math.max(0, Math.min(1, Number(channel.volume ?? 1)));
-  }, [cameraAudio, masterAudioSource, anySolo]);
+  }, [cameraAudio, masterAudioSource, anySolo, followingProgramAudioId]);
 
   const effectiveDirectorVolume = () => {
     const channel = cameraAudio[DIRECTOR_SOURCE] || {
@@ -3300,7 +3356,8 @@ async function enableCamera() {
       solo: false
     };
     const selectedByMaster =
-      masterAudioSource === "mix" || masterAudioSource === DIRECTOR_SOURCE;
+      masterAudioSource === "mix" || masterAudioSource === DIRECTOR_SOURCE ||
+      (masterAudioSource === "follow" && followingProgramAudioId === DIRECTOR_SOURCE);
     const audibleBySolo = !anySolo || channel.solo;
 
     if (!selectedByMaster || !audibleBySolo || channel.muted) return 0;
@@ -4691,9 +4748,13 @@ async function enableCamera() {
                 value={masterAudioSource}
                 onChange={event => setMasterAudioSource(event.target.value)}
               >
-                <option value="mix">MIX ALL ACTIVE MICS</option>
+                <option value="mix">MIX ALL UNMUTED MICS</option>
+                <option value="follow">FOLLOW PROGRAM CAMERA</option>
                 {directorStream && (
                   <option value={DIRECTOR_SOURCE}>DIRECTOR CAM — LOCAL MIC</option>
+                )}
+                {screenStream?.getAudioTracks?.().length > 0 && (
+                  <option value={SCREEN_SOURCE}>SHARED WINDOW — SOURCE AUDIO</option>
                 )}
                 {wirelessCameras.map(camera => (
                   <option key={camera.socketId} value={camera.socketId}>
@@ -4758,6 +4819,34 @@ async function enableCamera() {
                         {Math.round(Number(channel.volume || 0) * 100)}%
                         {volume === 0 ? " • OFF" : ""}
                       </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {screenStream?.getAudioTracks?.().length > 0 && (() => {
+                const channel = cameraAudio[SCREEN_SOURCE] || { volume: 1, muted: true, solo: false };
+                const selectedByMaster =
+                  masterAudioSource === "mix" || masterAudioSource === SCREEN_SOURCE ||
+                  (masterAudioSource === "follow" && followingProgramAudioId === SCREEN_SOURCE);
+                const volume = selectedByMaster && (!anySolo || channel.solo) && !channel.muted
+                  ? Math.max(0, Math.min(1, Number(channel.volume) || 0)) : 0;
+                return (
+                  <div className="phone-mixer-channel">
+                    <div className="phone-mixer-head">
+                      <strong>SCREEN / WINDOW AUDIO</strong>
+                      <span>SOURCE AUDIO • LOCAL MONITOR MUTED</span>
+                    </div>
+                    <input className="phone-fader" type="range" min="0" max="1" step="0.01"
+                      aria-label="Screen capture audio level"
+                      value={channel.volume}
+                      onChange={event => updateCameraAudio(SCREEN_SOURCE, { volume: Number(event.target.value) })}/>
+                    <div className="phone-mixer-actions">
+                      <button className={channel.muted ? "active" : ""}
+                        onClick={() => updateCameraAudio(SCREEN_SOURCE, { muted: !channel.muted })}>MUTE</button>
+                      <button className={channel.solo ? "active" : ""}
+                        onClick={() => updateCameraAudio(SCREEN_SOURCE, { solo: !channel.solo })}>SOLO</button>
+                      <span>{Math.round(Number(channel.volume || 0) * 100)}%{volume === 0 ? " • OFF" : ""}</span>
                     </div>
                   </div>
                 );
@@ -4834,14 +4923,14 @@ async function enableCamera() {
                 );
               }) : !directorStream ? (
                 <div className="phone-mixer-empty">
-                  Connect a phone or enable Director Cam to expose a microphone channel.
+                  Connect a phone, enable Director Cam, or share a window with audio to expose a microphone channel.
                 </div>
               ) : null}
             </div>
 
             <div className="audio-footer">
-              <span><Volume2 size={15}/> LIVE AUDIO MIXER</span>
-              <span>{wirelessCameras.length + (directorStream ? 1 : 0)} CH</span>
+              <span><Volume2 size={15}/> LIVE AUDIO MIXER • {programAudioStatus}</span>
+              <span>{wirelessCameras.length + (directorStream ? 1 : 0) + (screenStream?.getAudioTracks?.().length ? 1 : 0)} CH</span>
             </div>
           </div>
 
