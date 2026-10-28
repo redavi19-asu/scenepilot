@@ -37,7 +37,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Test Apple signing, video export and Stripe billing
-        run: node --test worker/test/*.test.js src/movieExport.test.js src/programAudioMixer.test.js src/popoutWorkspace.test.js src/screenCapture.test.js src/ingestConnection.test.js electron/test/*.test.cjs server/test/*.test.mjs
+        run: node --test worker/test/*.test.js src/movieExport.test.js src/programAudioMixer.test.js src/popoutWorkspace.test.js src/aiTemplateArtwork.test.js src/screenCapture.test.js src/ingestConnection.test.js electron/test/*.test.cjs server/test/*.test.mjs scripts/verify-testflight-build.test.mjs
 
       - name: Lint
         run: npm run lint

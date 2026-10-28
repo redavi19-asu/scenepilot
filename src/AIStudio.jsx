@@ -5,6 +5,7 @@ import {
   Clapperboard, WandSparkles
 } from "lucide-react";
 import { apiFetch } from "./runtimeApi";
+import { AI_TEMPLATE_ARTWORK } from "./aiTemplateArtwork";
 import "./AIStudio.css";
 
 const FILTERS = [
@@ -415,9 +416,12 @@ export default function AIStudio() {
                 onClick={() => setSelectedId(template.id)}
               >
                 <span className="ai-template-badge">{template.badge}</span>
-                <span className="ai-template-art">
+                {AI_TEMPLATE_ARTWORK[template.id] ? <>
+                  <img className="ai-template-thumbnail" src={`/${AI_TEMPLATE_ARTWORK[template.id].src}`} alt={AI_TEMPLATE_ARTWORK[template.id].alt} loading="lazy" width="960" height="540"/>
+                  <span className="ai-template-preview-label">LOOK PREVIEW</span>
+                </> : <span className="ai-template-art">
                   {template.kind === "video" ? <Film size={30}/> : <ImagePlus size={30}/>}
-                </span>
+                </span>}
                 <span className="ai-template-copy">
                   <strong>{template.title}</strong>
                   <small>{template.subtitle}</small>

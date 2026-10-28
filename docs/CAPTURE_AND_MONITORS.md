@@ -19,3 +19,8 @@ The Electron wrapper uses the macOS system picker where available and an explici
 
 ## Verification limits
 Unit tests cover socket success, error, early close, timeout, stale-connection recovery, invalid screen tracks, desktop popup policy, origin-scoped capture permissions and chooser cancellation. CI additionally runs the existing FFmpeg ingest integration test with WebM, fragmented MP4 and invalid input. These tests do not prove physical Mac screen permission behavior, physical iOS QA, or public App Store submission.
+
+## Thumbnail artwork and release verification
+The four featured cards ship local illustrative JPEG previews, labeled LOOK PREVIEW. They do not call fal.ai or spend Studio tokens. The artwork illustrates the template direction, rather than documenting a completed video generation.
+
+The iOS release workflow now checks the uploaded build through App Store Connect, waits for processing, adds it to existing internal beta groups, and verifies the internal testing state. It does not create tester groups, invite new people, or submit public App Store review. External beta review and the tester's Apple ID remain separate. The workflow summary reports the exact build number and whether existing internal groups permit iPad-app testing on Apple Silicon Macs.
