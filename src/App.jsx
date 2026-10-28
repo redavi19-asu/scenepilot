@@ -297,6 +297,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const localClipUrl = useRef(null);
   const [instantReplayMode, setInstantReplayMode] = useState("live");
   const [instantReplayUrl, setInstantReplayUrl] = useState(null);
+  const instantReplayUrlRef = useRef(null);
+  instantReplayUrlRef.current = instantReplayUrl;
   const [instantReplaySeconds, setInstantReplaySeconds] = useState(10);
   const [instantReplayRate, setInstantReplayRate] = useState(1);
   const [instantReplayStatus, setInstantReplayStatus] = useState("BUFFER WAITING");
@@ -1310,8 +1312,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       if (localClipUrl.current) {
         URL.revokeObjectURL(localClipUrl.current);
       }
-      if (instantReplayUrl) {
-        URL.revokeObjectURL(instantReplayUrl);
+      if (instantReplayUrlRef.current) {
+        URL.revokeObjectURL(instantReplayUrlRef.current);
       }
       try {
         replayRecorderRef.current?.stop?.();
@@ -1324,7 +1326,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       productionRecordersRef.current = [];
       stopProgramCompositor();
     };
-  }, [instantReplayUrl]);
+  }, []); // Unmount only: changing replay clips must NOT kill a live Program stream.
 
   useEffect(() => {
     if (showCamera || !socket.connected) return;
