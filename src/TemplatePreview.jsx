@@ -24,7 +24,7 @@ export default function TemplatePreview({ item, onClose, onUse, busy = false }) 
     </> : <>
       {artwork && <img className="ai-concept-large" src={`/${artwork.src}`} alt={artwork.alt}/>}
       <p>{artwork ? 'This is a concept image. No sample video is attached to this template.' : template.subtitle}</p>
-      <p>Add {template.minImages === template.maxImages ? template.minImages : `${template.minImages}–${template.maxImages}`} photo{template.maxImages === 1 ? '' : 's'} to create your own {template.kind === 'video' ? `${template.duration || 'short'} video` : 'image'}. Generation: {template.tokens} tokens.</p>
+      <p>Add {template.minImages === template.maxImages ? template.minImages : `${template.minImages}–${template.maxImages}`} photo{template.maxImages === 1 ? '' : 's'} to create your own {template.kind === 'video' ? `${parseInt(template.duration, 10)}-second video` : 'image'}. Generation: {template.tokens} tokens.</p>
     </>}
     <button type="button" className="ai-use-template" disabled={busy} onClick={() => onUse(template.id)}>Use this template</button>
   </dialog>;

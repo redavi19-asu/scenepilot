@@ -436,6 +436,7 @@ export default function AIStudio() {
                   {artwork ? <span className="ai-preview-play">{reference ? <Play size={24}/> : <ImagePlus size={24}/>}</span> : <span className="ai-template-placeholder">{template.kind === "video" ? <Film size={30}/> : <ImagePlus size={30}/>}<small>Template details</small></span>}
                 </button>
                 <div className="ai-template-info"><strong>{template.title}</strong><small>{template.subtitle}</small>
+                  {template.kind === "video" && <small>Generates {parseInt(template.duration, 10)} seconds</small>}
                   <span className="ai-reference-attribution">{reference ? `Original reference: ${reference.credit}` : "Illustrative concept"}</span>
                 </div>
                 <div className="ai-template-actions">
@@ -454,6 +455,7 @@ export default function AIStudio() {
                   <span>{selected.kind === "video" ? "AI VIDEO" : "AI PHOTOSHOOT"}</span>
                   <h3>{selected.title}</h3>
                   <p>{selected.subtitle}</p>
+                  {selected.kind === "video" && <p>Generated clip: {parseInt(selected.duration, 10)} seconds</p>}
                 </div>
                 <div className="ai-generation-price">
                   <small>GENERATION COST</small>

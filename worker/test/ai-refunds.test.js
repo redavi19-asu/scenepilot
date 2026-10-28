@@ -113,3 +113,36 @@ test('Dead Fresh lifestyle template is featured and preserves the uploaded perfo
   assert.equal(studio.templates.find(item=>item.id==='street-freestyle-video').featured,false);
  }finally{globalThis.fetch=original;x.db.close();}
 });
+
+for (const templateId of ['parents-store', 'parents-neighbor', 'lobby-music-video', 'dead-fresh-lifestyle-video']) {
+ test(`${templateId} reserves its displayed price and submits twelve seconds with every reference`, async () => {
+  const x = await setup(), original = globalThis.fetch;
+  x.db.exec('UPDATE uds_ai_wallets SET balance=2500');
+  const studio = await (await send(x.env, 'studio')).json();
+  const template = studio.templates.find(item => item.id === templateId);
+  const images = Array.from({length: template.maxImages}, (_, i) => `https://example.com/performer-${i}.jpg`);
+  let calls = 0;
+  globalThis.fetch = async (url, options) => {
+   calls++;
+   assert.equal(String(url), 'https://queue.fal.run/fal-ai/kling-video/o3/pro/reference-to-video');
+   const body = JSON.parse(options.body);
+   assert.equal(body.duration, '12');
+   assert.equal(body.generate_audio, true);
+   assert.equal(body.aspect_ratio, '16:9');
+   assert.equal(body.enable_safety_checker, true);
+   assert.deepEqual(body.image_urls, images);
+   assert.match(body.prompt, /twelve-second/);
+   images.forEach((_, i) => assert.ok(body.prompt.includes(`@Image${i + 1}`)));
+   assert.equal(body.start_image_url, undefined);
+   return Response.json({request_id: 'mock-twelve', status_url: 'https://queue.fal.run/mock/status', response_url: 'https://queue.fal.run/mock/result'});
+  };
+  try {
+   assert.equal(template.duration, '12');
+   assert.equal(template.tokens, 500);
+   assert.equal((await send(x.env, 'generate', {...input, templateId, images})).status, 202);
+   assert.equal(calls, 1);
+   assert.equal(x.db.prepare('SELECT balance FROM uds_ai_wallets').get().balance, 2500 - template.tokens);
+   assert.equal(x.db.prepare('SELECT token_cost FROM uds_ai_jobs').get().token_cost, template.tokens);
+  } finally { globalThis.fetch = original; x.db.close(); }
+ });
+}
