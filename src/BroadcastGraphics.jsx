@@ -7,12 +7,12 @@ import {
 import "./BroadcastGraphics.css";
 
 const INITIAL = {
-  live: true,
+  live: false,
   lowerThird: false,
   ticker: false,
   countdown: false,
   topic: false,
-  logo: true,
+  logo: false,
   headline: "COMING UP",
   subheadline: "Live coverage continues shortly",
   tickerText: "Urban Director Studio live production • Add updates, headlines, alerts, or event information here",
@@ -303,7 +303,7 @@ export default function BroadcastGraphics() {
           </div>
 
           <div className="sp-graphics-card">
-            <span className="panel-label">CORNER LOGO / BUG</span>
+            <span className="panel-label">CORNER LOGO / BUG • SQUARE</span>
             <label>
               FALLBACK TEXT
               <input maxLength="8" value={graphics.logoText} onChange={e => setValue("logoText", e.target.value)} />
@@ -312,7 +312,7 @@ export default function BroadcastGraphics() {
               <Upload size={14}/> UPLOAD LOGO
               <input type="file" accept="image/*,video/*" onChange={e => loadImage(e, "logo")} />
             </label>
-            <small>Images and short silent looping video logos appear in the live Program feed.</small>
+            <small>Square corner logo, slightly larger, with the original image proportions preserved. Images and short silent looping videos are supported.</small>
           </div>
 
           <div className="sp-graphics-card sp-graphics-master">
