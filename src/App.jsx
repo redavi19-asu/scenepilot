@@ -12,6 +12,7 @@ import { Capacitor } from "@capacitor/core";
 import { Device } from "@capacitor/device";
 import { App as CapacitorApp } from "@capacitor/app";
 import "./App.css";
+import StudioGuide, { StudioGuideWelcome } from "./StudioGuide";
 import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
 import { getDirectorIceServers } from "./iceServers";
@@ -4149,6 +4150,8 @@ async function enableCamera() {
         </button>
       </div>
 
+      <StudioGuideWelcome onOpen={() => setShowTips(true)} />
+
       <main className="workspace">
         <section className="monitor-section">
           <div className="monitor preview-monitor">
@@ -5282,50 +5285,7 @@ async function enableCamera() {
         </div>
       )}
 
-      {showTips && (
-        <div className="modal-backdrop tips-backdrop" onClick={() => setShowTips(false)}>
-          <div
-            className="join-modal tips-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Urban Director Studio production tips"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              className="modal-close"
-              aria-label="Close production tips"
-              onClick={() => setShowTips(false)}
-            >
-              <X/>
-            </button>
-            <div className="join-icon"><CircleHelp size={29}/></div>
-            <span className="eyebrow">URBAN DIRECTOR STUDIO QUICK GUIDE</span>
-            <h2>Run the production</h2>
-            <p className="tips-intro">
-              Follow this order when you are setting up and directing a show. Preview prepares the next shot;
-              Program is what is actually live.
-            </p>
-
-            <div className="tips-list">
-              <p><strong>1. Add Cameras:</strong> Tap <b>ADD CAMERA</b>, then <b>SHOW QR CODE</b>. A camera operator scans the QR code or opens the secure camera link to join this production room.</p>
-              <p><strong>2. Set Names:</strong> Use <b>SET NAMES</b> above Camera Multiview to label any of the nine remote camera slots. The saved name follows that camera slot throughout the Director console and audio controls.</p>
-              <p><strong>3. Camera Multiview:</strong> Connected remote cameras stay visible in the nine-camera wall while you direct. Preview and Program use those live sources without removing them from Multiview.</p>
-              <p><strong>4. Assign Main Cam:</strong> Drag a connected camera tile onto <b>MAIN CAM</b>. Main Cam becomes the production's home shot and the source TAKE can return to when no new Preview change is waiting.</p>
-              <p><strong>5. Prepare Preview:</strong> Tap a camera tile or drag a source to Preview. The left <b>PREVIEW</b> monitor changes, but the audience does not see that source yet.</p>
-              <p><strong>6. TAKE to Program:</strong> Press <b>TAKE</b> to send the prepared Preview source or layout to the right <b>PROGRAM</b> monitor. The red PGM/LIVE indicators identify what is actually on air.</p>
-              <p><strong>7. Return to Main Cam:</strong> After a TAKE, if you do not prepare a new Preview source or layout, pressing <b>TAKE</b> again returns Program to the assigned Main Cam.</p>
-              <p><strong>8. Transitions:</strong> Choose <b>CUT</b>, <b>DISSOLVE</b>, or <b>FADE</b>, select the transition duration, then press TAKE. The selected transition is used for the Program change.</p>
-              <p><strong>9. Layouts:</strong> Build <b>SINGLE</b>, <b>SPLIT</b>, <b>PiP</b>, or <b>9-CAM</b> in Preview first. Nothing changes on Program until you press TAKE.</p>
-              <p><strong>10. Master Audio:</strong> Choose the source you want to hear in Master Audio and use the camera mixer for individual phone audio. Camera names stay matched between video and audio controls.</p>
-              <p><strong>11. Director Cam:</strong> The Director device can be an additional camera without using one of the nine remote-camera slots. Enable Director Cam, choose front or rear camera, then Preview it or add it as PiP before taking it live.</p>
-              <p><strong>12. Camera Operator Controls:</strong> Camera phones can flip cameras, zoom, use the light/torch when supported, hide their controls for a clean viewfinder, use Live Shield/telemetry, and communicate with the Director. Supported zoom and light controls can also be operated remotely from the Director console.</p>
-              <p><strong>13. Standby / Hold:</strong> Press <b>STANDBY / HOLD</b> to replace Program with the built-in standby screen while the production stays connected. Use <b>RETURN TO PROGRAM</b> when you are ready to resume the live show.</p>
-              <p><strong>14. Instant Replay:</strong> When replay recording is available, choose the replay length and trigger the replay from the Director console. The system returns to the live Program when the replay finishes.</p>
-              <p><strong>15. If a Camera Drops:</strong> Keep the camera page open and let Urban Director Studio reconnect. When the WebRTC feed returns, that camera resumes in its assigned Multiview slot.</p>
-            </div>
-          </div>
-        </div>
-      )}
+      <StudioGuide open={showTips} onClose={() => setShowTips(false)} />
 
       {showJoin && (
         <div className="modal-backdrop" onClick={() => setShowJoin(false)}>
