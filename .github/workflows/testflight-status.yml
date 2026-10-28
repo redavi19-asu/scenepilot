@@ -1,0 +1,54 @@
+name: Verify Existing TestFlight Build
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: Existing uploaded Apple build number
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Read Apple build and tester distribution state
+        env:
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          node --input-type=module <<'JS'
+          import {appleToken} from './scripts/verify-testflight-build.mjs';
+          import {appendFile} from 'node:fs/promises';
+          const api=async path=>{
+            const url=new URL(path,'https://api.appstoreconnect.apple.com');
+            if(url.origin!=='https://api.appstoreconnect.apple.com')throw new Error('Unexpected API origin');
+            const response=await fetch(url,{headers:{Authorization:`Bearer ${appleToken(process.env.APP_STORE_PRIVATE_KEY,process.env.APP_STORE_KEY_ID,process.env.APP_STORE_ISSUER_ID)}`},signal:AbortSignal.timeout(30000)});
+            const data=await response.json();
+            if(!response.ok)throw new Error(`${url.pathname}: ${response.status} ${JSON.stringify(data.errors)}`);
+            return data;
+          };
+          const apps=await api('/v1/apps?filter[bundleId]=com.icomputeranything.scenepilot&limit=2');
+          if(apps.data.length!==1)throw new Error('App not uniquely identified');
+          const app=apps.data[0];
+          const builds=await api(`/v1/builds?filter[app]=${app.id}&filter[version]=${encodeURIComponent(process.env.BUILD_NUMBER)}&limit=5`);
+          const build=builds.data.find(item=>item.attributes.version===process.env.BUILD_NUMBER);
+          if(!build)throw new Error('Apple build not found');
+          console.log('BUILD',JSON.stringify({version:build.attributes.version,processingState:build.attributes.processingState,expired:build.attributes.expired,usesNonExemptEncryption:build.attributes.usesNonExemptEncryption}));
+          const detail=await api(`/v1/builds/${build.id}/buildBetaDetail`);
+          console.log('TESTFLIGHT',JSON.stringify(detail.data.attributes));
+          const groups=await api(`/v1/apps/${app.id}/betaGroups?limit=200`);
+          for(const group of groups.data){
+            console.log('GROUP',JSON.stringify({id:group.id,isInternalGroup:group.attributes.isInternalGroup,hasAccessToAllBuilds:group.attributes.hasAccessToAllBuilds,iosBuildsAvailableForAppleSiliconMac:group.attributes.iosBuildsAvailableForAppleSiliconMac}));
+            const assigned=await api(`/v1/betaGroups/${group.id}/relationships/builds?limit=200`);
+            console.log('ASSIGNED',JSON.stringify({group:group.id,currentBuild:assigned.data.some(item=>item.id===build.id)}));
+          }
+          await appendFile(process.env.GITHUB_STEP_SUMMARY,`## TestFlight build ${process.env.BUILD_NUMBER}\n\nProcessing: ${build.attributes.processingState}.\n\n${JSON.stringify(detail.data.attributes)}\n`);
+          JS
