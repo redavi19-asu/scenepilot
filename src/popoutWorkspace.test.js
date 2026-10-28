@@ -15,7 +15,7 @@ test("the workspace only restores explicitly supported monitor views", () => {
 test("window coordinates allow a left-side monitor and clamp malicious sizes", () => {
   assert.deepEqual(safeBounds({ left: -1800, top: 44, width: 800, height: 450 }),
     { left: -1800, top: 44, width: 800, height: 450 });
-  assert.deepEqual(safeBounds({ left: 10 ** 20, top: -10 ** 20, width: 0, height: 9999999 }),
+  assert.deepEqual(safeBounds({ left: 10 ** 20, top: -(10 ** 20), width: 0, height: 9999999 }),
     { left: 12000, top: -12000, width: 330, height: 3200 });
   assert.match(popupFeatures({ left: -1440, width: 900 }), /left=-1440/);
 });
