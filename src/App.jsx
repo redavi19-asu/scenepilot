@@ -12,6 +12,7 @@ import { Capacitor } from "@capacitor/core";
 import { Device } from "@capacitor/device";
 import { App as CapacitorApp } from "@capacitor/app";
 import "./App.css";
+import StudioGuide, { StudioGuideWelcome } from "./StudioGuide";
 import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender } from "./webrtc";
 import { getDirectorIceServers } from "./iceServers";
@@ -52,6 +53,7 @@ export function ScenePilotSplash({ cameraMode }) {
 }
 
 const DIRECTOR_SOURCE = "director";
+const SCREEN_SOURCE = "screen-share";
 
 const initialCameras = Array.from({ length: 9 }, (_, index) => ({
   id: index + 1,
@@ -101,6 +103,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const isOwner = user?.role === "owner";
   const [showSplash, setShowSplash] = useState(true);
   const [cameras] = useState(initialCameras);
+  const [demoStills, setDemoStills] = useState({});
+  const demoUrlsRef = useRef({});
+  const [demoSlotId, setDemoSlotId] = useState(9);
+  const [demoStatus, setDemoStatus] = useState("");
   const [_program, setProgram] = useState(null);
   const [preview, setPreview] = useState(null);
   const [transition, setTransition] = useState("DISSOLVE");
@@ -220,6 +226,9 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [draftCameraNames, setDraftCameraNames] = useState({});
   const [mainCamera, setMainCamera] = useState(null);
   const [directorStream, setDirectorStream] = useState(null);
+  const [screenStream, setScreenStream] = useState(null);
+  const screenStreamRef = useRef(null);
+  const [screenShareStatus, setScreenShareStatus] = useState("SCREEN SHARE OFF");
   const directorStreamRef = useRef(null);
   const directorCameraSwitchingRef = useRef(false);
   const [directorFacingMode, setDirectorFacingMode] = useState("user");
@@ -260,6 +269,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const programSourcesRef = useRef(null);
   programSourcesRef.current = {
     directorStream,
+    screenStream,
+    demoStills,
     wirelessCameras,
     remoteStreams,
     programComposition,
@@ -400,6 +411,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   useEffect(() => () => {
     directorStreamRef.current?.getTracks?.().forEach(track => track.stop());
     directorStreamRef.current = null;
+    screenStreamRef.current?.getTracks?.().forEach(track => track.stop());
+    screenStreamRef.current = null;
+    Object.values(demoUrlsRef.current).forEach(url => URL.revokeObjectURL(url));
+    demoUrlsRef.current = {};
   }, []);
 
   useEffect(() => {
@@ -1323,11 +1338,9 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     const primarySlot = programComposition.primary;
     const primaryCamera = wirelessCameras.find(camera => camera.slotId === primarySlot);
     const programStream =
-      primarySlot === DIRECTOR_SOURCE
-        ? directorStream
-        : primaryCamera
-          ? remoteStreams[primaryCamera.socketId]
-          : null;
+      primarySlot === SCREEN_SOURCE ? screenStream :
+      primarySlot === DIRECTOR_SOURCE ? directorStream :
+      primaryCamera ? remoteStreams[primaryCamera.socketId] : null;
 
     if (!programStream || typeof MediaRecorder === "undefined") {
       queueMicrotask(() => setInstantReplayStatus("BUFFER WAITING"));
@@ -1407,7 +1420,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
         replayRecorderRef.current = null;
       }
     };
-  }, [showCamera, programComposition.primary, wirelessCameras, remoteStreams, directorStream]);
+  }, [showCamera, programComposition.primary, wirelessCameras, remoteStreams, directorStream, screenStream]);
 
 
 
@@ -1433,20 +1446,26 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     if (slotId === DIRECTOR_SOURCE) {
       return getVideoElementForStream("director", live?.directorStream);
     }
+    if (slotId === SCREEN_SOURCE) {
+      return getVideoElementForStream("screen-share", live?.screenStream);
+    }
     const camera = live?.wirelessCameras?.find(item => item.slotId === slotId);
-    if (!camera) return null;
-    return getVideoElementForStream(camera.socketId, live?.remoteStreams?.[camera.socketId]);
+    if (camera) return getVideoElementForStream(camera.socketId, live?.remoteStreams?.[camera.socketId]);
+    return live?.demoStills?.[slotId]?.image || null;
   }
 
   function drawVideoCover(ctx, video, x, y, width, height) {
-    if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+    const isImage = video?.tagName === "IMG";
+    const sourceWidth = isImage ? video?.naturalWidth : video?.videoWidth;
+    const sourceHeight = isImage ? video?.naturalHeight : video?.videoHeight;
+    if (!video || (!isImage && video.readyState < 2) || !sourceWidth || !sourceHeight) {
       ctx.fillStyle = "#181a18";
       ctx.fillRect(x, y, width, height);
       return;
     }
-    const scale = Math.max(width / video.videoWidth, height / video.videoHeight);
-    const drawWidth = video.videoWidth * scale;
-    const drawHeight = video.videoHeight * scale;
+    const scale = Math.max(width / sourceWidth, height / sourceHeight);
+    const drawWidth = sourceWidth * scale;
+    const drawHeight = sourceHeight * scale;
     const dx = x + (width - drawWidth) / 2;
     const dy = y + (height - drawHeight) / 2;
     ctx.drawImage(video, dx, dy, drawWidth, drawHeight);
@@ -1606,15 +1625,12 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     }
 
     if (graphics.logo) {
-      const size = 82;
+      const size = 94;
       const x = width - size - 42;
       const y = height - size - 120;
       const cx = x + size / 2;
       const cy = y + size / 2;
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
-      ctx.clip();
       ctx.fillStyle = "rgba(10,10,10,.78)";
       ctx.fillRect(x, y, size, size);
       const hasLogo = drawGraphicAsset(
@@ -1630,9 +1646,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       ctx.restore();
       ctx.strokeStyle = "rgba(255,255,255,.28)";
       ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(cx, cy, size / 2 - 1, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
     }
 
     if (graphics.countdown) {
@@ -1830,6 +1844,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   function currentProgramMediaStream() {
     const primarySlot = programComposition.primary;
     if (primarySlot === DIRECTOR_SOURCE) return directorStream || null;
+    if (primarySlot === SCREEN_SOURCE) return screenStream || null;
 
     const camera = wirelessCameras.find(item => item.slotId === primarySlot);
     return camera ? remoteStreams[camera.socketId] || null : null;
@@ -2980,6 +2995,109 @@ async function enableCamera() {
     }
   }
 
+  function loadDemoStill(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const id = Number(demoSlotId);
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setDemoStatus("CHOOSE A JPG, PNG, OR WEBP IMAGE");
+      return;
+    }
+    if (cameraForSlot(id)) {
+      setDemoStatus("THIS SLOT HAS A LIVE CAMERA — CHOOSE AN OFFLINE SLOT");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      if (demoUrlsRef.current[id]) URL.revokeObjectURL(demoUrlsRef.current[id]);
+      demoUrlsRef.current[id] = url;
+      setDemoStills(previous => ({ ...previous, [id]: { url, image, name: file.name } }));
+      setDemoStatus("DEMO STILL READY — NOT A LIVE CAMERA");
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      setDemoStatus("COULD NOT READ THIS IMAGE");
+    };
+    image.src = url;
+  }
+
+  function clearDemoStill() {
+    const id = Number(demoSlotId);
+    if (demoUrlsRef.current[id]) {
+      URL.revokeObjectURL(demoUrlsRef.current[id]);
+      delete demoUrlsRef.current[id];
+    }
+    setDemoStills(previous => {
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
+    setDemoStatus("DEMO STILL REMOVED");
+  }
+
+  function previewDemoStill() {
+    if (!demoStills[demoSlotId]) return;
+    setCompositionMode("nine");
+    setPreview(demoSlotId);
+    setPreviewDirty(true);
+  }
+
+  function stopScreenShare() {
+    const capture = screenStreamRef.current;
+    screenStreamRef.current = null;
+    capture?.getTracks?.().forEach(track => track.stop());
+    setScreenStream(null);
+    setScreenShareStatus("SCREEN SHARE OFF");
+  }
+
+  async function startScreenShare() {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setScreenShareStatus("SCREEN CAPTURE NOT SUPPORTED ON THIS DEVICE");
+      return;
+    }
+    try {
+      // Permission must follow the operator's button click.
+      const capture = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      stopScreenShare();
+      screenStreamRef.current = capture;
+      capture.getVideoTracks()[0]?.addEventListener("ended", () => {
+        if (screenStreamRef.current !== capture) return;
+        screenStreamRef.current = null;
+        capture.getTracks().forEach(track => track.stop());
+        setScreenStream(null);
+        setScreenShareStatus("SCREEN CAPTURE ENDED — RETURN TO A CAMERA");
+      }, { once: true });
+      setScreenStream(capture);
+      setScreenShareStatus("SOURCE READY — PREVIEW, THEN TAKE");
+    } catch (error) {
+      setScreenShareStatus(error?.name === "NotAllowedError"
+        ? "SCREEN CAPTURE CANCELLED OR NOT PERMITTED"
+        : "SCREEN CAPTURE FAILED — TRY ANOTHER WINDOW");
+    }
+  }
+
+  function putScreenInPreview() {
+    if (!screenStream) return;
+    setCompositionMode("single");
+    setPreview(SCREEN_SOURCE);
+    setPreviewDirty(true);
+  }
+
+  function putScreenInPip() {
+    if (!screenStream) return;
+    const main = preview === SCREEN_SOURCE ? mainCamera : preview || mainCamera;
+    if (!main || main === SCREEN_SOURCE) {
+      setScreenShareStatus("CHOOSE A CAMERA BEFORE ADDING SCREEN PiP");
+      return;
+    }
+    setPreview(main);
+    setCompositionMode("pip");
+    setSecondaryPreview(SCREEN_SOURCE);
+    setPreviewDirty(true);
+  }
+
   function putDirectorInPreview() {
     if (!directorStream) return;
     setCompositionMode("single");
@@ -3712,6 +3830,7 @@ async function enableCamera() {
   const displayNameForCamera = slotId => {
     if (!slotId) return "NO SOURCE SELECTED";
     if (slotId === DIRECTOR_SOURCE) return "DIRECTOR CAM";
+    if (slotId === SCREEN_SOURCE) return "SCREEN / WINDOW";
 
     const savedName = cameraNames[String(slotId)] || cameraNames[slotId];
     if (savedName) return savedName;
@@ -3750,11 +3869,13 @@ async function enableCamera() {
 
   const dropCameraOnMain = slotId => {
     const next =
-      slotId === DIRECTOR_SOURCE ? DIRECTOR_SOURCE : Number(slotId);
+      slotId === DIRECTOR_SOURCE || slotId === SCREEN_SOURCE ? slotId : Number(slotId);
 
     if (next === DIRECTOR_SOURCE) {
       if (!directorStream) return;
-    } else if (!next || next < 1 || next > 9 || !cameraForSlot(next)) {
+    } else if (next === SCREEN_SOURCE) {
+      if (!screenStream) return;
+    } else if (!next || next < 1 || next > 9 || (!cameraForSlot(next) && !demoStills[next])) {
       return;
     }
 
@@ -3764,6 +3885,7 @@ async function enableCamera() {
 
   const streamForSlot = slotId => {
     if (slotId === DIRECTOR_SOURCE) return directorStream;
+    if (slotId === SCREEN_SOURCE) return screenStream;
 
     const camera = cameraForSlot(slotId);
     return camera ? remoteStreams[camera.socketId] : null;
@@ -3791,6 +3913,9 @@ async function enableCamera() {
       );
     }
     const liveStream = streamForSlot(slotId);
+    if (!liveStream && demoStills[slotId]) {
+      return <img className="composition-video demo-still-image" src={demoStills[slotId].url} alt={"Demo still for CAM " + slotId}/>;
+    }
     const fallbackCamera = cameras.find(camera => camera.id === slotId);
     const liveCamera = cameraForSlot(slotId);
 
@@ -4025,6 +4150,8 @@ async function enableCamera() {
         </button>
       </div>
 
+      <StudioGuideWelcome onOpen={() => setShowTips(true)} />
+
       <main className="workspace">
         <section className="monitor-section">
           <div className="monitor preview-monitor">
@@ -4040,10 +4167,8 @@ async function enableCamera() {
                 const rawSource =
                   event.dataTransfer.getData("text/scenepilot-camera") ||
                   draggingCamera;
-                const sourceId =
-                  rawSource === DIRECTOR_SOURCE
-                    ? DIRECTOR_SOURCE
-                    : Number(rawSource);
+                const sourceId = rawSource === DIRECTOR_SOURCE || rawSource === SCREEN_SOURCE
+                  ? rawSource : Number(rawSource);
                 dropCameraOnPreview(sourceId);
                 setDraggingCamera(null);
               }}
@@ -4260,9 +4385,9 @@ async function enableCamera() {
             {cameras.map(cam => (
               <button
                 key={cam.id}
-                draggable={Boolean(cameraForSlot(cam.id))}
+                draggable={Boolean(cameraForSlot(cam.id) || demoStills[cam.id])}
                 onDragStart={event => {
-                  if (!cameraForSlot(cam.id)) return;
+                  if (!cameraForSlot(cam.id) && !demoStills[cam.id]) return;
                   setDraggingCamera(cam.id);
                   event.dataTransfer.effectAllowed = "move";
                   event.dataTransfer.setData(
@@ -4273,7 +4398,7 @@ async function enableCamera() {
                 onDragEnd={() => setDraggingCamera(null)}
                 disabled={
                   cam.status === "OFFLINE" &&
-                  !cameraForSlot(cam.id)
+                  !cameraForSlot(cam.id) && !demoStills[cam.id]
                 }
                 onClick={() => {
                   setPreview(cam.id);
@@ -4282,11 +4407,13 @@ async function enableCamera() {
                 className={`camera-tile
                   ${isProgramSlot(cam.id) && cameraForSlot(cam.id) ? "is-program" : ""}
                   ${cam.id === preview ? "is-preview" : ""}
-                  ${cam.status === "OFFLINE" && !cameraForSlot(cam.id) ? "offline" : ""}`}
+                  ${cam.status === "OFFLINE" && !cameraForSlot(cam.id) && !demoStills[cam.id] ? "offline" : ""}`}
               >
                 <div className="tile-feed">
                   {streamForSlot(cam.id) ? (
                     <LiveStreamVideo stream={streamForSlot(cam.id)}/>
+                  ) : demoStills[cam.id] ? (
+                    <img className="demo-still-image" src={demoStills[cam.id].url} alt={"Demo still for CAM " + cam.id}/>
                   ) : (
                     <>
                       <Camera size={27}/>
@@ -4297,8 +4424,8 @@ async function enableCamera() {
 
                 <div className="tile-meta">
                   <strong>{displayNameForCamera(cam.id)}</strong>
-                  {cameraForSlot(cam.id) && (
-                    <span className="drag-hint">DRAG TO PREVIEW OR MAIN CAM</span>
+                  {(cameraForSlot(cam.id) || demoStills[cam.id]) && (
+                    <span className="drag-hint">{demoStills[cam.id] && !cameraForSlot(cam.id) ? "DEMO STILL • NOT LIVE" : "DRAG TO PREVIEW OR MAIN CAM"}</span>
                   )}
                   <div>
                     <span title="Camera operator network telemetry when the phone/browser shares it">
@@ -4318,6 +4445,23 @@ async function enableCamera() {
             ))}
           </div>
 
+          <div className="demo-stills-panel">
+            <div className="demo-stills-copy">
+              <strong>9-CAMERA DEMO FILL</strong>
+              <small>Fill offline camera slots with uploaded original or AI-generated stills. These are for demos and screenshots, not actual live cameras.</small>
+            </div>
+            <label>CAM SLOT
+              <select value={demoSlotId} onChange={event => setDemoSlotId(Number(event.target.value))}>
+                {cameras.map(cam => <option key={cam.id} value={cam.id}>CAM {String(cam.id).padStart(2, "0")}</option>)}
+              </select>
+            </label>
+            <label className="demo-file-select">ADD STILL
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={loadDemoStill}/>
+            </label>
+            <button type="button" onClick={previewDemoStill} disabled={!demoStills[demoSlotId]}>9-CAM PREVIEW</button>
+            <button type="button" onClick={clearDemoStill} disabled={!demoStills[demoSlotId]}>REMOVE</button>
+            {demoStatus && <span className="demo-stills-status" role="status">{demoStatus}</span>}
+          </div>
           <div className="source-feature-row">
           <div className="director-camera-panel">
             <div className="director-camera-copy">
@@ -4410,10 +4554,8 @@ async function enableCamera() {
               const rawSource =
                 event.dataTransfer.getData("text/scenepilot-camera") ||
                 draggingCamera;
-              const sourceId =
-                rawSource === DIRECTOR_SOURCE
-                  ? DIRECTOR_SOURCE
-                  : Number(rawSource);
+              const sourceId = rawSource === DIRECTOR_SOURCE || rawSource === SCREEN_SOURCE
+                  ? rawSource : Number(rawSource);
 
               dropCameraOnMain(sourceId);
               setDraggingCamera(null);
@@ -4428,18 +4570,20 @@ async function enableCamera() {
                 aria-label="Choose Main Cam source"
                 value={mainCamera === DIRECTOR_SOURCE
                   ? (directorStream ? DIRECTOR_SOURCE : "")
+                  : mainCamera === SCREEN_SOURCE ? (screenStream ? SCREEN_SOURCE : "")
                   : (cameraForSlot(mainCamera) ? String(mainCamera) : "")}
                 onChange={event => {
                   if (event.target.value) dropCameraOnMain(event.target.value);
                 }}
               >
                 <option value="">TAP TO CHOOSE MAIN CAM</option>
-                {cameras.filter(cam => cameraForSlot(cam.id)).map(cam => (
+                {cameras.filter(cam => cameraForSlot(cam.id) || demoStills[cam.id]).map(cam => (
                   <option key={cam.id} value={String(cam.id)}>
                     {displayNameForCamera(cam.id)} · CAM {String(cam.id).padStart(2, "0")}
                   </option>
                 ))}
                 {directorStream && <option value={DIRECTOR_SOURCE}>DIRECTOR SELFIE CAM</option>}
+                {screenStream && <option value={SCREEN_SOURCE}>SCREEN / WINDOW CAPTURE</option>}
               </select>
             </div>
             <div className="main-camera-home-feed">
@@ -4465,6 +4609,27 @@ async function enableCamera() {
               )}
             </div>
           </div>
+          </div>
+          <div className="external-source-panel">
+            <div className="external-source-copy">
+              <span>EXTERNAL VIDEO SOURCE</span>
+              <strong>SHARE SCREEN / WINDOW</strong>
+              <small>Share an authorized live news feed, browser window, or application without interrupting connected cameras. The operator previews it before TAKE. Support depends on the browser and device.</small>
+            </div>
+            <div className="external-source-actions">
+              {!screenStream ? (
+                <button type="button" onClick={startScreenShare}><MonitorUp size={15}/> SELECT SCREEN / WINDOW</button>
+              ) : (
+                <>
+                  <button type="button" onClick={putScreenInPreview}><MonitorUp size={15}/> PREVIEW</button>
+                  <button type="button" onClick={putScreenInPip}><PictureInPicture2 size={15}/> ADD AS PiP</button>
+                  <button type="button" onClick={() => dropCameraOnMain(SCREEN_SOURCE)}>SET MAIN</button>
+                  <button type="button" onClick={stopScreenShare}>STOP SHARING</button>
+                </>
+              )}
+            </div>
+            <span role="status" className="external-source-status">{screenShareStatus}</span>
+            {screenStream && <div className="external-source-preview"><LiveStreamVideo stream={screenStream}/></div>}
           </div>
         </section>
 
@@ -5120,50 +5285,7 @@ async function enableCamera() {
         </div>
       )}
 
-      {showTips && (
-        <div className="modal-backdrop tips-backdrop" onClick={() => setShowTips(false)}>
-          <div
-            className="join-modal tips-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Urban Director Studio production tips"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              className="modal-close"
-              aria-label="Close production tips"
-              onClick={() => setShowTips(false)}
-            >
-              <X/>
-            </button>
-            <div className="join-icon"><CircleHelp size={29}/></div>
-            <span className="eyebrow">URBAN DIRECTOR STUDIO QUICK GUIDE</span>
-            <h2>Run the production</h2>
-            <p className="tips-intro">
-              Follow this order when you are setting up and directing a show. Preview prepares the next shot;
-              Program is what is actually live.
-            </p>
-
-            <div className="tips-list">
-              <p><strong>1. Add Cameras:</strong> Tap <b>ADD CAMERA</b>, then <b>SHOW QR CODE</b>. A camera operator scans the QR code or opens the secure camera link to join this production room.</p>
-              <p><strong>2. Set Names:</strong> Use <b>SET NAMES</b> above Camera Multiview to label any of the nine remote camera slots. The saved name follows that camera slot throughout the Director console and audio controls.</p>
-              <p><strong>3. Camera Multiview:</strong> Connected remote cameras stay visible in the nine-camera wall while you direct. Preview and Program use those live sources without removing them from Multiview.</p>
-              <p><strong>4. Assign Main Cam:</strong> Drag a connected camera tile onto <b>MAIN CAM</b>. Main Cam becomes the production's home shot and the source TAKE can return to when no new Preview change is waiting.</p>
-              <p><strong>5. Prepare Preview:</strong> Tap a camera tile or drag a source to Preview. The left <b>PREVIEW</b> monitor changes, but the audience does not see that source yet.</p>
-              <p><strong>6. TAKE to Program:</strong> Press <b>TAKE</b> to send the prepared Preview source or layout to the right <b>PROGRAM</b> monitor. The red PGM/LIVE indicators identify what is actually on air.</p>
-              <p><strong>7. Return to Main Cam:</strong> After a TAKE, if you do not prepare a new Preview source or layout, pressing <b>TAKE</b> again returns Program to the assigned Main Cam.</p>
-              <p><strong>8. Transitions:</strong> Choose <b>CUT</b>, <b>DISSOLVE</b>, or <b>FADE</b>, select the transition duration, then press TAKE. The selected transition is used for the Program change.</p>
-              <p><strong>9. Layouts:</strong> Build <b>SINGLE</b>, <b>SPLIT</b>, <b>PiP</b>, or <b>9-CAM</b> in Preview first. Nothing changes on Program until you press TAKE.</p>
-              <p><strong>10. Master Audio:</strong> Choose the source you want to hear in Master Audio and use the camera mixer for individual phone audio. Camera names stay matched between video and audio controls.</p>
-              <p><strong>11. Director Cam:</strong> The Director device can be an additional camera without using one of the nine remote-camera slots. Enable Director Cam, choose front or rear camera, then Preview it or add it as PiP before taking it live.</p>
-              <p><strong>12. Camera Operator Controls:</strong> Camera phones can flip cameras, zoom, use the light/torch when supported, hide their controls for a clean viewfinder, use Live Shield/telemetry, and communicate with the Director. Supported zoom and light controls can also be operated remotely from the Director console.</p>
-              <p><strong>13. Standby / Hold:</strong> Press <b>STANDBY / HOLD</b> to replace Program with the built-in standby screen while the production stays connected. Use <b>RETURN TO PROGRAM</b> when you are ready to resume the live show.</p>
-              <p><strong>14. Instant Replay:</strong> When replay recording is available, choose the replay length and trigger the replay from the Director console. The system returns to the live Program when the replay finishes.</p>
-              <p><strong>15. If a Camera Drops:</strong> Keep the camera page open and let Urban Director Studio reconnect. When the WebRTC feed returns, that camera resumes in its assigned Multiview slot.</p>
-            </div>
-          </div>
-        </div>
-      )}
+      <StudioGuide open={showTips} onClose={() => setShowTips(false)} />
 
       {showJoin && (
         <div className="modal-backdrop" onClick={() => setShowJoin(false)}>

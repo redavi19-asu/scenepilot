@@ -4638,3 +4638,45 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
   outline: 2px solid #b8f2a7;
   outline-offset: 2px;
 }
+
+
+/* Licensed browser/window content can be previewed and switched without
+   replacing or interrupting a camera source. */
+.external-source-panel{
+  margin-top:10px;
+  border:1px solid #454c41;
+  background:#111510;
+  padding:12px;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px;
+}
+.external-source-copy{flex:1 1 240px;display:flex;flex-direction:column;gap:4px}
+.external-source-copy span{color:#9ba798;font-size:8px;font-weight:950;letter-spacing:.12em}
+.external-source-copy strong{font-size:13px;letter-spacing:.06em}
+.external-source-copy small{color:#b7bfb1;font-size:9px;line-height:1.5}
+.external-source-actions{display:flex;flex-wrap:wrap;gap:6px}
+.external-source-actions button{min-height:36px;border:1px solid #5a6255;background:#22271f;color:#f1f2ec;padding:0 10px;display:flex;align-items:center;gap:5px;font-size:9px;font-weight:850;cursor:pointer}
+.external-source-actions button:hover{border-color:#d9ad48}
+.external-source-status{color:#a6b39e;font-size:8px;font-weight:850;width:100%}
+.external-source-preview{width:min(100%,330px);border:1px solid #56634f;background:#000;aspect-ratio:16/9;overflow:hidden}
+.external-source-preview video{width:100%;height:100%;display:block;object-fit:contain}
+@media (max-width:700px){.external-source-panel{align-items:stretch}.external-source-actions button{flex:1 1 40%;justify-content:center}}
+
+
+/* Off-air demo stills fill otherwise empty camera slots for screenshots. */
+.demo-stills-panel{
+  margin-top:10px;padding:10px;border:1px solid #4a5145;background:#10150f;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap
+}
+.demo-stills-copy{display:flex;flex-direction:column;gap:4px;flex:1 1 230px}
+.demo-stills-copy strong{color:#f0e9d8;font-size:12px;letter-spacing:.06em}
+.demo-stills-copy small{color:#b5bdb0;font-size:9px;line-height:1.5}
+.demo-stills-panel label{display:flex;align-items:center;gap:5px;font-weight:850;color:#ccc;font-size:9px}
+.demo-stills-panel select{min-height:33px;border:1px solid #5d6858;background:#1f251e;color:#fff;padding:0 6px}
+.demo-stills-panel button,.demo-file-select{border:1px solid #66715f;background:#242b21;color:#eee;padding:8px 10px;min-height:33px;font-size:9px;font-weight:850;cursor:pointer}
+.demo-stills-panel button:disabled{opacity:.35;cursor:not-allowed}
+.demo-file-select input{display:none}
+.demo-stills-status{width:100%;color:#b9ceab;font-size:9px}
+.demo-still-image{width:100%;height:100%;object-fit:cover;display:block}

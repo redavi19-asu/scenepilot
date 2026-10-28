@@ -8,6 +8,7 @@ import { apiFetch } from "./runtimeApi";
 import "./AIStudio.css";
 
 const FILTERS = [
+  ["featured", "FEATURED VIDEO"],
   ["trending", "TRENDING"],
   ["photos", "AI PHOTOS"],
   ["video", "AI VIDEO"]
@@ -52,6 +53,10 @@ async function imageFileToDataUrl(file) {
 function templateTone(id) {
   const tones = {
     "lobby-duo": "lobby",
+    "parents-store": "movie",
+    "parents-neighbor": "movie",
+    "lobby-music-video": "lobby",
+    "street-freestyle-video": "street",
     "album-cover": "album",
     "studio-portrait": "studio",
     "street-campaign": "street",
@@ -97,7 +102,7 @@ export default function AIStudio() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [studio, setStudio] = useState(null);
-  const [filter, setFilter] = useState("trending");
+  const [filter, setFilter] = useState("featured");
   const [selectedId, setSelectedId] = useState("");
   const [photos, setPhotos] = useState([]);
   const [customPrompt, setCustomPrompt] = useState("");
@@ -114,6 +119,7 @@ export default function AIStudio() {
   const selected = templates.find(item => item.id === selectedId) || templates[0] || null;
 
   const visibleTemplates = useMemo(() => {
+    if (filter === "featured") return templates.filter(item => item.featured);
     if (filter === "trending") {
       return templates.filter(item => item.category === "trending" || item.badge === "POPULAR").concat(
         templates.filter(item => item.category === "video").slice(0, 2)

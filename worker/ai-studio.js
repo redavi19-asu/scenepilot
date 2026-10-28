@@ -26,6 +26,70 @@ const AI_TEMPLATES = [
       "Create a premium cinematic music-video still featuring the two uploaded people together in a grand luxury hotel lobby. Preserve each person's recognizable face, skin tone, hairstyle, and identity. Give them confident natural poses, upscale modern streetwear, polished marble floors, warm practical lights, subtle reflections, rich depth, crisp editorial photography, wide cinematic composition, realistic hands, realistic anatomy, no logos, no celebrity likeness substitutions, no text."
   },
   {
+    id: "parents-store",
+    title: "Turning Into Your Parents: The Store",
+    subtitle: "Original awkward-shopping comedy commercial",
+    category: "video",
+    featured: true,
+    kind: "video",
+    model: VEO_MODEL,
+    tokens: 500,
+    minImages: 1,
+    maxImages: 3,
+    duration: "8s",
+    badge: "COMEDY",
+    prompt:
+      "Create an original eight-second lighthearted fictional commercial in a brightly lit neighborhood store using the uploaded adult actor as the central character. A younger adult starts offering unsolicited advice to a stranger about grocery prices, reusable bags, and coupons as if they have become an overly practical parent. A calm original friend gently interrupts with a funny dry reaction. Build a clear setup, humorous awkward beat, and memorable reaction shot, natural conversational English dialogue with synchronized mouth movement, cinematic multi-shot commercial coverage, crisp production sound, lifelike people. Invent all characters and lines. No existing advertising characters, brand names, insurance mascots, known catchphrases, recognizable celebrities, logos, or copyrighted music."
+  },
+  {
+    id: "parents-neighbor",
+    title: "Turning Into Your Parents: The Neighbor",
+    subtitle: "Original overfriendly-neighbor comedy commercial",
+    category: "video",
+    featured: true,
+    kind: "video",
+    model: VEO_MODEL,
+    tokens: 500,
+    minImages: 1,
+    maxImages: 3,
+    duration: "8s",
+    badge: "COMEDY",
+    prompt:
+      "Create an original eight-second observational comedy commercial with the uploaded adult actor in the driveway of a contemporary suburban home. A well-meaning young homeowner enthusiastically starts lecturing a passing neighbor about lawn care, neighborhood parking, and the weather, speaking with a comically parent-like confidence. An original sidekick gently tries to steer them away, ending with a quick deadpan reaction. New original dialogue, characters and visual staging, professional grounded ensemble acting, crisp natural lighting, alternating medium and close-up reaction shots, synced natural dialogue and sound. Do not reference or reproduce any real insurance ad, commercial slogan, mascot, celebrity, brand logo, or copyrighted music."
+  },
+  {
+    id: "lobby-music-video",
+    title: "Luxury Hotel Lobby Music Video",
+    subtitle: "Two-performer cinematic lobby scene",
+    category: "video",
+    featured: true,
+    kind: "video",
+    model: VEO_MODEL,
+    tokens: 500,
+    minImages: 2,
+    maxImages: 2,
+    duration: "8s",
+    badge: "MUSIC VIDEO",
+    prompt:
+      "Produce an original eight-second high-end rap music video performance featuring the two uploaded consenting adult performers, preserving both identities. Dramatic premium hotel lobby interior with marble, gold-toned practical lighting, grand staircase and architectural symmetry; confident complementary performances, tasteful wardrobe, rhythmic cinematic camera travel, precise cuts and authentic eye contact, high-production-value color grading. Performers move to an original energetic rhythm; allow the editor to replace music afterward. Do not recreate any existing music-video shots, lyrics, celebrity faces, existing artist logos, or copyrighted recording."
+  },
+  {
+    id: "street-freestyle-video",
+    title: "Street Freestyle Music Video",
+    subtitle: "Raw street performance and crew energy",
+    category: "video",
+    featured: true,
+    kind: "video",
+    model: VEO_MODEL,
+    tokens: 500,
+    minImages: 1,
+    maxImages: 3,
+    duration: "8s",
+    badge: "MUSIC VIDEO",
+    prompt:
+      "Create an original eight-second raw, kinetic street rap performance video featuring the uploaded adult performer with their identity preserved. Outdoor neighborhood setting at golden hour, friends in the background with natural non-staged reactions, handheld camera with smooth operator control, punchy close-ups and medium shots, authentic confident direct-to-camera delivery, realistic wardrobe and skin texture, polished but spontaneous music-video pacing. Use original performance energy and ambient sound; do not reproduce an existing artist, exact music video shots, lyrics, copyrighted recording, music, logos, or celebrity likenesses."
+  },
+  {
     id: "album-cover",
     title: "Album Cover",
     subtitle: "Bold cover-art portrait",
