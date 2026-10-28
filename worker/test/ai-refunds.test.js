@@ -97,3 +97,19 @@ test('Hotel Lobby video sends the orange studio and hanging-mic direction to the
   assert.equal(template.minImages,2);assert.equal(template.maxImages,2);
  }finally{globalThis.fetch=original;x.db.close();}
 });
+
+test('Dead Fresh lifestyle template is featured and preserves the uploaded performer',async()=>{
+ const x=await setup(),original=globalThis.fetch;let submitted;
+ x.db.exec('UPDATE uds_ai_wallets SET balance=1000');
+ globalThis.fetch=async(_url,options)=>{
+  submitted=JSON.parse(options.body);
+  return new Response(JSON.stringify({request_id:'mock-lifestyle',status_url:'https://queue.fal.run/mock/status',response_url:'https://queue.fal.run/mock/result'}),{status:200,headers:{'Content-Type':'application/json'}});
+ };
+ try{
+  const response=await send(x.env,'generate',{...input,templateId:'dead-fresh-lifestyle-video'});
+  assert.equal(response.status,202);assert.match(submitted.prompt,/golf course/);assert.match(submitted.prompt,/preserving their identity/);
+  const studio=await (await send(x.env,'studio')).json();
+  assert.equal(studio.templates.find(item=>item.id==='dead-fresh-lifestyle-video').featured,true);
+  assert.equal(studio.templates.find(item=>item.id==='street-freestyle-video').featured,false);
+ }finally{globalThis.fetch=original;x.db.close();}
+});

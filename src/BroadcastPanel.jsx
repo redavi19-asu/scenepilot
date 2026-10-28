@@ -62,6 +62,11 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
   const [usage, setUsage] = useState(null);
   const [broadcastNetworkId, setBroadcastNetworkId] = useState("");
   const [collapsed, setCollapsed] = useState(true);
+  useEffect(() => {
+    const fold = () => setCollapsed(true);
+    window.addEventListener('scenepilot:collapse-tools', fold);
+    return () => window.removeEventListener('scenepilot:collapse-tools', fold);
+  }, []);
   const ingestRef = useRef({ recorder: null, socket: null });
   const realtimeRef = useRef(null);
   const limitTimerRef = useRef(null);
