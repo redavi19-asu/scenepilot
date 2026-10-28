@@ -4382,9 +4382,9 @@ async function enableCamera() {
             {cameras.map(cam => (
               <button
                 key={cam.id}
-                draggable={Boolean(cameraForSlot(cam.id))}
+                draggable={Boolean(cameraForSlot(cam.id) || demoStills[cam.id])}
                 onDragStart={event => {
-                  if (!cameraForSlot(cam.id)) return;
+                  if (!cameraForSlot(cam.id) && !demoStills[cam.id]) return;
                   setDraggingCamera(cam.id);
                   event.dataTransfer.effectAllowed = "move";
                   event.dataTransfer.setData(
@@ -4395,7 +4395,7 @@ async function enableCamera() {
                 onDragEnd={() => setDraggingCamera(null)}
                 disabled={
                   cam.status === "OFFLINE" &&
-                  !cameraForSlot(cam.id)
+                  !cameraForSlot(cam.id) && !demoStills[cam.id]
                 }
                 onClick={() => {
                   setPreview(cam.id);
@@ -4404,11 +4404,13 @@ async function enableCamera() {
                 className={`camera-tile
                   ${isProgramSlot(cam.id) && cameraForSlot(cam.id) ? "is-program" : ""}
                   ${cam.id === preview ? "is-preview" : ""}
-                  ${cam.status === "OFFLINE" && !cameraForSlot(cam.id) ? "offline" : ""}`}
+                  ${cam.status === "OFFLINE" && !cameraForSlot(cam.id) && !demoStills[cam.id] ? "offline" : ""}`}
               >
                 <div className="tile-feed">
                   {streamForSlot(cam.id) ? (
                     <LiveStreamVideo stream={streamForSlot(cam.id)}/>
+                  ) : demoStills[cam.id] ? (
+                    <img className="demo-still-image" src={demoStills[cam.id].url} alt={"Demo still for CAM " + cam.id}/>
                   ) : (
                     <>
                       <Camera size={27}/>
@@ -4419,8 +4421,8 @@ async function enableCamera() {
 
                 <div className="tile-meta">
                   <strong>{displayNameForCamera(cam.id)}</strong>
-                  {cameraForSlot(cam.id) && (
-                    <span className="drag-hint">DRAG TO PREVIEW OR MAIN CAM</span>
+                  {(cameraForSlot(cam.id) || demoStills[cam.id]) && (
+                    <span className="drag-hint">{demoStills[cam.id] && !cameraForSlot(cam.id) ? "DEMO STILL • NOT LIVE" : "DRAG TO PREVIEW OR MAIN CAM"}</span>
                   )}
                   <div>
                     <span title="Camera operator network telemetry when the phone/browser shares it">
