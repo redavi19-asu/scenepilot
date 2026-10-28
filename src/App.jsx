@@ -102,6 +102,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const isOwner = user?.role === "owner";
   const [showSplash, setShowSplash] = useState(true);
   const [cameras] = useState(initialCameras);
+  const [demoStills, setDemoStills] = useState({});
+  const demoUrlsRef = useRef({});
+  const [demoSlotId, setDemoSlotId] = useState(9);
+  const [demoStatus, setDemoStatus] = useState("");
   const [_program, setProgram] = useState(null);
   const [preview, setPreview] = useState(null);
   const [transition, setTransition] = useState("DISSOLVE");
@@ -265,6 +269,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   programSourcesRef.current = {
     directorStream,
     screenStream,
+    demoStills,
     wirelessCameras,
     remoteStreams,
     programComposition,
@@ -407,6 +412,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     directorStreamRef.current = null;
     screenStreamRef.current?.getTracks?.().forEach(track => track.stop());
     screenStreamRef.current = null;
+    Object.values(demoUrlsRef.current).forEach(url => URL.revokeObjectURL(url));
+    demoUrlsRef.current = {};
   }, []);
 
   useEffect(() => {
@@ -1442,19 +1449,22 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       return getVideoElementForStream("screen-share", live?.screenStream);
     }
     const camera = live?.wirelessCameras?.find(item => item.slotId === slotId);
-    if (!camera) return null;
-    return getVideoElementForStream(camera.socketId, live?.remoteStreams?.[camera.socketId]);
+    if (camera) return getVideoElementForStream(camera.socketId, live?.remoteStreams?.[camera.socketId]);
+    return live?.demoStills?.[slotId]?.image || null;
   }
 
   function drawVideoCover(ctx, video, x, y, width, height) {
-    if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+    const isImage = video?.tagName === "IMG";
+    const sourceWidth = isImage ? video?.naturalWidth : video?.videoWidth;
+    const sourceHeight = isImage ? video?.naturalHeight : video?.videoHeight;
+    if (!video || (!isImage && video.readyState < 2) || !sourceWidth || !sourceHeight) {
       ctx.fillStyle = "#181a18";
       ctx.fillRect(x, y, width, height);
       return;
     }
-    const scale = Math.max(width / video.videoWidth, height / video.videoHeight);
-    const drawWidth = video.videoWidth * scale;
-    const drawHeight = video.videoHeight * scale;
+    const scale = Math.max(width / sourceWidth, height / sourceHeight);
+    const drawWidth = sourceWidth * scale;
+    const drawHeight = sourceHeight * scale;
     const dx = x + (width - drawWidth) / 2;
     const dy = y + (height - drawHeight) / 2;
     ctx.drawImage(video, dx, dy, drawWidth, drawHeight);
