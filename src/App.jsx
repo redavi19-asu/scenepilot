@@ -1606,15 +1606,12 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     }
 
     if (graphics.logo) {
-      const size = 82;
+      const size = 94;
       const x = width - size - 42;
       const y = height - size - 120;
       const cx = x + size / 2;
       const cy = y + size / 2;
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
-      ctx.clip();
       ctx.fillStyle = "rgba(10,10,10,.78)";
       ctx.fillRect(x, y, size, size);
       const hasLogo = drawGraphicAsset(
@@ -1630,9 +1627,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       ctx.restore();
       ctx.strokeStyle = "rgba(255,255,255,.28)";
       ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(cx, cy, size / 2 - 1, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.strokeRect(x + 1, y + 1, size - 2, size - 2);
     }
 
     if (graphics.countdown) {
