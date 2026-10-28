@@ -2994,6 +2994,55 @@ async function enableCamera() {
     }
   }
 
+  function loadDemoStill(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const id = Number(demoSlotId);
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setDemoStatus("CHOOSE A JPG, PNG, OR WEBP IMAGE");
+      return;
+    }
+    if (cameraForSlot(id)) {
+      setDemoStatus("THIS SLOT HAS A LIVE CAMERA — CHOOSE AN OFFLINE SLOT");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      if (demoUrlsRef.current[id]) URL.revokeObjectURL(demoUrlsRef.current[id]);
+      demoUrlsRef.current[id] = url;
+      setDemoStills(previous => ({ ...previous, [id]: { url, image, name: file.name } }));
+      setDemoStatus("DEMO STILL READY — NOT A LIVE CAMERA");
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      setDemoStatus("COULD NOT READ THIS IMAGE");
+    };
+    image.src = url;
+  }
+
+  function clearDemoStill() {
+    const id = Number(demoSlotId);
+    if (demoUrlsRef.current[id]) {
+      URL.revokeObjectURL(demoUrlsRef.current[id]);
+      delete demoUrlsRef.current[id];
+    }
+    setDemoStills(previous => {
+      const next = { ...previous };
+      delete next[id];
+      return next;
+    });
+    setDemoStatus("DEMO STILL REMOVED");
+  }
+
+  function previewDemoStill() {
+    if (!demoStills[demoSlotId]) return;
+    setCompositionMode("nine");
+    setPreview(demoSlotId);
+    setPreviewDirty(true);
+  }
+
   function stopScreenShare() {
     const capture = screenStreamRef.current;
     screenStreamRef.current = null;
@@ -3825,7 +3874,7 @@ async function enableCamera() {
       if (!directorStream) return;
     } else if (next === SCREEN_SOURCE) {
       if (!screenStream) return;
-    } else if (!next || next < 1 || next > 9 || !cameraForSlot(next)) {
+    } else if (!next || next < 1 || next > 9 || (!cameraForSlot(next) && !demoStills[next])) {
       return;
     }
 
@@ -3863,6 +3912,9 @@ async function enableCamera() {
       );
     }
     const liveStream = streamForSlot(slotId);
+    if (!liveStream && demoStills[slotId]) {
+      return <img className="composition-video demo-still-image" src={demoStills[slotId].url} alt={"Demo still for CAM " + slotId}/>;
+    }
     const fallbackCamera = cameras.find(camera => camera.id === slotId);
     const liveCamera = cameraForSlot(slotId);
 
@@ -4388,6 +4440,23 @@ async function enableCamera() {
             ))}
           </div>
 
+          <div className="demo-stills-panel">
+            <div className="demo-stills-copy">
+              <strong>9-CAMERA DEMO FILL</strong>
+              <small>Fill offline camera slots with uploaded original or AI-generated stills. These are for demos and screenshots, not actual live cameras.</small>
+            </div>
+            <label>CAM SLOT
+              <select value={demoSlotId} onChange={event => setDemoSlotId(Number(event.target.value))}>
+                {cameras.map(cam => <option key={cam.id} value={cam.id}>CAM {String(cam.id).padStart(2, "0")}</option>)}
+              </select>
+            </label>
+            <label className="demo-file-select">ADD STILL
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={loadDemoStill}/>
+            </label>
+            <button type="button" onClick={previewDemoStill} disabled={!demoStills[demoSlotId]}>9-CAM PREVIEW</button>
+            <button type="button" onClick={clearDemoStill} disabled={!demoStills[demoSlotId]}>REMOVE</button>
+            {demoStatus && <span className="demo-stills-status" role="status">{demoStatus}</span>}
+          </div>
           <div className="source-feature-row">
           <div className="director-camera-panel">
             <div className="director-camera-copy">
@@ -4503,7 +4572,7 @@ async function enableCamera() {
                 }}
               >
                 <option value="">TAP TO CHOOSE MAIN CAM</option>
-                {cameras.filter(cam => cameraForSlot(cam.id)).map(cam => (
+                {cameras.filter(cam => cameraForSlot(cam.id) || demoStills[cam.id]).map(cam => (
                   <option key={cam.id} value={String(cam.id)}>
                     {displayNameForCamera(cam.id)} · CAM {String(cam.id).padStart(2, "0")}
                   </option>
