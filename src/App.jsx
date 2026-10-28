@@ -52,6 +52,7 @@ export function ScenePilotSplash({ cameraMode }) {
 }
 
 const DIRECTOR_SOURCE = "director";
+const SCREEN_SOURCE = "screen-share";
 
 const initialCameras = Array.from({ length: 9 }, (_, index) => ({
   id: index + 1,
@@ -220,6 +221,9 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const [draftCameraNames, setDraftCameraNames] = useState({});
   const [mainCamera, setMainCamera] = useState(null);
   const [directorStream, setDirectorStream] = useState(null);
+  const [screenStream, setScreenStream] = useState(null);
+  const screenStreamRef = useRef(null);
+  const [screenShareStatus, setScreenShareStatus] = useState("SCREEN SHARE OFF");
   const directorStreamRef = useRef(null);
   const directorCameraSwitchingRef = useRef(false);
   const [directorFacingMode, setDirectorFacingMode] = useState("user");
@@ -260,6 +264,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const programSourcesRef = useRef(null);
   programSourcesRef.current = {
     directorStream,
+    screenStream,
     wirelessCameras,
     remoteStreams,
     programComposition,
@@ -400,6 +405,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   useEffect(() => () => {
     directorStreamRef.current?.getTracks?.().forEach(track => track.stop());
     directorStreamRef.current = null;
+    screenStreamRef.current?.getTracks?.().forEach(track => track.stop());
+    screenStreamRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -1323,11 +1330,9 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     const primarySlot = programComposition.primary;
     const primaryCamera = wirelessCameras.find(camera => camera.slotId === primarySlot);
     const programStream =
-      primarySlot === DIRECTOR_SOURCE
-        ? directorStream
-        : primaryCamera
-          ? remoteStreams[primaryCamera.socketId]
-          : null;
+      primarySlot === SCREEN_SOURCE ? screenStream :
+      primarySlot === DIRECTOR_SOURCE ? directorStream :
+      primaryCamera ? remoteStreams[primaryCamera.socketId] : null;
 
     if (!programStream || typeof MediaRecorder === "undefined") {
       queueMicrotask(() => setInstantReplayStatus("BUFFER WAITING"));
@@ -1407,7 +1412,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
         replayRecorderRef.current = null;
       }
     };
-  }, [showCamera, programComposition.primary, wirelessCameras, remoteStreams, directorStream]);
+  }, [showCamera, programComposition.primary, wirelessCameras, remoteStreams, directorStream, screenStream]);
 
 
 
@@ -1432,6 +1437,9 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     const live = programSourcesRef.current;
     if (slotId === DIRECTOR_SOURCE) {
       return getVideoElementForStream("director", live?.directorStream);
+    }
+    if (slotId === SCREEN_SOURCE) {
+      return getVideoElementForStream("screen-share", live?.screenStream);
     }
     const camera = live?.wirelessCameras?.find(item => item.slotId === slotId);
     if (!camera) return null;
@@ -1825,6 +1833,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   function currentProgramMediaStream() {
     const primarySlot = programComposition.primary;
     if (primarySlot === DIRECTOR_SOURCE) return directorStream || null;
+    if (primarySlot === SCREEN_SOURCE) return screenStream || null;
 
     const camera = wirelessCameras.find(item => item.slotId === primarySlot);
     return camera ? remoteStreams[camera.socketId] || null : null;
@@ -2975,6 +2984,60 @@ async function enableCamera() {
     }
   }
 
+  function stopScreenShare() {
+    const capture = screenStreamRef.current;
+    screenStreamRef.current = null;
+    capture?.getTracks?.().forEach(track => track.stop());
+    setScreenStream(null);
+    setScreenShareStatus("SCREEN SHARE OFF");
+  }
+
+  async function startScreenShare() {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setScreenShareStatus("SCREEN CAPTURE NOT SUPPORTED ON THIS DEVICE");
+      return;
+    }
+    try {
+      // Permission must follow the operator's button click.
+      const capture = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      stopScreenShare();
+      screenStreamRef.current = capture;
+      capture.getVideoTracks()[0]?.addEventListener("ended", () => {
+        if (screenStreamRef.current !== capture) return;
+        screenStreamRef.current = null;
+        capture.getTracks().forEach(track => track.stop());
+        setScreenStream(null);
+        setScreenShareStatus("SCREEN CAPTURE ENDED — RETURN TO A CAMERA");
+      }, { once: true });
+      setScreenStream(capture);
+      setScreenShareStatus("SOURCE READY — PREVIEW, THEN TAKE");
+    } catch (error) {
+      setScreenShareStatus(error?.name === "NotAllowedError"
+        ? "SCREEN CAPTURE CANCELLED OR NOT PERMITTED"
+        : "SCREEN CAPTURE FAILED — TRY ANOTHER WINDOW");
+    }
+  }
+
+  function putScreenInPreview() {
+    if (!screenStream) return;
+    setCompositionMode("single");
+    setPreview(SCREEN_SOURCE);
+    setPreviewDirty(true);
+  }
+
+  function putScreenInPip() {
+    if (!screenStream) return;
+    const main = preview === SCREEN_SOURCE ? mainCamera : preview || mainCamera;
+    if (!main || main === SCREEN_SOURCE) {
+      setScreenShareStatus("CHOOSE A CAMERA BEFORE ADDING SCREEN PiP");
+      return;
+    }
+    setPreview(main);
+    setCompositionMode("pip");
+    setSecondaryPreview(SCREEN_SOURCE);
+    setPreviewDirty(true);
+  }
+
   function putDirectorInPreview() {
     if (!directorStream) return;
     setCompositionMode("single");
@@ -3707,6 +3770,7 @@ async function enableCamera() {
   const displayNameForCamera = slotId => {
     if (!slotId) return "NO SOURCE SELECTED";
     if (slotId === DIRECTOR_SOURCE) return "DIRECTOR CAM";
+    if (slotId === SCREEN_SOURCE) return "SCREEN / WINDOW";
 
     const savedName = cameraNames[String(slotId)] || cameraNames[slotId];
     if (savedName) return savedName;
@@ -3745,10 +3809,12 @@ async function enableCamera() {
 
   const dropCameraOnMain = slotId => {
     const next =
-      slotId === DIRECTOR_SOURCE ? DIRECTOR_SOURCE : Number(slotId);
+      slotId === DIRECTOR_SOURCE || slotId === SCREEN_SOURCE ? slotId : Number(slotId);
 
     if (next === DIRECTOR_SOURCE) {
       if (!directorStream) return;
+    } else if (next === SCREEN_SOURCE) {
+      if (!screenStream) return;
     } else if (!next || next < 1 || next > 9 || !cameraForSlot(next)) {
       return;
     }
@@ -3759,6 +3825,7 @@ async function enableCamera() {
 
   const streamForSlot = slotId => {
     if (slotId === DIRECTOR_SOURCE) return directorStream;
+    if (slotId === SCREEN_SOURCE) return screenStream;
 
     const camera = cameraForSlot(slotId);
     return camera ? remoteStreams[camera.socketId] : null;
@@ -4035,10 +4102,8 @@ async function enableCamera() {
                 const rawSource =
                   event.dataTransfer.getData("text/scenepilot-camera") ||
                   draggingCamera;
-                const sourceId =
-                  rawSource === DIRECTOR_SOURCE
-                    ? DIRECTOR_SOURCE
-                    : Number(rawSource);
+                const sourceId = rawSource === DIRECTOR_SOURCE || rawSource === SCREEN_SOURCE
+                  ? rawSource : Number(rawSource);
                 dropCameraOnPreview(sourceId);
                 setDraggingCamera(null);
               }}
@@ -4405,10 +4470,8 @@ async function enableCamera() {
               const rawSource =
                 event.dataTransfer.getData("text/scenepilot-camera") ||
                 draggingCamera;
-              const sourceId =
-                rawSource === DIRECTOR_SOURCE
-                  ? DIRECTOR_SOURCE
-                  : Number(rawSource);
+              const sourceId = rawSource === DIRECTOR_SOURCE || rawSource === SCREEN_SOURCE
+                  ? rawSource : Number(rawSource);
 
               dropCameraOnMain(sourceId);
               setDraggingCamera(null);
@@ -4423,6 +4486,7 @@ async function enableCamera() {
                 aria-label="Choose Main Cam source"
                 value={mainCamera === DIRECTOR_SOURCE
                   ? (directorStream ? DIRECTOR_SOURCE : "")
+                  : mainCamera === SCREEN_SOURCE ? (screenStream ? SCREEN_SOURCE : "")
                   : (cameraForSlot(mainCamera) ? String(mainCamera) : "")}
                 onChange={event => {
                   if (event.target.value) dropCameraOnMain(event.target.value);
@@ -4435,6 +4499,7 @@ async function enableCamera() {
                   </option>
                 ))}
                 {directorStream && <option value={DIRECTOR_SOURCE}>DIRECTOR SELFIE CAM</option>}
+                {screenStream && <option value={SCREEN_SOURCE}>SCREEN / WINDOW CAPTURE</option>}
               </select>
             </div>
             <div className="main-camera-home-feed">
@@ -4460,6 +4525,27 @@ async function enableCamera() {
               )}
             </div>
           </div>
+          </div>
+          <div className="external-source-panel">
+            <div className="external-source-copy">
+              <span>EXTERNAL VIDEO SOURCE</span>
+              <strong>SHARE SCREEN / WINDOW</strong>
+              <small>Share an authorized live news feed, browser window, or application without interrupting connected cameras. The operator previews it before TAKE. Support depends on the browser and device.</small>
+            </div>
+            <div className="external-source-actions">
+              {!screenStream ? (
+                <button type="button" onClick={startScreenShare}><MonitorUp size={15}/> SELECT SCREEN / WINDOW</button>
+              ) : (
+                <>
+                  <button type="button" onClick={putScreenInPreview}><MonitorUp size={15}/> PREVIEW</button>
+                  <button type="button" onClick={putScreenInPip}><PictureInPicture2 size={15}/> ADD AS PiP</button>
+                  <button type="button" onClick={() => dropCameraOnMain(SCREEN_SOURCE)}>SET MAIN</button>
+                  <button type="button" onClick={stopScreenShare}>STOP SHARING</button>
+                </>
+              )}
+            </div>
+            <span role="status" className="external-source-status">{screenShareStatus}</span>
+            {screenStream && <div className="external-source-preview"><LiveStreamVideo stream={screenStream}/></div>}
           </div>
         </section>
 
