@@ -75,3 +75,25 @@ test('generated-content reports are limited to the owner, validated and persiste
  assert.equal(x.db.prepare('SELECT COUNT(*) AS n FROM uds_ai_reports').get().n,1);
  assert.equal((await send(x.env,'reports')).status,403);x.db.close();
 });
+
+test('Hotel Lobby video sends the orange studio and hanging-mic direction to the provider',async()=>{
+ const x=await setup(),original=globalThis.fetch;let submitted;
+ x.db.exec('UPDATE uds_ai_wallets SET balance=1000');
+ globalThis.fetch=async(url,options)=>{
+  assert.equal(new URL(url).hostname,'queue.fal.run');
+  submitted=JSON.parse(options.body);
+  return new Response(JSON.stringify({request_id:'mock-orange-video',status_url:'https://queue.fal.run/mock/status',response_url:'https://queue.fal.run/mock/result'}),{status:200,headers:{'Content-Type':'application/json'}});
+ };
+ try{
+  const response=await send(x.env,'generate',{...input,templateId:'lobby-music-video'});
+  assert.equal(response.status,202);
+  assert.match(submitted.prompt,/seamless solid orange studio/);
+  assert.match(submitted.prompt,/exactly one silver studio microphone hanging/);
+  assert.match(submitted.prompt,/preserving both identities/);
+  assert.doesNotMatch(submitted.prompt,/Dramatic premium hotel lobby interior/);
+  const studio=await (await send(x.env,'studio')).json();
+  const template=studio.templates.find(item=>item.id==='lobby-music-video');
+  assert.equal(template.title,'Hotel Lobby — Orange Studio');
+  assert.equal(template.minImages,2);assert.equal(template.maxImages,2);
+ }finally{globalThis.fetch=original;x.db.close();}
+});

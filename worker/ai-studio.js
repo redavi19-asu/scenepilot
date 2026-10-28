@@ -59,8 +59,8 @@ const AI_TEMPLATES = [
   },
   {
     id: "lobby-music-video",
-    title: "Luxury Hotel Lobby Music Video",
-    subtitle: "Two-performer cinematic lobby scene",
+    title: "Hotel Lobby — Orange Studio",
+    subtitle: "Orange set • two performers • one hanging mic",
     category: "video",
     featured: true,
     kind: "video",
@@ -71,7 +71,7 @@ const AI_TEMPLATES = [
     duration: "8s",
     badge: "MUSIC VIDEO",
     prompt:
-      "Produce an original eight-second high-end rap music video performance featuring the two uploaded consenting adult performers, preserving both identities. Dramatic premium hotel lobby interior with marble, gold-toned practical lighting, grand staircase and architectural symmetry; confident complementary performances, tasteful wardrobe, rhythmic cinematic camera travel, precise cuts and authentic eye contact, high-production-value color grading. Performers move to an original energetic rhythm; allow the editor to replace music afterward. Do not recreate any existing music-video shots, lyrics, celebrity faces, existing artist logos, or copyrighted recording."
+      "Create an original eight-second two-person rap performance video using the two uploaded consenting adult performers, preserving both identities. Use a minimalist seamless solid orange studio background and matching orange floor, with exactly one silver studio microphone hanging vertically from a thin ceiling cable between the performers. Keep both performers clearly visible on opposite sides of the hanging microphone as they trade relaxed complementary performance gestures, natural head movement and confident eye contact. Frame a steady medium-wide two-shot with subtle cinematic camera movement, even warm studio lighting, realistic skin texture and tasteful casual streetwear. This is an orange studio performance, not a literal hotel interior: no hotel lobby, marble, staircase, chandeliers or luxury architecture. Use an original rhythm and performance, leaving music replacement to the editor. Do not substitute celebrity faces or reproduce existing lyrics, copyrighted recordings, branding or show logos."
   },
   {
     id: "street-freestyle-video",
