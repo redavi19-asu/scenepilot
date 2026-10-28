@@ -4680,3 +4680,28 @@ body.scenepilot-viewfinder-clean .sp-comms-alert{
 .demo-file-select input{display:none}
 .demo-stills-status{width:100%;color:#b9ceab;font-size:9px}
 .demo-still-image{width:100%;height:100%;object-fit:cover;display:block}
+
+
+/* Desktop-only multi-display layout. Each pop-out is a React portal using the
+   already-established camera stream, not a new WebRTC connection. */
+.uds-multimonitor-shortcut{max-width:1500px;margin:8px auto 0;padding:0 16px;display:flex;justify-content:flex-end}
+.uds-multimonitor-shortcut button{display:flex;gap:7px;align-items:center;justify-content:center;border:1px solid #536e6f;background:#15262c;color:#d7f2ef;font-size:10px;letter-spacing:.06em;font-weight:900;min-height:35px;padding:0 14px;cursor:pointer}
+.uds-multimonitor-shortcut button:hover,.uds-monitor-popout:hover{border-color:#b4f0d8;background:#29403f}
+.uds-monitor-head-tools{display:flex;align-items:center;gap:9px}
+.uds-monitor-popout{display:flex;align-items:center;gap:5px;padding:5px 7px;border:1px solid #54695c;background:#20302c;color:#d6f0dc;font-size:9px;font-weight:900;cursor:pointer;white-space:nowrap}
+.uds-multimonitor-panel{max-width:1500px;margin:9px auto;padding:14px 18px;border:1px solid #567073;background:linear-gradient(135deg,#14232b,#101716 84%);color:#eff4f3}
+.uds-multimonitor-panel-heading{display:flex;justify-content:space-between;gap:12px}
+.uds-multimonitor-panel-heading span{color:#a6d1c7;font-size:9px;font-weight:900;letter-spacing:.13em}
+.uds-multimonitor-panel-heading h2{font-size:19px;letter-spacing:.08em;margin:5px 0}
+.uds-multimonitor-panel-heading p{font-size:11px;line-height:1.6;max-width:750px;color:#bdccca;margin:5px 0 13px}
+.uds-multimonitor-close{border:1px solid #4d6467;background:#21363a;color:#f3f8f7;min-width:34px;height:34px;display:grid;place-items:center;cursor:pointer}
+.uds-multimonitor-quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.uds-multimonitor-quick button{border:1px solid #718a85;background:#254043;color:#eef8f4;display:flex;justify-content:center;align-items:center;gap:7px;min-height:41px;font-weight:800;font-size:10px;letter-spacing:.04em;cursor:pointer}
+.uds-multimonitor-quick button:hover,.uds-multimonitor-cameras button:hover,.uds-multimonitor-actions button:hover{background:#446260;border-color:#c2e8d5}
+.uds-multimonitor-cameras{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:6px;margin-top:11px}
+.uds-multimonitor-cameras button{border:1px solid #5f7374;background:#1d3034;color:#e7eeee;min-width:0;font-size:10px;font-weight:900;min-height:36px;cursor:pointer}
+.uds-multimonitor-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}
+.uds-multimonitor-actions button{border:1px solid #8a9f9c;background:#2c4141;color:#fff;cursor:pointer;font-size:10px;font-weight:850;min-height:38px;padding:5px 12px}
+.uds-multimonitor-status{border-top:1px solid #344c4c;padding-top:9px;margin:12px 0 0;font-size:11px;color:#b8e1ca;line-height:1.5}
+@media(max-width:920px){.uds-multimonitor-cameras{grid-template-columns:repeat(5,minmax(0,1fr))}.uds-multimonitor-quick{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:580px){.uds-multimonitor-cameras{grid-template-columns:repeat(3,minmax(0,1fr))}.uds-multimonitor-quick{grid-template-columns:1fr}.uds-multimonitor-panel{margin:9px;padding:11px}.uds-monitor-popout{display:none}}
