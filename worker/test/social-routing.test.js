@@ -31,3 +31,33 @@ test('Director return destinations reject external and backslash redirects',()=>
   assert.equal(directorAuthReturn('/admin'),'/admin');
   assert.equal(directorAuthReturn('/app?room=abc'),'/app?room=abc');
 });
+
+const brandedOrigin = 'https://urbandirector.icomputeranything.com';
+function startEnv(extra={}) {
+ return {DB:{prepare(){throw Error('Legacy start must redirect before creating auth state');}}, SOCIAL_GOOGLE_CLIENT_ID:'test-client',SOCIAL_GOOGLE_CLIENT_SECRET:'test-secret',SOCIAL_GOOGLE_PUBLIC_ORIGIN:brandedOrigin,...extra};
+}
+test('legacy Google start moves to the branded host before creating OAuth state',async()=>{
+ const r=await handleSocialAuth(new Request(origin+'/api/auth/social/google/start?return_to='+encodeURIComponent('/app?room=studio')),startEnv());
+ assert.equal(r.status,302);
+ assert.equal(r.headers.get('location'),brandedOrigin+'/api/auth/social/google/start?return_to='+encodeURIComponent('/app?room=studio'));
+ assert.equal(r.headers.get('cache-control'),'no-store');
+});
+test('branded redirect does not carry external return destinations or unrelated query data',async()=>{
+ const r=await handleSocialAuth(new Request(origin+'/api/auth/social/google/start?return_to=https://evil.example&extra=discard'),startEnv());
+ assert.equal(r.headers.get('location'),brandedOrigin+'/api/auth/social/google/start?return_to=%2Fapp');
+});
+test('branded Google start uses the branded callback and PKCE without a redirect loop',async()=>{
+ const writes=[];
+ const env=startEnv({DB:{prepare: sql => ({bind: (...args) => ({run: async () => {writes.push({sql,args});}})})}});
+ const r=await handleSocialAuth(new Request(brandedOrigin+'/api/auth/social/google/start?return_to=/app'),env);
+ const target=new URL(r.headers.get('location'));
+ assert.equal(target.origin,'https://accounts.google.com');
+ assert.equal(target.searchParams.get('redirect_uri'),brandedOrigin+'/api/auth/social/google/callback');
+ assert.equal(target.searchParams.get('code_challenge_method'),'S256');
+ assert.ok(target.searchParams.get('state'));assert.ok(writes.some(w=>w.sql.startsWith('INSERT INTO social_auth_states')));
+});
+test('invalid branded origin fails closed before creating OAuth state',async()=>{
+ for(const target of ['http://example.com','https://example.com/path','https://user:pass@example.com','https://example.com/?q=1','invalid']) {
+ const r=await handleSocialAuth(new Request(origin+'/api/auth/social/google/start'),startEnv({SOCIAL_GOOGLE_PUBLIC_ORIGIN:target}));assert.equal(r.status,503);
+ }
+});

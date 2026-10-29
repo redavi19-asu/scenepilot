@@ -201,6 +201,20 @@ export async function handleSocialAuth(request,env){
 
   if(action==="start"){
     if(request.method.toUpperCase()!=="GET")return json({error:"Method not allowed."},405);
+    // Begin Google auth on the branded host so its host-only session cookie and
+    // callback stay together. Existing callbacks on the legacy host still work.
+    if(name === "google" && env.SOCIAL_GOOGLE_PUBLIC_ORIGIN) {
+      let branded;
+      try {
+        branded = new URL(env.SOCIAL_GOOGLE_PUBLIC_ORIGIN);
+        if(branded.protocol !== "https:" || branded.username || branded.password || branded.pathname !== "/" || branded.search || branded.hash) throw new Error("Invalid origin");
+      } catch { return json({error:"Google sign-in address is not configured correctly."},503); }
+      if(url.origin !== branded.origin) {
+        const destination = new URL(url.pathname, branded.origin);
+        destination.searchParams.set("return_to", safeReturn(url.searchParams.get("return_to")));
+        return new Response(null,{status:302,headers:{Location:destination.toString(),"Cache-Control":"no-store"}});
+      }
+    }
     const state=randomToken(32), verifier=b64url(crypto.getRandomValues(new Uint8Array(48))), nonce=randomToken(24);
     await env.DB.prepare("DELETE FROM social_auth_states WHERE expires_at<=?").bind(Date.now()).run();
     await env.DB.prepare("INSERT INTO social_auth_states (state_hash,provider,code_verifier,nonce,return_path,expires_at,created_at) VALUES (?,?,?,?,?,?,?)")
