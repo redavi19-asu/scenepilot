@@ -21,6 +21,7 @@ import { socket } from "./socket";
 import { createPeerConnection, optimizeVideoSender, requireWebRTC, supportsWebRTC } from "./webrtc";
 import { getDirectorIceServers } from "./iceServers";
 import { batteryPercentage, cameraBatteryLabel, nativeCameraLink } from "./batteryTelemetry";
+import { cameraClientId, cameraVideoStatus, withoutCameraSource, programCameraSlots, listenForProgramStatus } from "./cameraSession";
 import { acquireDirectorCamera } from "./directorCameraSwitch";
 import { cameraConstraints, cameraTorchSupported, queueCameraTrackChange, setTrackTorch } from "./cameraTrackControls";
 import { disposeGraphicAsset, drawGraphicAsset, updateGraphicAsset } from "./programGraphicAssets";
@@ -1120,6 +1121,15 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     };
 
     const handleCameraLeft = ({ socketId }) => {
+      const slot = wirelessCamerasRef.current.find(camera => camera.socketId === socketId)?.slotId;
+      if (slot) {
+        // A new device reusing this number must not appear on air without TAKE.
+        setProgramComposition(current => withoutCameraSource(current, slot));
+        setProgram(current => current === slot ? null : current);
+        setPreview(current => current === slot ? null : current);
+        setSecondaryPreview(current => current === slot ? null : current);
+        setMainCamera(current => current === slot ? null : current);
+      }
       peerStartupGeneration[socketId] = (peerStartupGeneration[socketId] || 0) + 1;
       peers.current[socketId]?.close();
       delete peers.current[socketId];
@@ -1154,6 +1164,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     const handleDirectorGranted = () => {
       setDirectorLockMessage("");
       setSignalStatus("DIRECTOR ACTIVE");
+      socket.emit("program:update", { room: roomCode, liveSlots: programCameraSlots(programSourcesRef.current?.programComposition, programAudioStateRef.current?.standby) });
     };
 
     const handleDirectorDenied = payload => {
@@ -1361,22 +1372,11 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   useEffect(() => {
     if (showCamera || !socket.connected) return;
 
-    const liveSlots =
-      programComposition.mode === "nine"
-        ? initialCameras.map(camera => camera.id)
-        : programComposition.mode === "single"
-          ? [programComposition.primary]
-          : [programComposition.primary, programComposition.secondary].filter(Boolean);
-
-    const physicalLiveSlots = liveSlots
-      .map(value => Number(value))
-      .filter(value => Number.isInteger(value) && value >= 1 && value <= 9);
-
     socket.emit("program:update", {
       room: roomCode,
-      liveSlots: physicalLiveSlots
+      liveSlots: programCameraSlots(programComposition, standby)
     });
-  }, [showCamera, roomCode, programComposition]);
+  }, [showCamera, roomCode, programComposition, standby]);
 
   useEffect(() => {
     if (showCamera) return;
@@ -2930,6 +2930,22 @@ async function enableCamera() {
         );
       };
 
+      const handleReplaced = payload => {
+        media.getTracks().forEach(track => track.stop());
+        stopCamera();
+        setCameraInterrupted(true);
+        setCameraResumeStatus(payload?.message || "Camera moved to another window.");
+        setSignalStatus("CAMERA MOVED TO ANOTHER WINDOW");
+      };
+
+      const handleRejected = payload => {
+        setCameraRegistered(false);
+        setCameraMediaConnected(false);
+        setSignalStatus(payload?.message || "CAMERA COULD NOT JOIN");
+        setCameraInterrupted(true);
+        setCameraResumeStatus(payload?.message || "Camera could not join this production. Reconnect to try again.");
+      };
+
       const handleProgramStatus = ({ liveSlots = [] }) => {
         setIsOnAir(
           liveSlots.map(Number).includes(Number(assignedSlotRef.current))
@@ -2957,7 +2973,8 @@ async function enableCamera() {
 
         socket.emit("camera:join", {
           room: roomCode,
-          name: cameraName.trim() || "USER"
+          name: cameraName.trim() || "USER",
+          clientId: cameraClientId()
         });
       };
 
@@ -2972,6 +2989,9 @@ async function enableCamera() {
       socket.off("webrtc:offer");
       socket.off("webrtc:ice");
       socket.off("camera:registered");
+      socket.off("camera:rejected");
+      socket.off("camera:replaced");
+      socket.off("program:update");
       socket.off("program:status");
       socket.off("camera:control");
 
@@ -2980,7 +3000,9 @@ async function enableCamera() {
       socket.on("webrtc:offer", handleOffer);
       socket.on("webrtc:ice", handleIce);
       socket.on("camera:registered", handleRegistered);
-      socket.on("program:status", handleProgramStatus);
+      socket.on("camera:rejected", handleRejected);
+      socket.on("camera:replaced", handleReplaced);
+      listenForProgramStatus(socket, handleProgramStatus);
       socket.on("camera:control", handleCameraControl);
 
       socket.setNetwork(networkId, cameraJoinToken);
@@ -3220,6 +3242,9 @@ async function enableCamera() {
     socket.off("webrtc:offer");
     socket.off("webrtc:ice");
     socket.off("camera:registered");
+    socket.off("camera:rejected");
+    socket.off("camera:replaced");
+    socket.off("program:update");
     socket.off("program:status");
     socket.disconnect();
 
@@ -4546,7 +4571,7 @@ async function enableCamera() {
                   c.status !== "OFFLINE" ||
                   Boolean(cameraForSlot(c.id))
                 ).length
-              } / 9 CONNECTED</span>
+              } / 9 JOINED · {wirelessCameras.filter(camera => cameraVideoStatus(camera, remoteStreams[camera.socketId]) === "VIDEO READY").length} VIDEO</span>
               {popoutWorkspace.desktop && <button type="button" className="set-names-button"
                 title="Open all nine cameras in a separate desktop window" onClick={() => popoutWorkspace.open("multiview")}>
                 <MonitorUp size={14}/> POP OUT 9-CAM
@@ -4610,6 +4635,7 @@ async function enableCamera() {
 
                 <div className="tile-meta">
                   <strong>{displayNameForCamera(cam.id)}</strong>
+                  {cameraForSlot(cam.id) && <span className={`camera-video-status ${cameraVideoStatus(cameraForSlot(cam.id), streamForSlot(cam.id)) === "VIDEO READY" ? "ready" : "pending"}`}>{cameraVideoStatus(cameraForSlot(cam.id), streamForSlot(cam.id))}</span>}
                   {(cameraForSlot(cam.id) || demoStills[cam.id]) && (
                     <span className="drag-hint">{demoStills[cam.id] && !cameraForSlot(cam.id) ? "DEMO STILL • NOT LIVE" : "DRAG TO PREVIEW OR MAIN CAM"}</span>
                   )}
