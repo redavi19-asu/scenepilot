@@ -11,7 +11,7 @@ The Mac TestFlight build is currently the iPad compatibility app. It lacks the r
 
 ## Direct Mac and Windows distribution
 
-`npm run package:mac:dmg` and `npm run package:win` retain mandatory code signing. Mac distribution additionally requires notarization and stapling; Windows installers require valid Authenticode signatures. The Mac after-pack hook removes Finder/resource-fork metadata from generated app bundles before signing. The existing production-package workflow publishes download links only after signature verification. A local Developer ID certificate alone does not establish App Store readiness.
+`npm run package:mac:dmg` and `npm run package:win` retain mandatory code signing. Mac distribution additionally requires notarization and stapling; Windows installers require valid Authenticode signatures. The Mac after-pack hook removes Finder/resource-fork metadata from generated app bundles before signing. Locally, build outside the synced Documents tree (for example with `--config.directories.output=/tmp/uds-native-mac-qc-release`) because sync can reattach metadata after cleanup. A local Apple Silicon package built there passed deep/strict Developer ID signature verification before ZIP creation and after extraction; notarization and end-to-end acceptance remain open. The existing production-package workflow publishes download links only after signature verification. A local Developer ID certificate alone does not establish App Store readiness.
 
 ## Mac App Store target
 
