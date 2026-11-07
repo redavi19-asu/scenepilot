@@ -7,7 +7,7 @@ const APP_URL = process.env.SCENEPILOT_APP_URL ||
 const APP_ORIGIN = new URL(APP_URL).origin;
 // Chromium 152 gates local ICE routes and monitor placement separately.
 // These capabilities are restricted to the configured first-party app origin.
-const STUDIO_PERMISSIONS = new Set(["media", "display-capture", "window-management", "local-network", "fullscreen"]);
+const STUDIO_PERMISSIONS = new Set(["media", "display-capture", "window-management", "local-network", "local-network-access", "loopback-network", "fullscreen"]);
 
 function isScenePilotUrl(value) {
   try {

@@ -11,8 +11,8 @@ app.whenReady().then(async()=>{
  if(process.platform==='darwin')app.dock.hide();
  const win=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false}});
  // The isolated fixture needs local ICE traffic; deny all hardware permissions.
- win.webContents.session.setPermissionCheckHandler((_w,permission)=>permission==='local-network');
- win.webContents.session.setPermissionRequestHandler((_w,permission,cb)=>cb(permission==='local-network'));
+ win.webContents.session.setPermissionCheckHandler((_w,permission)=>['local-network','local-network-access','loopback-network'].includes(permission));
+ win.webContents.session.setPermissionRequestHandler((_w,permission,cb)=>cb(['local-network','local-network-access','loopback-network'].includes(permission)));
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  win.webContents.on('will-navigate',event=>event.preventDefault());
  const page=path.join(profile,'probe.html');fs.writeFileSync(page,'<!doctype html><title>Urban Director native video QC</title><body></body>');
