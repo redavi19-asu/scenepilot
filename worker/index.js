@@ -2071,6 +2071,7 @@ export class ScenePilotRoom {
       // don't rename sources or reset Program on every tab focus.
       if (!alreadyActive) this.resetProductionSession();
 
+      console.log(JSON.stringify({ event: "director-link", stage: "director-joined", cameras: this.cameras.size }));
       this.send(session, "director:granted", {
         socketId: session.id
       });
@@ -2139,6 +2140,7 @@ export class ScenePilotRoom {
         this.send(director, "camera:joined", camera);
       }
 
+      console.log(JSON.stringify({ event: "director-link", stage: "camera-joined", directorAvailable: Boolean(director) }));
       this.send(session, "camera:registered", {
         slotId,
         directorAvailable: Boolean(director)
@@ -2394,6 +2396,7 @@ export class ScenePilotRoom {
 
       delete forwarded.target;
 
+      if (event !== "webrtc:ice") console.log(JSON.stringify({ event: "director-link", stage: event, fromRole: session.role }));
       this.send(target, event, forwarded);
     }
   }
