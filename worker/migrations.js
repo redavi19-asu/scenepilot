@@ -264,7 +264,14 @@ const MIGRATIONS = [
     "CREATE TABLE IF NOT EXISTS director_stripe_events (id TEXT PRIMARY KEY, processed_at INTEGER NOT NULL)"
   ]
 },
-  { name: "0012_master_email_access.sql", statements: ['CREATE TABLE IF NOT EXISTS director_email_access_proofs (user_id TEXT NOT NULL, session_id TEXT NOT NULL, verified_at INTEGER NOT NULL, PRIMARY KEY(user_id,session_id), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)'] }
+  { name: "0012_master_email_access.sql", statements: ['CREATE TABLE IF NOT EXISTS director_email_access_proofs (user_id TEXT NOT NULL, session_id TEXT NOT NULL, verified_at INTEGER NOT NULL, PRIMARY KEY(user_id,session_id), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)'] },
+  {
+  "name": "0013_desktop_auth.sql",
+  "statements": [
+    "CREATE TABLE IF NOT EXISTS director_desktop_auth_codes (\n  id TEXT PRIMARY KEY,\n  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  browser_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,\n  pkce_challenge TEXT NOT NULL,\n  redirect_uri TEXT NOT NULL,\n  expires_at INTEGER NOT NULL,\n  created_at INTEGER NOT NULL\n)",
+    "CREATE INDEX IF NOT EXISTS director_desktop_auth_expiry ON director_desktop_auth_codes(expires_at)"
+  ]
+}
 ];
 
 let migrationPromise = null;

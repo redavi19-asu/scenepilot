@@ -8,6 +8,7 @@ const localRequire = createRequire(require('node:path').resolve(__dirname, '../m
 async function setup() {
   const handlers = {};
   const electron = {
+    ipcMain: {handle(){}},
     app: {whenReady:()=>Promise.resolve(),on(){}},
     session: {defaultSession:{
       setPermissionCheckHandler(fn){handlers.check=fn;},
@@ -20,7 +21,7 @@ async function setup() {
     BrowserWindow: class { once(){} loadURL(){} webContents={setWindowOpenHandler(fn){handlers.open=fn;},on(){}}; }
   };
   vm.runInNewContext(fs.readFileSync(require('node:path').resolve(__dirname,'../main.cjs'),'utf8'), {
-    require:name=>name==='electron'?electron:localRequire(name),process:{env:{},platform:'darwin'},URL
+    __dirname:require('node:path').resolve(__dirname,'..'),require:name=>name==='electron'?electron:localRequire(name),process:{env:{},platform:'darwin'},URL
   });
   await Promise.resolve();
   return {handlers,electron};

@@ -1,3 +1,5 @@
+import DesktopAuth from "./DesktopAuth.jsx";
+import { desktopAuthReturn } from "./desktopAuthReturn.js";
 import GooglePlayBillingCard from "./GooglePlayBillingCard";
 import { isGooglePlayAvailable, restoreGoogleSubscription, watchGooglePurchases } from "./googlePlaySubscription";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -919,7 +921,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
   }, []);
 
   useEffect(() => {
-    if (isNativeApp()) return;
+    if (isNativeApp() || window.urbanDirectorDesktop) return;
     api("/api/auth/social/status")
       .then(data => setSocialProviders(data.providers || {}))
       .catch(() => setSocialProviders({}));
@@ -930,7 +932,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
       setStatus("Agree to the Terms, Privacy Policy, and Acceptable Use Policy before creating an account.");
       return;
     }
-    window.location.assign(apiUrl("/api/auth/social/" + provider + "/start?return_to=" + encodeURIComponent("/app")));
+    window.location.assign(apiUrl("/api/auth/social/" + provider + "/start?return_to=" + encodeURIComponent(desktopAuthReturn())));
   }
 
   async function submit(event) {
@@ -975,7 +977,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
 
       if (data.user) {
         onAuthenticated(data.user);
-        window.location.assign("/app");
+        window.location.assign(desktopAuthReturn());
         return;
       }
 
@@ -1007,6 +1009,12 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
             : "Sign in to open the Director console after your Urban Director Studio access has been activated."}
         </p>
 
+        {window.urbanDirectorDesktop && <button type="button" className="sp-auth-submit" disabled={busy} onClick={async()=>{
+          setBusy(true);setStatus('Finish signing in in your browser.');
+          try{await window.urbanDirectorDesktop.auth.start();window.location.assign('/app');}
+          catch{setStatus('Browser sign-in did not complete. Please try again.');setBusy(false);}
+        }}>Continue in browser</button>}
+        {window.urbanDirectorDesktop && busy && <button type="button" onClick={()=>window.urbanDirectorDesktop.auth.cancel()}>Cancel browser sign-in</button>}
         <div className="sp-auth-mode-switch">
           <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setStatus(""); setTurnstileToken(""); setTurnstileResetKey(value => value + 1); }}>
             LOGIN
@@ -2654,7 +2662,7 @@ export default function ScenePilotPortal() {
 
   useEffect(() => {
     if (loading || !user || (cleanPath !== "/login" && cleanPath !== "/register")) return;
-    window.location.replace("/app");
+    window.location.replace(desktopAuthReturn());
   }, [loading, user, cleanPath]);
 
   useEffect(() => {
@@ -2787,6 +2795,8 @@ export default function ScenePilotPortal() {
     }
     return <AdminPage user={user} onLogout={logout}/>;
   }
+
+  if (cleanPath === "/desktop-auth") return <DesktopAuth user={user} loading={loading}/>;
 
   if (cleanPath === "/forgot-password") {
     return <ForgotPasswordPage/>;
