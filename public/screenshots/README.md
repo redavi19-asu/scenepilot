@@ -1,0 +1,1 @@
+Actual Studio browser captures, November 7, 2026. UI was not redrawn or AI-generated. Screenshots are cropped to their product panels. Editor sample media is a local original SVG title card. No private camera feeds, paper notes, credentials, browser chrome or account identifiers are included.

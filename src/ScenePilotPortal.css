@@ -2930,3 +2930,33 @@
 .sp-download-grid svg{color:#c99b5d}.sp-download-grid h2{margin:18px 0 8px;font-size:22px}.sp-download-grid p{margin:0 0 22px;color:#8f988b;line-height:1.6;font-size:12px}.sp-download-grid a{margin-top:auto;min-height:42px;padding:0 15px;display:inline-flex;align-items:center;border-radius:8px;background:#ede8dd;color:#151815;text-decoration:none;font-size:9px;font-weight:900;letter-spacing:.07em}.sp-download-disabled{margin-top:auto;color:#666f64;font-size:8px;font-weight:900;letter-spacing:.09em}
 .sp-download-error{max-width:1100px;margin:0 auto 18px;padding:10px 14px;border:1px solid #653830;border-radius:9px;background:#241412;color:#e7a295;font-size:10px}
 @media(max-width:760px){.sp-download-nav{padding-inline:14px}.sp-download-nav .sp-landing-brand small{display:none}.sp-download-grid{grid-template-columns:1fr}.sp-download-hero{padding-top:62px}}
+
+/* Genuine Studio captures: preserve the interface and image proportions. */
+.sp-real-hero { margin:0; min-width:0; align-self:center; padding:12px; border:1px solid #555d50; border-radius:18px; background:#0d100d; box-shadow:0 32px 90px #0007; }
+.sp-real-hero a, .sp-screenshot-card > a { display:block; }
+.sp-real-hero img { display:block; width:100%; height:auto; border-radius:10px; }
+.sp-real-hero figcaption { padding:12px 3px 3px; color:#a9b0a3; font-size:12px; }
+.sp-screenshot-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
+.sp-screenshot-card { margin:0; min-width:0; overflow:hidden; border:1px solid #343e30; border-radius:16px; background:#0c100c; }
+.sp-screenshot-wide { grid-column:1/-1; }
+.sp-screenshot-card img { display:block; width:100%; height:auto; max-height:560px; object-fit:contain; background:#0a0d09; }
+.sp-screenshot-card figcaption { padding:22px 24px; }
+.sp-screenshot-card h3 { margin:0 0 9px; color:#f0eee7; font-size:21px; }
+.sp-screenshot-card p { margin:0; color:#a1ab99; line-height:1.65; }
+.sp-screenshot-card a:focus-visible, .sp-real-hero a:focus-visible { outline:3px solid #e4b874; outline-offset:-3px; }
+@media(max-width:700px) { .sp-screenshot-grid { grid-template-columns:1fr; } .sp-real-hero { padding:7px; } .sp-screenshot-card figcaption { padding:18px; } }
+
+.sp-product-site .sp-product-hero { min-height:660px; padding-top:56px; padding-bottom:64px; gap:clamp(28px,4vw,56px); }
+.sp-product-site .sp-product-hero h1 { font-size:clamp(42px,4.5vw,64px); line-height:1.02; }
+.sp-product-site .sp-product-hero .sp-hero-copy > p { font-size:18px; line-height:1.65; }
+.sp-product-site > .sp-product-footer { position:relative; inset:auto; height:auto; min-height:100px; flex-wrap:wrap; gap:18px 28px; padding:28px clamp(22px,5vw,70px); }
+.sp-product-footer span:last-child { margin-left:0; }
+.sp-product-footer button { min-height:40px; padding:8px 0; font-size:10px; }
+.sp-mobile-product-menu { display:none; position:relative; }
+.sp-mobile-product-menu summary { cursor:pointer; list-style:none; padding:11px; border:1px solid #51574c; border-radius:8px; font-size:10px; font-weight:800; }
+.sp-mobile-product-menu summary::-webkit-details-marker { display:none; }
+.sp-mobile-product-menu nav { position:absolute; top:43px; right:0; z-index:30; width:210px; padding:10px; display:grid; gap:3px; border:1px solid #51574c; border-radius:10px; background:#151a12; box-shadow:0 20px 50px #0009; }
+.sp-mobile-product-menu nav a { display:block; padding:12px; color:#eeeae1; text-decoration:none; border-radius:6px; }
+.sp-mobile-product-menu nav a:hover { background:#2b3225; }
+@media(max-width:1100px) { .sp-mobile-product-menu { display:block; margin-left:auto; } }
+@media(max-width:760px) { .sp-product-site .sp-product-hero { min-height:auto; padding-top:36px; } .sp-product-site .sp-product-hero h1 { font-size:clamp(42px,12vw,58px); } }

@@ -372,11 +372,19 @@ function LandingPage() {
 
         <nav className="sp-public-nav" aria-label="Product navigation">
           <a href="#features">FEATURES</a>
-          <a href="#workflow">HOW IT WORKS</a>
+          <a href="#inside-studio">INSIDE STUDIO</a>
           <a href="#use-cases">USE CASES</a>
           <a href="#pricing">PRICING</a>
           <a href="/downloads">DOWNLOADS</a>
         </nav>
+        <details className="sp-mobile-product-menu">
+          <summary>MENU</summary>
+          <nav aria-label="Mobile product navigation" onClick={event => { if (event.target.closest("a")) event.currentTarget.parentElement.open = false; }}>
+            <a href="#features">Features</a><a href="#inside-studio">Inside Studio</a>
+            <a href="#workflow">How it works</a><a href="#use-cases">Use cases</a>
+            <a href="#pricing">Pricing</a><a href="/downloads">Downloads</a>
+          </nav>
+        </details>
 
         <div className="sp-nav-account-actions">
           <button className="sp-nav-create" onClick={() => go("/register")}>
@@ -394,16 +402,16 @@ function LandingPage() {
             <img
               src="/urban-director-icon.svg"
               alt="Urban Director Studio icon"
-              width="124"
-              height="124"
-              style={{width:124,height:124,maxWidth:"34vw",display:"block",objectFit:"contain",borderRadius:28,background:"#fff",padding:6,boxShadow:"0 22px 56px rgba(0,0,0,.28)",marginBottom:22}}
+              width="64"
+              height="64"
+              style={{width:64,height:64,maxWidth:"34vw",display:"block",objectFit:"contain",borderRadius:28,background:"#fff",padding:6,boxShadow:"0 22px 56px rgba(0,0,0,.28)",marginBottom:14}}
             />
             <span className="sp-kicker">LIVE PRODUCTION • MULTI-CAMERA • REMOTE CREW</span>
-            <h1>Direct the whole production from one control room.</h1>
+            <h1>Your live show. One control room.</h1>
             <p>
-              Urban Director Studio turns phones, tablets, cameras, capture devices, and external audio
-              sources into one coordinated live-production system. Switch cameras, communicate with operators,
-              add graphics, record, replay, and broadcast from a single Director console.
+              Turn compatible phones and cameras into one live show. Switch angles, trigger your own sounds,
+              add graphics, and record or broadcast from a single Director console—built for creators,
+              venues and live production teams.
             </p>
 
             <div className="sp-hero-actions">
@@ -422,40 +430,12 @@ function LandingPage() {
             </div>
           </div>
 
-          <div className="sp-hero-console sp-product-console" aria-label="Urban Director Studio console preview">
-            <div className="sp-console-top">
-              <span><i/> DIRECTOR ONLINE</span>
-              <span>ROOM UDS-4827</span>
-            </div>
-
-            <div className="sp-console-screens">
-              <div className="sp-screen-preview">
-                <Camera size={38}/>
-                <strong>PREVIEW</strong>
-                <small>CAM 07 • STAGE LEFT</small>
-              </div>
-              <div className="sp-screen-program">
-                <RadioTower size={38}/>
-                <strong>PROGRAM</strong>
-                <small>LIVE • CAM 02</small>
-              </div>
-            </div>
-
-            <div className="sp-console-cams">
-              {[1,2,3,4,5,6].map(cam => (
-                <span key={cam} className={cam === 2 ? "live" : cam === 7 ? "preview" : ""}>
-                  CAM {String(cam).padStart(2,"0")}
-                </span>
-              ))}
-            </div>
-
-            <div className="sp-console-tools">
-              <span>MASTER AUDIO</span>
-              <span>INSTANT REPLAY</span>
-              <span>GRAPHICS</span>
-              <span>BROADCAST</span>
-            </div>
-          </div>
+          <figure className="sp-real-hero">
+            <a href="/screenshots/studio-editor.jpg" target="_blank" rel="noreferrer" aria-label="View the Studio editor screenshot at full size">
+              <img src="/screenshots/studio-editor.jpg" width="1233" height="900" alt="Urban Director Studio editor with sample media, editing tools and a multitrack timeline" fetchPriority="high" />
+            </a>
+            <figcaption>Inside Studio · editor shown with sample media</figcaption>
+          </figure>
         </section>
 
         <section className="sp-feature-strip sp-public-proof-strip">
@@ -559,41 +539,31 @@ function LandingPage() {
           </div>
         </section>
 
-        <section className="sp-showcase-section">
-          <div className="sp-showcase-copy">
-            <span className="sp-kicker">THE DIRECTOR CONSOLE</span>
-            <h2>Built to feel like production software, not a pile of disconnected tools.</h2>
-            <p>
-              The Director stays in one operational view while camera sources, Program/Preview, communication,
-              audio, graphics, replay, and broadcast controls work together around the same room.
-            </p>
-            <button className="sp-secondary" onClick={() => go("/app")}>
-              OPEN THE CONSOLE <ArrowRight size={17}/>
-            </button>
+        <section className="sp-public-section sp-real-screens" id="inside-studio">
+          <div className="sp-section-heading">
+            <span className="sp-kicker">A LOOK INSIDE STUDIO</span>
+            <h2>Your show. Your sound. Your production tools.</h2>
+            <p>See the actual Studio workspace. Open any screenshot for a closer look.</p>
           </div>
-
-          <div className="sp-showcase-ui">
-            <header>
-              <span><i/> SYSTEM READY</span>
-              <strong>URBAN DIRECTOR STUDIO</strong>
-              <span>DIRECTOR</span>
-            </header>
-            <div className="sp-showcase-program">
-              <div>
-                <span>PREVIEW</span>
-                <Camera size={42}/>
-                <small>CAM 04</small>
-              </div>
-              <div className="program">
-                <span>PROGRAM</span>
-                <RadioTower size={42}/>
-                <small>CAM 01 • LIVE</small>
-              </div>
-            </div>
-            <div className="sp-showcase-bottom">
-              <span>CAM 01</span><span>CAM 02</span><span>CAM 03</span><span>CAM 04</span>
-              <span>REPLAY</span><span>GRAPHICS</span><span>AUDIO</span><span>GO LIVE</span>
-            </div>
+          <div className="sp-screenshot-grid">
+            <figure className="sp-screenshot-card sp-screenshot-wide">
+              <a href="/screenshots/studio-soundboard.jpg" target="_blank" rel="noreferrer" aria-label="View the soundboard screenshot at full size">
+                <img src="/screenshots/studio-soundboard.jpg" width="1233" height="707" loading="lazy" alt="Six colorful sound pads with controls to load sounds, record a microphone and adjust monitoring" />
+              </a>
+              <figcaption><h3>Make your live show sound like you.</h3><p>Load your own reactions, applause and transitions into six colorful pads. Record a sample, then tap when the moment lands.</p></figcaption>
+            </figure>
+            <figure className="sp-screenshot-card">
+              <a href="/screenshots/studio-graphics.jpg" target="_blank" rel="noreferrer" aria-label="View the broadcast graphics screenshot at full size">
+                <img src="/screenshots/studio-graphics.jpg" width="1233" height="496" loading="lazy" alt="Studio broadcast graphics controls for lower thirds, tickers, countdowns, topic images and corner logos" />
+              </a>
+              <figcaption><h3>Give every moment its context.</h3><p>Prepare lower thirds, tickers, countdowns and logos, then take each graphic on air when you choose.</p></figcaption>
+            </figure>
+            <figure className="sp-screenshot-card">
+              <a href="/screenshots/studio-editor.jpg" target="_blank" rel="noreferrer" aria-label="View the replay and editor screenshot at full size">
+                <img src="/screenshots/studio-editor.jpg" width="1233" height="900" loading="lazy" alt="The real Studio editor showing a sample title card and timeline with media, audio, text and effects tools" />
+              </a>
+              <figcaption><h3>Keep creating after the live moment.</h3><p>Bring media into the editor, arrange your timeline and add titles, captions and visual edits. Sample media is shown here.</p></figcaption>
+            </figure>
           </div>
         </section>
 
@@ -607,7 +577,7 @@ function LandingPage() {
             <article><RadioTower size={23}/><h3>Live Events</h3><p>Direct conferences, performances, ceremonies, community events, and multi-camera live coverage.</p></article>
             <article><Mic size={23}/><h3>Podcasts & Interviews</h3><p>Use multiple angles, external audio, lower thirds, and recorded Program output from one production room.</p></article>
             <article><Users size={23}/><h3>Sports & Community Coverage</h3><p>Position camera operators around a venue and keep the Director in control of the final live feed.</p></article>
-            <article><Smartphone size={23}/><h3>Field Production</h3><p>Use mobile devices as flexible sources when a traditional truck-sized production setup is not practical.</p></article>
+            <article><Smartphone size={23}/><h3>Creators & Social Shows</h3><p>Bring custom soundboard reactions and multiple camera angles to creator shows, interviews and TikTok-style live productions. Platform streaming access depends on your destination account.</p></article>
           </div>
         </section>
 
