@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B8B100010000000000000001 /* SoundboardRecorderPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8B100020000000000000002 /* SoundboardRecorderPlugin.swift */; };
 		A7A100050000000000000005 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A7A100060000000000000006 /* PrivacyInfo.xcprivacy */; };
 		A7A100010000000000000001 /* StoreKitSubscriptionPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A100020000000000000002 /* StoreKitSubscriptionPlugin.swift */; };
 		A7A100030000000000000003 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7A100040000000000000004 /* MainViewController.swift */; };
@@ -22,6 +23,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B8B100020000000000000002 /* SoundboardRecorderPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundboardRecorderPlugin.swift; sourceTree = "<group>"; };
 		A7A100060000000000000006 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A7A100020000000000000002 /* StoreKitSubscriptionPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitSubscriptionPlugin.swift; sourceTree = "<group>"; };
 		A7A100040000000000000004 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
@@ -71,6 +73,7 @@
 			isa = PBXGroup;
 			children = (
 				A7A100040000000000000004 /* MainViewController.swift */,
+				B8B100020000000000000002 /* SoundboardRecorderPlugin.swift */,
 				A7A100020000000000000002 /* StoreKitSubscriptionPlugin.swift */,
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
@@ -170,6 +173,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A7A100030000000000000003 /* MainViewController.swift in Sources */,
+				B8B100010000000000000001 /* SoundboardRecorderPlugin.swift in Sources */,
 				A7A100010000000000000001 /* StoreKitSubscriptionPlugin.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,

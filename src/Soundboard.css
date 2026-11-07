@@ -1,10 +1,10 @@
 .soundboard {
   min-width:0;
   margin:20px 0;
-  border:1px solid #444958;
+  border:1px solid #41443f;
   border-radius:16px;
-  background:linear-gradient(130deg,#1b2030,#10131d);
-  color:#f4f6ff;
+  background:#101210;
+  color:#e8e8e5;
   overflow:hidden}
 .soundboard-heading {
   display:flex;
@@ -24,7 +24,7 @@
 .soundboard-heading small {
   font-size:10px;
   letter-spacing:2px;
-  color:#aab2c9}
+  color:#a4a89f}
 .soundboard-heading strong {
   font-size:20px;
   letter-spacing:2px}
@@ -34,7 +34,7 @@
 .soundboard-body {
   padding:0 20px 20px}
 .soundboard-body p {
-  color:#c7cee0;
+  color:#c7c9c4;
   font-size:13px;
   line-height:1.5}
 .soundboard-pads {
@@ -92,15 +92,15 @@
   width:100%;
   border:0;
   background:transparent;
-  color:#cbd1e3;
+  color:#c7c9c4;
   padding:12px 0;
   font-size:11px;
   cursor:pointer}
 .soundboard-editor {
   padding:16px;
-  border:1px solid #444958;
+  border:1px solid #41443f;
   border-radius:12px;
-  background:#0b0f1980;
+  background:#0b0d0b;
   display:grid;
   gap:12px}
 .soundboard label {
@@ -114,8 +114,8 @@
   width:100%;
   padding:10px;
   border-radius:6px;
-  border:1px solid #576078;
-  background:#141925;
+  border:1px solid #4b4e48;
+  background:#171a16;
   color:#fff}
 .soundboard-actions,.soundboard-trim,.soundboard-output {
   display:flex;
@@ -125,8 +125,8 @@
 .soundboard-actions button,.soundboard-output button {
   min-height:42px;
   border-radius:7px;
-  border:1px solid #59627c;
-  background:#242c40;
+  border:1px solid #454843;
+  background:#20231f;
   color:#fff;
   padding:9px 14px;
   cursor:pointer}
@@ -139,7 +139,7 @@
   width:130px}
 .soundboard-body>small {
   display:block;
-  color:#b0b9d1;
+  color:#a4a89f;
   font-size:11px;
   line-height:1.6}
 .soundboard button:disabled {
@@ -167,3 +167,11 @@
   flex-wrap:wrap}
 }
 
+
+.soundboard-microphone { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.soundboard-microphone label { flex:1; flex-wrap:wrap; }
+.soundboard-microphone select { min-width:0; width:100%; padding:10px; border:1px solid #4b4e48; border-radius:6px; background:#171a16; color:#e8e8e5; }
+.soundboard-microphone button { min-height:42px; padding:9px 14px; border:1px solid #454843; border-radius:7px; background:#20231f; color:#e8e8e5; }
+.soundboard-recording-status { display:grid; gap:8px; padding:12px; border:1px solid #b74840; border-radius:8px; background:#201411; font-size:12px; }
+.soundboard-recording-status strong { color:#ff8c80; }
+.soundboard-recording-status meter { width:100%; height:18px; }

@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+import { microphoneError, startMicrophoneCapture } from "./soundboardMicrophone";
 import { sampleRange, sampleStore } from "./soundboardStorage";
 import "./Soundboard.css";
+
+const NativeRecorder = registerPlugin("SoundboardRecorder");
+const nativeRecording = () => Capacitor.getPlatform() === "ios" && Capacitor.isPluginAvailable("SoundboardRecorder");
 
 const COLORS = ["#ff626e", "#ffa94d", "#f5d75d", "#56dfb0", "#59cfff", "#bc93ff"];
 const emptyPads = () => COLORS.map((color, id) => ({ id, color, name: `PAD ${id + 1}`, start: 0, end: 0, loop: false }));
 
-export default function Soundboard({ account, onStream, expanded, onToggle, standby }) {
+export default function Soundboard({ account, onStream, expanded, onToggle, standby, microphoneStream, preferredMicrophone = "" }) {
   const [pads, setPads] = useState(emptyPads);
   const padsRef = useRef(pads);
   const [selected, setSelected] = useState(0);
@@ -16,6 +21,10 @@ export default function Soundboard({ account, onStream, expanded, onToggle, stan
   const [volume, setVolume] = useState(0.8);
   const [monitor, setMonitor] = useState(true);
   const [recording, setRecording] = useState(false);
+  const [inputs, setInputs] = useState([]);
+  const [inputId, setInputId] = useState(preferredMicrophone);
+  const [inputLevel, setInputLevel] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
   const engine = useRef(null);
   const playing = useRef(new Map());
   const buffers = useRef(new Map());
@@ -40,8 +49,11 @@ export default function Soundboard({ account, onStream, expanded, onToggle, stan
       alive.current = false;
       for (const entry of voices.values()) entry.source.stop();
       voices.clear();
-      recorder.current?.stream.getTracks().forEach(track => track.stop());
-      if (recorder.current?.recorder.state === "recording") recorder.current.recorder.stop();
+      if (recorder.current) {
+        clearTimeout(recorder.current.timer);
+        clearInterval(recorder.current.meterTimer);
+        void recorder.current.capture.cancel();
+      }
       if (engine.current) {
         engine.current.output.stream.getTracks().forEach(track => track.stop());
         void engine.current.context.close();
@@ -139,35 +151,79 @@ export default function Soundboard({ account, onStream, expanded, onToggle, stan
     finally { if (alive.current) setBusy(false); }
   }
 
-  async function recordSample() {
-    if (recording) { recorder.current?.recorder.stop(); return; }
-    setBusy(true);
-    let stream;
+  async function refreshInputs() {
     try {
-      if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error("Microphone sampling is unavailable. Load an audio file instead.");
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!alive.current) { stream.getTracks().forEach(track => track.stop()); return; }
-      const capture = new MediaRecorder(stream);
-      const chunks = [];
-      const id = selected;
-      const timer = setTimeout(() => { if (capture.state === "recording") capture.stop(); }, 30000);
-      capture.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
-      capture.onstop = () => {
-        clearTimeout(timer);
-        stream.getTracks().forEach(track => track.stop());
-        recorder.current = null;
-        if (!alive.current) return;
-        setRecording(false);
-        void load(new Blob(chunks, { type: capture.mimeType }), id, `MIC SAMPLE ${id + 1}`);
-      };
-      capture.onerror = () => { if (capture.state === "recording") capture.stop(); };
-      recorder.current = { recorder: capture, stream };
+      const devices = nativeRecording()
+        ? (await NativeRecorder.inputs()).devices
+        : (await navigator.mediaDevices?.enumerateDevices?.() || []).filter(item => item.kind === "audioinput");
+      if (alive.current) setInputs(devices || []);
+    } catch (error) { if (alive.current) setStatus(microphoneError(error)); }
+  }
+
+  useEffect(() => {
+    void refreshInputs();
+    const update = () => void refreshInputs();
+    navigator.mediaDevices?.addEventListener?.("devicechange", update);
+    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", update);
+  }, []);
+
+  async function finishRecording() {
+    const current = recorder.current;
+    if (!current || current.stopping) return;
+    current.stopping = true;
+    clearTimeout(current.timer);
+    clearInterval(current.meterTimer);
+    setBusy(true);
+    setStatus("Saving microphone sample…");
+    try {
+      const blob = await current.capture.stop();
+      if (alive.current) await load(blob, current.id, `MIC SAMPLE ${current.id + 1}`);
+    } catch (error) { if (alive.current) setStatus(microphoneError(error)); }
+    finally {
+      if (recorder.current === current) recorder.current = null;
+      if (alive.current) { setRecording(false); setBusy(false); setInputLevel(0); }
+    }
+  }
+
+  async function recordSample() {
+    if (recorder.current) { await finishRecording(); return; }
+    if (busy) return;
+    setBusy(true);
+    setStatus("Opening microphone… Allow microphone access if your device asks.");
+    let capture;
+    try {
+      // Resume from the button gesture, before asking for microphone access.
+      const { context } = getEngine();
+      await context.resume();
+      capture = await startMicrophoneCapture({
+        native: nativeRecording() ? NativeRecorder : null,
+        mediaDevices: navigator.mediaDevices,
+        Recorder: window.MediaRecorder,
+        deviceId: inputId,
+        existingStream: microphoneStream,
+        context
+      });
+      if (!alive.current) { await capture.cancel(); return; }
       stopAll();
-      capture.start();
+      const current = { capture, id: selected, stopping: false };
+      recorder.current = current;
+      current.timer = setTimeout(() => void finishRecording(), 30000);
+      current.meterTimer = setInterval(async () => {
+        try {
+          const measurement = await capture.level();
+          if (alive.current && recorder.current === current && !current.stopping) {
+            setInputLevel(Math.min(1, Math.max(0, measurement.level || 0)));
+            setElapsed(Math.min(30, measurement.elapsed || 0));
+          }
+        } catch { /* Recording can still finish if metering is unavailable. */ }
+      }, 150);
+      setElapsed(0);
       setRecording(true);
-      setStatus(`Recording microphone into pad ${id + 1} • stops at 30 seconds.`);
-    } catch (error) { stream?.getTracks().forEach(track => track.stop()); setStatus(error.message); }
-    finally { setBusy(false); }
+      setStatus(`Recording ${capture.inputLabel} into pad ${selected + 1}. Speak, then press Stop recording.`);
+      if (capture.devices) setInputs(capture.devices);
+      else void refreshInputs();
+    } catch (error) { if (capture) await capture.cancel(); if (alive.current) setStatus(microphoneError(error)); }
+    finally { if (alive.current) setBusy(false); }
   }
 
   const pad = pads[selected];
@@ -187,6 +243,19 @@ export default function Soundboard({ account, onStream, expanded, onToggle, stan
       <div className="soundboard-editor">
         <strong>PAD {selected + 1}</strong>
         <label>Name<input maxLength={32} value={pad.name} disabled={busy || recording} onChange={event => void save(selected, { ...pad, name: event.target.value })}/></label>
+        <div className="soundboard-microphone">
+          <label>Microphone<select aria-label="Soundboard microphone" value={inputId} disabled={busy || recording} onChange={event => setInputId(event.target.value)}>
+            <option value="">System default microphone</option>
+            {inputId && !inputs.some(item => item.deviceId === inputId) && <option value={inputId}>Previously selected microphone — check connection</option>}
+            {inputs.filter(item => item.deviceId && item.deviceId !== "default").map((item, index) => <option key={item.deviceId} value={item.deviceId}>{item.label || `Microphone ${index + 1}`}</option>)}
+          </select></label>
+          <button type="button" disabled={busy || recording} onClick={() => void refreshInputs()}>Refresh microphones</button>
+        </div>
+        {recording && <div className="soundboard-recording-status" role="status">
+          <strong>RECORDING • {elapsed.toFixed(1)} / 30 sec</strong>
+          <meter aria-label="Microphone input level" min="0" max="1" value={Math.min(1, inputLevel * 4)}/>
+          <span>{inputLevel > 0.003 ? "Microphone signal detected" : "No input level yet — speak or check the selected microphone"}</span>
+        </div>}
         <div className="soundboard-actions">
           <button type="button" disabled={!ready || busy || recording} onClick={() => fileInput.current.click()}>Load sound</button>
           <input ref={fileInput} type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.webm" hidden onChange={event => {
