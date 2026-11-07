@@ -29,6 +29,18 @@ jobs:
         run: node --test electron/test/*.test.cjs
       - name: Decode synthetic video inside the native app engine
         run: npx --no-install electron electron/native-video-qc.cjs
+      - name: Build Windows installer for QC only
+        if: runner.os == 'Windows'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx --no-install electron-builder --win nsis --x64 --publish never --config.forceCodeSigning=false --config.directories.output=release-qc/windows
+      - name: Retain unsigned Windows QC installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-Installer-UNSIGNED-QC
+          path: release-qc/windows/*.exe
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
