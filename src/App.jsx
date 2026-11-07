@@ -4779,6 +4779,7 @@ async function enableCamera() {
         </section>
 
         <Soundboard key={user?.id || user?.email || "local"} account={String(user?.id || user?.email || "local")} onStream={setSoundboardStream}
+          microphoneStream={directorStream} preferredMicrophone={selectedAudioDevice}
           expanded={mobilePanels.soundboard} onToggle={() => toggleMobilePanel("soundboard")} standby={standby}/>
 
         <section className="control-deck">

@@ -14,3 +14,11 @@ A dedicated Web Audio stream joins the existing stable Program mixer track. Came
 - Browser component fixture: imported a generated two-second WAV, renamed it, looped playback, stopped playback, restored the name/audio/loop after reload, and collapsed the section.
 - Desktop 1280px layout and phone 390px / 320px layout checked, with no horizontal overflow. Phone pads measured 145px high. Screenshots are local fixture captures, not deployed UI or physical-device proof.
 - Microphone recording and a real broadcast receiver still require device acceptance testing. No paid AI generation was used.
+
+## Microphone repair — November 7, 2026
+
+A screenshot from the TestFlight iPad app running on a Mac showed the generic unavailable message. The original code required both getUserMedia and MediaRecorder, so it never attempted capture when either browser API was absent. This was not evidence of a disconnected physical microphone.
+
+The Apple app now captures through a registered native SoundboardRecorder Capacitor plugin using AVAudioRecorder, with WAV output, permission feedback, input selection, metering and a native 30-second recording limit. It restores the previous shared audio-session configuration and does not deactivate a session used by Program. Browser capture retains MediaRecorder, negotiates supported audio MIME types, selects an exact external microphone when chosen and clones an existing Director microphone when appropriate, so stopping a sample does not stop production. Empty recordings/errors retain the previous pad. Both paths display elapsed time and input levels. The outer card/editor/control surfaces now match the neighboring neutral production panels; the six performance-pad colors are retained.
+
+Regression tests exercise native capture with both browser capture APIs absent, native empty/error results, exact USB input selection, browser final-chunk collection, input cleanup and Director track preservation. These mock tests do not prove physical USB hardware or Apple system permissions; verify those on the installed TestFlight build.
