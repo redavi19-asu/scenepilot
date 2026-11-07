@@ -111,7 +111,7 @@ app.whenReady().then(() => {
   app.on('before-quit',()=>auth.cancel());
   if(process.mas && process.platform==='darwin') {
     const store=createStoreKit({store:inAppPurchase,openExternal:url=>shell.openExternal(url),request:async(route,body)=>{
-      const response=await session.defaultSession.fetch(`${APP_ORIGIN}${route}`,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','X-Urban-Director-Platform':'macos','Origin':APP_ORIGIN},...(body?{body:JSON.stringify(body)}:{})});
+      const response=await session.defaultSession.fetch(`${APP_ORIGIN}${route}`,{method:body?'POST':'GET',credentials:'include',redirect:'error',signal:AbortSignal.timeout(30000),headers:{'Content-Type':'application/json','X-Urban-Director-Platform':'macos','Origin':APP_ORIGIN},...(body?{body:JSON.stringify(body)}:{})});
       const data=await response.json();if(!response.ok)throw new Error(data.error||'Apple verification failed.');return data;
     }});
     for(const method of ['getProduct','purchase','restore','currentEntitlement','manageSubscriptions']) {
