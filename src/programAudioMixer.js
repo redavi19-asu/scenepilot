@@ -4,6 +4,7 @@ export const DEFAULT_CHANNEL = Object.freeze({ volume: 1, muted: true, solo: fal
 
 export function collectProgramAudioSources(state = {}) {
   const sources = [];
+  if (state.soundboardStream) sources.push({ id: "soundboard", stream: state.soundboardStream });
   if (state.directorStream) {
     sources.push({ id: "director", slotId: "director", stream: state.directorStream });
   }
@@ -20,6 +21,7 @@ export function collectProgramAudioSources(state = {}) {
 }
 
 export function programAudioGain(source, state, anySolo) {
+  if (source.id === "soundboard") return state.standby ? 0 : 1;
   const channel = state.cameraAudio?.[source.id] || DEFAULT_CHANNEL;
   const selected = state.masterAudioSource === "mix" ||
     state.masterAudioSource === source.id ||
