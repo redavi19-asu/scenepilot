@@ -108,3 +108,22 @@ test("mix includes director and shared-window audio when unmuted", () => {
   assert.equal(mixer.inputs.get("screen-share").gain.gain.value, 0.2);
   stopProgramAudioMixer(mixer);
 });
+
+test("soundboard reaches the stable Program track independently of camera selection and respects standby", () => {
+  const soundboardStream = mockStream("pads");
+  const state = { soundboardStream, masterAudioSource: "follow", primarySlot: 2, cameraAudio: { c1: { solo: true } } };
+  const [source] = collectProgramAudioSources(state);
+  assert.equal(source.id, "soundboard");
+  assert.equal(programAudioGain(source, state, true), 1);
+  assert.equal(programAudioGain(source, { ...state, standby: true }, true), 0);
+  const mixer = createProgramAudioMixer(FakeAudioContext);
+  const output = mixer.outputTrack;
+  syncProgramAudioMixer(mixer, state);
+  assert.equal(mixer.inputs.get("soundboard").gain.gain.value, 1);
+  syncProgramAudioMixer(mixer, { ...state, standby: true });
+  assert.equal(mixer.inputs.get("soundboard").gain.gain.value, 0);
+  syncProgramAudioMixer(mixer, { ...state, soundboardStream: null });
+  assert.equal(mixer.inputs.size, 0);
+  assert.equal(mixer.outputTrack, output);
+  stopProgramAudioMixer(mixer);
+});

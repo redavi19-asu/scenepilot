@@ -13,6 +13,7 @@ import { Device } from "@capacitor/device";
 import { App as CapacitorApp } from "@capacitor/app";
 import "./App.css";
 import { createProgramAudioMixer, syncProgramAudioMixer, stopProgramAudioMixer } from "./programAudioMixer";
+import Soundboard from "./Soundboard";
 import StudioGuide, { StudioGuideWelcome } from "./StudioGuide";
 import { usePopoutWorkspace, PopoutPortals, PopoutHandle } from "./PopoutMonitors";
 import { screenCaptureError, validateScreenCapture } from "./screenCapture";
@@ -118,6 +119,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     sources: !window.matchMedia?.("(max-width: 760px)").matches,
     transition: false,
     audio: false,
+    soundboard: false,
     remoteCamera: false,
     layout: false,
     recording: false,
@@ -224,6 +226,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const reconnectTimers = useRef({});
   const directorLinkStatsRef = useRef({});
   const audioElements = useRef({});
+  const [soundboardStream, setSoundboardStream] = useState(null);
   const [masterAudioSource, setMasterAudioSource] = useState("mix");
   const [cameraAudio, setCameraAudio] = useState({});
   const [cameraNames, setCameraNames] = useState({});
@@ -274,6 +277,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   const programSourcesRef = useRef(null);
   const programAudioStateRef = useRef(null);
   programAudioStateRef.current = {
+    soundboardStream,
     directorStream,
     screenStream,
     wirelessCameras,
@@ -1870,7 +1874,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     if (programAudioMixerRef.current) {
       syncProgramAudioMixer(programAudioMixerRef.current, programAudioStateRef.current);
     }
-  }, [directorStream, screenStream, wirelessCameras, remoteStreams, cameraAudio, masterAudioSource, programComposition.primary, standby]);
+  }, [directorStream, screenStream, wirelessCameras, remoteStreams, cameraAudio, masterAudioSource, programComposition.primary, standby, soundboardStream]);
 
   function chooseRecordingMimeType() {
     if (typeof MediaRecorder === "undefined") return "";
@@ -4773,6 +4777,9 @@ async function enableCamera() {
             {screenStream && <div className="external-source-preview"><LiveStreamVideo stream={screenStream}/></div>}
           </div>
         </section>
+
+        <Soundboard key={user?.id || user?.email || "local"} account={String(user?.id || user?.email || "local")} onStream={setSoundboardStream}
+          expanded={mobilePanels.soundboard} onToggle={() => toggleMobilePanel("soundboard")} standby={standby}/>
 
         <section className="control-deck">
           <div className={`transition-panel ${mobilePanels.transition ? "" : "mobile-panel-collapsed"}`}>
