@@ -43,3 +43,19 @@ export function popupFeatures(bounds) {
 export function getWindowBounds(popup) {
   return safeBounds({ left: popup.screenX, top: popup.screenY, width: popup.outerWidth, height: popup.outerHeight });
 }
+
+export function boundsForDisplay(display, preferred = DEFAULT_BOUNDS) {
+  const width = Math.max(330, Math.min(preferred.width || 940, display.availWidth - 48));
+  const height = Math.max(240, Math.min(preferred.height || 560, display.availHeight - 80));
+  return safeBounds({ left: display.availLeft + 24, top: display.availTop + 24, width, height });
+}
+export function windowIsOnDisplay(bounds, display) {
+  const x = bounds.left + bounds.width / 2;
+  const y = bounds.top + bounds.height / 2;
+  return x >= display.availLeft && x < display.availLeft + display.availWidth &&
+    y >= display.availTop && y < display.availTop + display.availHeight;
+}
+export function draggedWindowPosition(start, pointer) {
+  return { left: Math.round(start.left + pointer.screenX - start.screenX),
+    top: Math.round(start.top + pointer.screenY - start.screenY) };
+}
