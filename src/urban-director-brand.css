@@ -133,3 +133,5 @@ footer i{
 .camera-battery-invite-note{font-size:12px;line-height:1.5;color:#c1cfdb}
 
 .uds-display-placement{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0}.uds-display-placement label{display:grid;gap:5px;font-size:10px;color:#bdcdda}.uds-display-placement button,.uds-display-placement select{background:#13232e;color:#b9dfff;border:1px solid #527990;padding:9px;font-size:11px}.uds-display-placement small{color:#b4c6d0;font-size:11px}
+
+.camera-video-status{font-size:9px;font-weight:800;letter-spacing:.05em}.camera-video-status.ready{color:#a8dca0}.camera-video-status.pending{color:#e8bf72}

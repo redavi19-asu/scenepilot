@@ -1904,6 +1904,17 @@ export class ScenePilotRoom {
     return director;
   }
 
+  pruneCameraSessions(now = Date.now()) {
+    for (const session of [...this.sessions.values()]) {
+      if (session.role !== "camera") continue;
+      const closed = typeof session.ws?.readyState === "number" && session.ws.readyState >= 2;
+      const expired = Number.isFinite(session.lastSeenAt) && now - session.lastSeenAt > 45000;
+      if (!closed && !expired) continue;
+      this.removeSession(session);
+      try { session.ws?.close?.(1000, "Camera session expired; reconnect to rejoin"); } catch {}
+    }
+  }
+
   assignSlot(_requestedSlot, sessionId) {
     const allowed = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
@@ -1914,29 +1925,18 @@ export class ScenePilotRoom {
         .filter(Number.isFinite)
     );
 
-    return allowed.find(slot => !used.has(slot)) || 9;
+    return allowed.find(slot => !used.has(slot)) || null;
   }
 
   resetProductionSession() {
-    let nextSlot = 1;
-
-    for (const camera of this.cameras.values()) {
-      camera.slotId = nextSlot;
-      camera.name = `USER ${String(nextSlot).padStart(2, "0")}`;
-
-      const cameraSession = this.sessions.get(camera.socketId);
-      if (cameraSession) {
-        this.send(cameraSession, "camera:registered", {
-          slotId: nextSlot,
-          directorAvailable: true
-        });
-      }
-
-      nextSlot += 1;
-      if (nextSlot > 9) break;
-    }
-
+    // Reclaiming Director must not renumber physical inputs beneath Program.
     this.liveSlots = [];
+    for (const camera of this.cameras.values()) {
+      const cameraSession = this.sessions.get(camera.socketId);
+      if (!cameraSession) continue;
+      this.send(cameraSession, "camera:registered", { slotId: camera.slotId, directorAvailable: true });
+      this.send(cameraSession, "program:update", { liveSlots: [] });
+    }
   }
 
   sendChatMessage(session, payload) {
@@ -2008,6 +2008,8 @@ export class ScenePilotRoom {
   }
 
   handleMessage(session, raw) {
+    // A delayed message from an expired socket cannot resurrect a ghost source.
+    if (!this.sessions.has(session.id)) return;
     let message;
 
     try {
@@ -2020,6 +2022,7 @@ export class ScenePilotRoom {
     const payload = message?.payload || {};
 
     session.lastSeenAt = Date.now();
+    this.pruneCameraSessions();
 
     if (event === "session:heartbeat") {
       // Acknowledged heartbeats let Safari clients detect half-open sockets
@@ -2113,12 +2116,31 @@ export class ScenePilotRoom {
         return;
       }
 
-      session.role = "camera";
+      let recoverySlot = null;
+      const clientId = String(payload.clientId || session.cameraClientId || "");
+      if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(clientId)) {
+        // The random recovery ID is never broadcast, and is scoped to this
+        // already-authenticated company/room. Shared invite tokens are NOT IDs.
+        for (const prior of [...this.sessions.values()]) {
+          if (prior.id === session.id || prior.role !== "camera" || prior.cameraClientId !== clientId) continue;
+          recoverySlot = this.cameras.get(prior.id)?.slotId || null;
+          this.send(prior, "camera:replaced", { message: "This camera was opened in another window. Reconnect here only if you want to move it back." });
+          this.removeSession(prior);
+          try { prior.ws?.close?.(1000, "Camera reconnected in another session"); } catch {}
+        }
+        session.cameraClientId = clientId;
+      }
 
-      const slotId = this.assignSlot(
-        payload.slotId,
-        session.id
-      );
+      const priorSlot = this.cameras.get(session.id)?.slotId || recoverySlot;
+      const slotFree = priorSlot && ![...this.cameras.values()].some(camera => camera.socketId !== session.id && camera.slotId === priorSlot);
+      const slotId = slotFree ? priorSlot : this.assignSlot(payload.slotId, session.id);
+
+      if (!slotId) {
+        session.role = "waiting-camera";
+        this.send(session, "camera:rejected", { reason: "room_full", message: "All nine camera slots are in use. Disconnect a camera before joining another." });
+        return;
+      }
+      session.role = "camera";
 
       const camera = {
         socketId: session.id,
@@ -2353,7 +2375,7 @@ export class ScenePilotRoom {
       this.activeDirectorId === session.id
     ) {
       this.liveSlots = Array.isArray(payload.liveSlots)
-        ? payload.liveSlots.map(Number).filter(Number.isFinite)
+        ? [...new Set(payload.liveSlots.map(Number).filter(slot => Number.isInteger(slot) && slot >= 1 && slot <= 9))]
         : [];
 
       for (const candidate of this.sessions.values()) {
@@ -2407,7 +2429,14 @@ export class ScenePilotRoom {
     this.sessions.delete(session.id);
 
     if (session.role === "camera") {
+      const removedSlot = this.cameras.get(session.id)?.slotId;
       this.cameras.delete(session.id);
+      if (this.liveSlots.includes(removedSlot)) {
+        this.liveSlots = this.liveSlots.filter(slot => slot !== removedSlot);
+        for (const cameraSession of this.sessions.values()) {
+          if (cameraSession.role === "camera") this.send(cameraSession, "program:update", { liveSlots: this.liveSlots });
+        }
+      }
 
       for (const candidate of this.sessions.values()) {
         if (candidate.role === "director") {

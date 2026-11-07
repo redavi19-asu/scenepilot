@@ -3,8 +3,11 @@ const { app, BrowserWindow, session, shell, desktopCapturer, dialog } = require(
 const { isMonitorPopup } = require("./windowPolicy.cjs");
 
 const APP_URL = process.env.SCENEPILOT_APP_URL ||
-  "https://scenepilot.ryanedavis.workers.dev/app";
+  "https://urbandirector.icomputeranything.com/app";
 const APP_ORIGIN = new URL(APP_URL).origin;
+// Chromium 152 gates local ICE routes and monitor placement separately.
+// These capabilities are restricted to the configured first-party app origin.
+const STUDIO_PERMISSIONS = new Set(["media", "display-capture", "window-management", "local-network", "fullscreen"]);
 
 function isScenePilotUrl(value) {
   try {
@@ -27,12 +30,12 @@ function configurePermissions() {
   const appSession = session.defaultSession;
 
   appSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
-    return ["media", "display-capture"].includes(permission) && isScenePilotUrl(requestingOrigin);
+    return STUDIO_PERMISSIONS.has(permission) && isScenePilotUrl(requestingOrigin);
   });
 
   appSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const requestingUrl = details?.requestingUrl || webContents.getURL();
-    callback(["media", "display-capture"].includes(permission) && isScenePilotUrl(requestingUrl));
+    callback(STUDIO_PERMISSIONS.has(permission) && isScenePilotUrl(requestingUrl));
   });
 
   appSession.setDisplayMediaRequestHandler(async (request, callback) => {

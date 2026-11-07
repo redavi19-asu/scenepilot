@@ -27,13 +27,13 @@ async function setup() {
 }
 test('desktop capture permissions stay scoped to the studio origin', async()=>{
   const {handlers}=await setup();
-  assert.equal(handlers.check(null,'display-capture','https://scenepilot.ryanedavis.workers.dev'),true);
+  assert.equal(handlers.check(null,'display-capture','https://urbandirector.icomputeranything.com'),true);
   assert.equal(handlers.check(null,'display-capture','https://example.com'),false);
   assert.equal(handlers.opts.useSystemPicker,true);
 });
 test('fallback shares only user-selected source and cancellation grants nothing', async()=>{
   const {handlers,electron}=await setup(); let result;
-  const request={securityOrigin:'https://scenepilot.ryanedavis.workers.dev'};
+  const request={securityOrigin:'https://urbandirector.icomputeranything.com'};
   await handlers.capture(request,value=>result=value);
   assert.equal(result.video.id,'screen:1'); assert.equal(result.audio,undefined);
   electron.dialog.showMessageBox=async()=>({response:0});
@@ -45,4 +45,13 @@ test('wrapper allows monitor portal but denies arbitrary blank window',async()=>
   const {handlers}=await setup();
   assert.equal(handlers.open({url:'about:blank',frameName:'uds-popout-preview'}).action,'allow');
   assert.equal(handlers.open({url:'about:blank',frameName:'other'}).action,'deny');
+});
+
+test('native monitor placement and local camera routes are allowed only for Studio', async()=>{
+ const {handlers}=await setup();
+ for(const permission of ['window-management','local-network','fullscreen']) {
+  assert.equal(handlers.check(null,permission,'https://urbandirector.icomputeranything.com'),true);
+  assert.equal(handlers.check(null,permission,'https://example.com'),false);
+ }
+ assert.equal(handlers.check(null,'geolocation','https://urbandirector.icomputeranything.com'),false);
 });

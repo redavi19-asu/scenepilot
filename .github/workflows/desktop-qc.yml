@@ -1,0 +1,37 @@
+name: Urban Director Native Desktop QC
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'electron/**'
+      - 'src/webrtc.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/desktop-qc.yml'
+permissions:
+  contents: read
+jobs:
+  native-video:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Check desktop permission boundaries
+        run: node --test electron/test/*.test.cjs
+      - name: Decode synthetic video inside the native app engine
+        run: npx --no-install electron electron/native-video-qc.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-video-qc-${{ matrix.os }}
+          path: release-qc/*.json
+          if-no-files-found: error
