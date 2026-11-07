@@ -7,7 +7,11 @@ const deadline=setTimeout(()=>{fs.writeFileSync(output,JSON.stringify({pass:fals
 app.whenReady().then(async()=>{
  if(process.platform==='darwin')app.dock.hide();
  const win=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false}});
- win.webContents.session.setPermissionRequestHandler((_w,_p,cb)=>cb(false));
+ // The isolated fixture needs local ICE traffic; deny all hardware permissions.
+ win.webContents.session.setPermissionCheckHandler((_w,permission)=>permission==='local-network');
+ win.webContents.session.setPermissionRequestHandler((_w,permission,cb)=>cb(permission==='local-network'));
+ win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+ win.webContents.on('will-navigate',event=>event.preventDefault());
  const page=path.join(profile,'probe.html');fs.writeFileSync(page,'<!doctype html><title>Urban Director native video QC</title><body></body>');
  try{
   await win.loadFile(page);
