@@ -25,10 +25,19 @@ The separate `electron/mas.config.cjs` selects the MAS Electron engine and App S
 ## Open release gates
 
 - Mac App Store provisioning/distribution/installer credentials and a successfully tested sandbox build.
-- Native desktop sign-in: external social login currently opens the system browser and has no authenticated return into Electron. Verify or implement a secure desktop OAuth handoff; do not treat browser sign-in as native sign-in.
+- Final signed-app validation of native desktop sign-in. The PKCE browser-to-app handoff, single-use code exchange, secure cookie storage and origin-checked IPC are implemented and tested; physical signed-app acceptance remains required.
 - Windows production signing and actual installer/device verification.
-- Store-compatible purchases/restoration and a working reviewer account. The existing iOS StoreKit plugin does not automatically provide Electron MAS purchases.
+- Actual sandbox purchase/restoration and a working reviewer account. The dedicated Electron MAS StoreKit adapter is implemented, including account UUID binding, server verification, latest-renewal lookup and unfinished-transaction retry. Unit tests do not substitute for an Apple sandbox purchase.
 - Actual Android device captures, Play billing verification and signed store bundle.
 - End-to-end camera quality, reconnect, audio, streaming and export verification on the final signed binaries.
 
 References: [Electron MAS requirements](https://www.electronjs.org/docs/latest/tutorial/mac-app-store-submission-guide), [electron-builder v26 MAS configuration](https://www.electron.build/v26/docs/mas/), [Apple audio-input entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.device.audio-input).
+
+
+## Signing account verification — November 7
+
+The existing Azure signing account `ica-code-signing` and profile `ica-control-production` are available through the shared ICA signing host. A disposable executable signing request succeeded; the corrected publisher probe starts from a compiled unsigned file. No replacement signing purchase is needed.
+
+Apple notarization authentication succeeds with the existing credentials. Certificate/profile API access returns `FORBIDDEN_ERROR.PLA_NOT_ACCEPTED`, requiring the account holder to accept Apple's pending agreement. The current App Store record has an iOS 1.0 draft and a monthly subscription marked `MISSING_METADATA`; this is not a Mac submission.
+
+The public landing page now uses genuine screenshots of the soundboard, graphics controls and editor. The private paper feed is excluded. The separately edited review pack uses clearly labeled demo stills and is not represented as a set of actual Android captures.
