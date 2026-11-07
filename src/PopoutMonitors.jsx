@@ -367,7 +367,7 @@ function PopoutView({ workspace, entry, close, sources, preview, program, main, 
           {workspace.screens.length ? (
             <select aria-label={`Move ${title} to monitor`} value="" onChange={event => void workspace.moveToScreen(id, event.target.value)}>
               <option value="">MOVE TO MONITOR…</option>
-              {workspace.screens.map((screen, index) => <option key={index} value={index}>{screen.label || `Monitor ${index + 1}`}{screen.isPrimary ? " (PRIMARY)" : ""}</option>)}
+              {workspace.screens.map((screen, index) => <option key={index} value={index}>{`MONITOR ${index + 1} · ${screen.label || "DISPLAY"}`}{screen.isPrimary ? " (PRIMARY)" : ""}</option>)}
             </select>
           ) : <button type="button" onClick={workspace.enableScreens}>CHOOSE MONITOR</button>}
           <button type="button" onClick={() => close(id)} aria-label={`Close ${title} pop-out`}>CLOSE VIEW ×</button>

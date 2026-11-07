@@ -4290,7 +4290,7 @@ async function enableCamera() {
                 {popoutWorkspace.screens.length > 0 && <label>OPEN NEW WINDOWS ON
                   <select value={popoutWorkspace.targetScreen} onChange={event => popoutWorkspace.setTargetScreen(event.target.value)}>
                     <option value="">SAVED POSITION / CURRENT MONITOR</option>
-                    {popoutWorkspace.screens.map((screen, index) => <option key={index} value={index}>{screen.label || `Monitor ${index + 1}`}{screen.isPrimary ? " (PRIMARY)" : ""}</option>)}
+                    {popoutWorkspace.screens.map((screen, index) => <option key={index} value={index}>{`MONITOR ${index + 1} · ${screen.label || "DISPLAY"}`}{screen.isPrimary ? " (PRIMARY)" : ""}</option>)}
                   </select>
                 </label>}
                 <small>Allow Chrome to place windows on your displays. You can also drag a pop-out's top bar.</small>
