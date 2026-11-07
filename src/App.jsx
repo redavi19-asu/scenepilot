@@ -18,8 +18,9 @@ import StudioGuide, { StudioGuideWelcome } from "./StudioGuide";
 import { usePopoutWorkspace, PopoutPortals, PopoutHandle } from "./PopoutMonitors";
 import { screenCaptureError, validateScreenCapture } from "./screenCapture";
 import { socket } from "./socket";
-import { createPeerConnection, optimizeVideoSender } from "./webrtc";
+import { createPeerConnection, optimizeVideoSender, requireWebRTC, supportsWebRTC } from "./webrtc";
 import { getDirectorIceServers } from "./iceServers";
+import { batteryPercentage, cameraBatteryLabel, nativeCameraLink } from "./batteryTelemetry";
 import { acquireDirectorCamera } from "./directorCameraSwitch";
 import { cameraConstraints, cameraTorchSupported, queueCameraTrackChange, setTrackTorch } from "./cameraTrackControls";
 import { disposeGraphicAsset, drawGraphicAsset, updateGraphicAsset } from "./programGraphicAssets";
@@ -195,6 +196,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     return () => window.removeEventListener("scenepilot:relay-health", handler);
   }, []);
   const [directorLockMessage, setDirectorLockMessage] = useState("");
+  const [cameraLinkError, setCameraLinkError] = useState("");
+  const cameraVideoSupported = supportsWebRTC();
   const [isOnAir, setIsOnAir] = useState(false);
   const [cameraRegistered, setCameraRegistered] = useState(false);
   const [cameraMediaConnected, setCameraMediaConnected] = useState(false);
@@ -756,6 +759,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   useEffect(() => {
     if (!showCamera || !stream || !cameraRegistered || !telemetryAllowed) return;
 
+    let cancelled = false;
     let battery = null;
     let batteryCleanup = null;
     let interval = null;
@@ -796,6 +800,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     };
 
     const emitTelemetry = (batteryPercent, chargingValue) => {
+      if (cancelled) return;
       const network = getNetworkQuality();
 
       const nextTelemetry = {
@@ -825,7 +830,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     const sendTelemetry = async () => {
       if (battery && Number.isFinite(battery.level)) {
         emitTelemetry(
-          Math.round(battery.level * 100),
+          batteryPercentage(battery.level),
           Boolean(battery.charging)
         );
         return;
@@ -834,12 +839,8 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       if (nativeBatteryReader) {
         try {
           const info = await nativeBatteryReader();
-          const rawLevel = Number(info?.batteryLevel);
-          const batteryPercent = Number.isFinite(rawLevel)
-            ? Math.round((rawLevel <= 1 ? rawLevel * 100 : rawLevel))
-            : null;
           emitTelemetry(
-            Number.isFinite(batteryPercent) ? Math.max(0, Math.min(100, batteryPercent)) : null,
+            batteryPercentage(info?.batteryLevel),
             typeof info?.isCharging === "boolean" ? info.isCharging : null
           );
           return;
@@ -854,6 +855,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     if (navigator.getBattery) {
       navigator.getBattery()
         .then(value => {
+          if (cancelled) return;
           battery = value;
           sendTelemetry();
 
@@ -882,6 +884,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     interval = window.setInterval(sendTelemetry, 15000);
 
     return () => {
+      cancelled = true;
       if (interval) window.clearInterval(interval);
       connection?.removeEventListener?.("change", sendTelemetry);
       batteryCleanup?.();
@@ -946,15 +949,19 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
 
     const startPeer = async (camera, iceRestart = false) => {
       if (!camera?.socketId || disposed) return;
+      // Focus/heartbeat room snapshots must not tear down working or pending media.
+      if (!iceRestart && ["new", "connecting", "connected"].includes(peers.current[camera.socketId]?.connectionState)) return;
       const cameraId = camera.socketId;
       const generation = (peerStartupGeneration[cameraId] || 0) + 1;
       peerStartupGeneration[cameraId] = generation;
       let iceServers;
       try {
+        requireWebRTC();
         iceServers = await getDirectorIceServers({ network: networkId, room: roomCode, force: iceRestart });
       } catch (error) {
-        setSignalStatus("MEDIA RELAY UNAVAILABLE — CAMERA CANNOT CONNECT");
-        console.error("Director relay configuration failed", error);
+        setSignalStatus("CAMERA VIDEO UNAVAILABLE");
+        setCameraLinkError(error.message);
+        console.error("Director camera connection failed", error);
         return;
       }
 
@@ -963,51 +970,52 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       if (disposed || peerStartupGeneration[cameraId] !== generation) return;
       peers.current[cameraId]?.close();
 
-      const peer = createPeerConnection({
-        iceServers,
-        onIceCandidate: candidate => {
-          socket.emit("webrtc:ice", {
-            target: camera.socketId,
-            candidate
-          });
-        },
-
-        onTrack: incomingStream => {
-          setRemoteStreams(prev => ({
-            ...prev,
-            [camera.socketId]: incomingStream
-          }));
-
-          // Connecting media only populates Multiview. Routing requires an operator action.
-          setSignalStatus("VIDEO CONNECTED");
-        },
-
-        onConnectionState: state => {
-          if (state === "connecting") {
-            setSignalStatus("WEBRTC CONNECTING");
-          } else if (state === "connected") {
-            setSignalStatus("PEER CONNECTED");
-          } else if (state === "failed") {
-            setSignalStatus("WEBRTC FAILED / RETRYING");
-            schedulePeerRestart(camera, 2000);
-          } else if (state === "disconnected") {
-            setSignalStatus("WEBRTC DISCONNECTED / RETRYING");
-            schedulePeerRestart(camera, 4000);
-          }
-        }
-      });
-
-      peers.current[camera.socketId] = peer;
-
-      peer.addTransceiver("video", {
-        direction: "recvonly"
-      });
-
-      peer.addTransceiver("audio", {
-        direction: "recvonly"
-      });
-
+      let peer;
       try {
+        peer = createPeerConnection({
+          iceServers,
+          onIceCandidate: candidate => {
+            socket.emit("webrtc:ice", {
+              target: camera.socketId,
+              candidate
+            });
+          },
+
+          onTrack: incomingStream => {
+            setRemoteStreams(prev => ({
+              ...prev,
+              [camera.socketId]: incomingStream
+            }));
+
+            // Connecting media only populates Multiview. Routing requires an operator action.
+            setSignalStatus("VIDEO CONNECTED");
+          },
+
+          onConnectionState: state => {
+            if (state === "connecting") {
+              setSignalStatus("WEBRTC CONNECTING");
+            } else if (state === "connected") {
+              setSignalStatus("PEER CONNECTED");
+            } else if (state === "failed") {
+              setSignalStatus("WEBRTC FAILED / RETRYING");
+              schedulePeerRestart(camera, 2000);
+            } else if (state === "disconnected") {
+              setSignalStatus("WEBRTC DISCONNECTED / RETRYING");
+              schedulePeerRestart(camera, 4000);
+            }
+          }
+        });
+
+        peers.current[camera.socketId] = peer;
+
+        peer.addTransceiver("video", {
+          direction: "recvonly"
+        });
+
+        peer.addTransceiver("audio", {
+          direction: "recvonly"
+        });
+
         const offer = await peer.createOffer(
           iceRestart ? { iceRestart: true } : undefined
         );
@@ -1021,8 +1029,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
 
         setSignalStatus("OFFER SENT");
       } catch (error) {
+        peer?.close();
         console.error("Director offer error", error);
         setSignalStatus("OFFER FAILED");
+        setCameraLinkError(`Camera video connection failed: ${error.message}`);
       }
     };
 
@@ -1052,6 +1062,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       try {
         await peer.setRemoteDescription(answer);
         await flushIce(from);
+        setCameraLinkError("");
         setSignalStatus("ANSWER RECEIVED");
       } catch (error) {
         console.error("Director answer error", error);
@@ -2818,41 +2829,42 @@ async function enableCamera() {
         }
         peers.current[from]?.close();
 
-        const peer = createPeerConnection({
-          iceServers,
-          onIceCandidate: candidate => {
-            socket.emit("webrtc:ice", {
-              target: from,
-              candidate
-            });
-          },
-
-          onConnectionState: state => {
-            if (state === "connecting") {
-              setSignalStatus("WEBRTC CONNECTING");
-            } else if (state === "connected") {
-              setCameraMediaConnected(true);
-              setSignalStatus("LIVE TO DIRECTOR");
-            } else if (state === "failed") {
-              setCameraMediaConnected(false);
-              setSignalStatus("WEBRTC FAILED");
-            } else if (state === "disconnected") {
-              setCameraMediaConnected(false);
-              setSignalStatus("WEBRTC DISCONNECTED");
-            }
-          }
-        });
-
-        peers.current[from] = peer;
-
-        media.getTracks().forEach(track => {
-          const sender = peer.addTrack(track, media);
-          if (track.kind === "video") {
-            optimizeVideoSender(sender, qualityProfile);
-          }
-        });
-
+        let peer;
         try {
+          peer = createPeerConnection({
+            iceServers,
+            onIceCandidate: candidate => {
+              socket.emit("webrtc:ice", {
+                target: from,
+                candidate
+              });
+            },
+
+            onConnectionState: state => {
+              if (state === "connecting") {
+                setSignalStatus("WEBRTC CONNECTING");
+              } else if (state === "connected") {
+                setCameraMediaConnected(true);
+                setSignalStatus("LIVE TO DIRECTOR");
+              } else if (state === "failed") {
+                setCameraMediaConnected(false);
+                setSignalStatus("WEBRTC FAILED");
+              } else if (state === "disconnected") {
+                setCameraMediaConnected(false);
+                setSignalStatus("WEBRTC DISCONNECTED");
+              }
+            }
+          });
+
+          peers.current[from] = peer;
+
+          media.getTracks().forEach(track => {
+            const sender = peer.addTrack(track, media);
+            if (track.kind === "video") {
+              optimizeVideoSender(sender, qualityProfile);
+            }
+          });
+
           await peer.setRemoteDescription(offer);
           await flushIce(from);
 
@@ -2866,8 +2878,9 @@ async function enableCamera() {
 
           setSignalStatus("ANSWER SENT");
         } catch (error) {
+          peer?.close();
           console.error("Camera offer error", error);
-          setSignalStatus("ANSWER FAILED");
+          setSignalStatus(`VIDEO LINK FAILED: ${error.message}`);
         }
       };
 
@@ -3444,6 +3457,15 @@ async function enableCamera() {
                 <p>Finish these two steps before the camera operator screen opens.</p>
               </div>
 
+              {!Capacitor.isNativePlatform() && !navigator.getBattery && nativeCameraLink(window.location.search) && (
+                <div className="camera-battery-app-note">
+                  <strong>Want iPhone battery status?</strong>
+                  <p>Open the installed phone app to share its battery level. Browser camera video works without a battery reading.</p>
+                  <a href={nativeCameraLink(window.location.search)}>OPEN IPHONE APP</a>
+                  <small>If it is not installed, install Urban Director Studio from TestFlight on this phone, or continue below for browser video.</small>
+                </div>
+              )}
+
               <div className={`camera-startup-step ${telemetryAllowed ? "complete" : "active"}`}>
                 <div className="camera-startup-step-number">{telemetryAllowed ? "✓" : "1"}</div>
                 <div className="camera-startup-step-copy">
@@ -3498,13 +3520,13 @@ async function enableCamera() {
 
                       if (!videoTrack || videoTrack.readyState === "ended") {
                         stopCamera();
-                        await startCamera();
+                        await enableCamera();
                         return;
                       }
 
                       socket.setNetwork(networkId, cameraJoinToken);
                       socket.setRoom(roomCode);
-                      socket.connect();
+                      socket.reconnect();
                       setCameraInterrupted(false);
                       setCameraResumeStatus("CAMERA SESSION RESUMED");
                     }}
@@ -3754,6 +3776,13 @@ async function enableCamera() {
               </>
             )}
 
+            {!Capacitor.isNativePlatform() && !navigator.getBattery && nativeCameraLink(window.location.search) && (
+              <div className="camera-battery-app-note">
+                <strong>Battery status needs the phone app</strong>
+                <p>This browser does not expose the iPhone battery level.</p>
+                <a href={nativeCameraLink(window.location.search)} onClick={stopCamera}>SWITCH TO IPHONE APP</a>
+              </div>
+            )}
             <div className="telemetry-consent">
               <div>
                 <strong>DEVICE TELEMETRY</strong>
@@ -3799,7 +3828,7 @@ async function enableCamera() {
                     ? Number.isFinite(cameraTelemetry.battery)
                       ? `${cameraTelemetry.battery}%${cameraTelemetry.charging ? " CHARGING" : ""}`
                       : "BATTERY WAITING"
-                    : "BATTERY UNSUPPORTED"
+                    : "BATTERY: USE IPHONE APP"
                   : "BATTERY NOT SHARED"}
               </span>
 
@@ -3894,15 +3923,7 @@ async function enableCamera() {
     return camera.network ? "LIMITED" : "CHECKING";
   };
 
-  const batteryLabelForCamera = camera => {
-    if (!camera) return "OFFLINE";
-    if (Number.isFinite(camera.battery)) {
-      return `${camera.battery}%${camera.charging ? " ⚡" : ""}`;
-    }
-    if (camera.telemetryConsent === false) return "NOT SHARED";
-    if (camera.telemetrySupport?.battery === false) return "DEVICE BLOCKED";
-    return "WAITING";
-  };
+  const batteryLabelForCamera = cameraBatteryLabel;
 
   const displayNameForCamera = slotId => {
     if (!slotId) return "NO SOURCE SELECTED";
@@ -4201,6 +4222,17 @@ async function enableCamera() {
             )}
           </aside>
         </>
+      )}
+
+      {(!cameraVideoSupported || cameraLinkError) && (
+        <div className="director-lock-banner camera-link-error" role="alert">
+          <Video size={18}/>
+          <div>
+            <strong>CAMERA VIDEO CONNECTION</strong>
+            <span>{cameraLinkError || "This app environment does not provide live camera video. Open the web Director on this Mac to connect your phone."}</span>
+          </div>
+          <a href="https://urbandirector.icomputeranything.com/app" target="_blank" rel="noopener noreferrer">OPEN WEB DIRECTOR</a>
+        </div>
       )}
 
       {directorLockMessage && (

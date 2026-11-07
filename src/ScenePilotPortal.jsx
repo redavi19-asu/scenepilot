@@ -283,7 +283,7 @@ function CameraAppHandoff() {
         <Smartphone size={30}/>
         <span className="sp-kicker">URBAN DIRECTOR STUDIO CAMERA</span>
         <h1>Open the camera in Urban Director Studio.</h1>
-        <p>The installed app can share battery status. Chrome cannot provide it on iPhone or iPad.</p>
+        <p>The installed iPhone app can share battery status. iPhone browsers do not provide battery readings. If needed, install Urban Director Studio from TestFlight on the phone first.</p>
         <button className="sp-auth-submit" onClick={() => window.location.assign(appUrl)}>
           OPEN URBAN DIRECTOR STUDIO APP
         </button>

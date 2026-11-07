@@ -25,8 +25,10 @@ function switcher() {
     setProgramTransition: "programTransition", setRemoteStreams: "remoteStreams", setSignalStatus: "signalStatus"
   })) state[setter] = value => { state[key] = typeof value === "function" ? value(state[key]) : value; };
   const context = vm.createContext(state);
-  const onTrack = source.slice(source.indexOf("onTrack: incomingStream => {") + "onTrack: ".length,
-    source.indexOf(",\n\n        onConnectionState", source.indexOf("onTrack: incomingStream => {")));
+  const trackStart = source.indexOf("onTrack: incomingStream => {");
+  const stateHandler = source.slice(trackStart).search(/,\n\n\s+onConnectionState/);
+  assert.ok(stateHandler > 0, "Find the end of the actual media callback");
+  const onTrack = source.slice(trackStart + "onTrack: ".length, trackStart + stateHandler);
   state.connect = vm.runInContext(`(${onTrack})`, context);
   for (const [start, end] of [
     ["  function applyProgramComposition(", "  function chooseCompositionMode("],

@@ -1,9 +1,20 @@
+export function supportsWebRTC(environment = globalThis) {
+  return typeof environment.RTCPeerConnection === "function" && typeof environment.MediaStream === "function";
+}
+
+export function requireWebRTC() {
+  if (!supportsWebRTC()) {
+    throw new Error("Live camera video is unavailable in this app environment. Open Director in Safari or Chrome on this Mac.");
+  }
+}
+
 export function createPeerConnection({
   onIceCandidate,
   onTrack,
   onConnectionState,
   iceServers
 } = {}) {
+  requireWebRTC();
   if (!Array.isArray(iceServers) || !iceServers.length) {
     throw new Error("Director ICE configuration is missing.");
   }
