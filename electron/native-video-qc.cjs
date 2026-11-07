@@ -11,7 +11,7 @@ app.setPath('userData',profile);app.commandLine.appendSwitch('autoplay-policy','
 const deadline=setTimeout(()=>{fs.writeFileSync(output,JSON.stringify({pass:false,error:'Native engine probe timed out'},null,2));app.exit(1)},30000);
 app.whenReady().then(async()=>{
  if(process.platform==='darwin'&&!process.env.CI)app.dock.hide();
- const win=new BrowserWindow({show:Boolean(process.env.CI),webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false}});
+ const win=new BrowserWindow({show:Boolean(process.env.CI),webPreferences:{preload:path.join(__dirname,"preload.cjs"),additionalArguments:["--uds-direct"],nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false}});
  // Match Studio media/ICE permission handling; the fixture never acquires hardware.
  win.webContents.session.setPermissionCheckHandler((_w,permission)=>{permissions.add('check:'+permission);return ['media','local-network','local-network-access','loopback-network'].includes(permission)});
  win.webContents.session.setPermissionRequestHandler((_w,permission,cb)=>{permissions.add('request:'+permission);cb(['media','local-network','local-network-access','loopback-network'].includes(permission))});
@@ -36,7 +36,7 @@ app.whenReady().then(async()=>{
   const helper=fs.readFileSync(path.join(__dirname,'../src/webrtc.js'),'utf8');
   const data='data:text/javascript;base64,'+Buffer.from(helper).toString('base64');
   const result=await win.webContents.executeJavaScript(`(async()=>{
-   const capabilities={secureContext:isSecureContext,peerConnection:typeof RTCPeerConnection,mediaStream:typeof MediaStream,mediaRecorder:typeof MediaRecorder,cameraAPI:typeof navigator.mediaDevices?.getUserMedia,screenCaptureAPI:typeof navigator.mediaDevices?.getDisplayMedia};
+   const capabilities={desktopBridge:typeof window.urbanDirectorDesktop?.auth?.start==='function' && window.urbanDirectorDesktop?.store==='direct',secureContext:isSecureContext,peerConnection:typeof RTCPeerConnection,mediaStream:typeof MediaStream,mediaRecorder:typeof MediaRecorder,cameraAPI:typeof navigator.mediaDevices?.getUserMedia,screenCaptureAPI:typeof navigator.mediaDevices?.getDisplayMedia};
    navigator.mediaDevices.getUserMedia=()=>Promise.reject(new Error('Hardware capture is disabled in this synthetic fixture'));
    navigator.mediaDevices.getDisplayMedia=()=>Promise.reject(new Error('Hardware capture is disabled in this synthetic fixture'));
    const {createPeerConnection}=await import(${JSON.stringify(data)});
@@ -54,7 +54,7 @@ app.whenReady().then(async()=>{
    const end=Date.now()+15000;let decoded=0;
    while(Date.now()<end){const stats=await receiver.getStats();stats.forEach(r=>{if(r.type==='inbound-rtp'&&r.kind==='video')decoded=r.framesDecoded||0});if(decoded>=3&&video.videoWidth===320)break;await new Promise(r=>setTimeout(r,100))}
    const pairs=[];(await receiver.getStats()).forEach(r=>{if(r.type==='candidate-pair')pairs.push({state:r.state,nominated:r.nominated,requestsSent:r.requestsSent,responsesReceived:r.responsesReceived})});
-   const result={candidateCounts,iceErrors,pairs,capabilities,connectionState:receiver.connectionState,videoWidth:video.videoWidth,videoHeight:video.videoHeight,decodedFrames:decoded,pass:receiver.connectionState==='connected'&&decoded>=3&&video.videoWidth===320};
+   const result={candidateCounts,iceErrors,pairs,capabilities,connectionState:receiver.connectionState,videoWidth:video.videoWidth,videoHeight:video.videoHeight,decodedFrames:decoded,pass:capabilities.desktopBridge && receiver.connectionState==='connected'&&decoded>=3&&video.videoWidth===320};
    clearInterval(timer);source.getTracks().forEach(t=>t.stop());sender.close();receiver.close();return result;
   })()`,true);
   result.checkedPermissions=[...permissions];result.engine={electron:process.versions.electron,chromium:process.versions.chrome,platform:process.platform,arch:process.arch};result.test='Synthetic video loopback through production createPeerConnection helper using genuine loopback-interface ICE candidates; no physical camera, LAN traversal, user session or external browser tested';

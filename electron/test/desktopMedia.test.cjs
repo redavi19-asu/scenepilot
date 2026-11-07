@@ -8,7 +8,7 @@ const localRequire = createRequire(require('node:path').resolve(__dirname, '../m
 async function setup() {
   const handlers = {};
   const electron = {
-    ipcMain: {handle(){}},
+    ipcMain: {handle(name,fn){handlers[name]=fn;}},
     app: {whenReady:()=>Promise.resolve(),on(){}},
     session: {defaultSession:{
       setPermissionCheckHandler(fn){handlers.check=fn;},
@@ -55,4 +55,14 @@ test('native monitor placement and local camera routes are allowed only for Stud
   assert.equal(handlers.check(null,permission,'https://example.com'),false);
  }
  assert.equal(handlers.check(null,'geolocation','https://urbandirector.icomputeranything.com'),false);
+});
+
+
+test('privileged desktop IPC rejects external origins and subframes',async()=>{
+ const {handlers}=await setup();
+ const frame={url:'https://example.com/'};
+ assert.throws(()=>handlers['uds:auth:start']({senderFrame:frame,sender:{mainFrame:frame}}),/Untrusted/);
+ const main={url:'https://urbandirector.icomputeranything.com/app'};
+ assert.throws(()=>handlers['uds:auth:cancel']({senderFrame:{url:main.url},sender:{mainFrame:main}}),/Untrusted/);
+ assert.doesNotThrow(()=>handlers['uds:auth:cancel']({senderFrame:main,sender:{mainFrame:main}}));
 });
