@@ -1,23 +1,23 @@
 const {app,BrowserWindow}=require('electron');
+const http=require('node:http');
 const fs=require('node:fs');const os=require('node:os');const path=require('node:path');
 const output=path.resolve(process.env.UDS_QC_OUTPUT || 'release-qc/native-engine-qc.json');fs.mkdirSync(path.dirname(output),{recursive:true});
+const permissions=new Set();
 const profile=fs.mkdtempSync(path.join(os.tmpdir(),'uds-native-qc-'));
-// Hosted CI runners cannot resolve multicast DNS between virtual interfaces.
-// This affects only synthetic same-process ICE, never the shipping app.
-app.commandLine.appendSwitch('disable-features','WebRtcHideLocalIpsWithMdns');
 app.setPath('userData',profile);app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
 const deadline=setTimeout(()=>{fs.writeFileSync(output,JSON.stringify({pass:false,error:'Native engine probe timed out'},null,2));app.exit(1)},30000);
 app.whenReady().then(async()=>{
  if(process.platform==='darwin')app.dock.hide();
  const win=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false}});
  // The isolated fixture needs local ICE traffic; deny all hardware permissions.
- win.webContents.session.setPermissionCheckHandler((_w,permission)=>['local-network','local-network-access','loopback-network'].includes(permission));
- win.webContents.session.setPermissionRequestHandler((_w,permission,cb)=>cb(['local-network','local-network-access','loopback-network'].includes(permission)));
+ win.webContents.session.setPermissionCheckHandler((_w,permission)=>{permissions.add(permission);return ['media','local-network','local-network-access','loopback-network'].includes(permission)});
+ win.webContents.session.setPermissionRequestHandler((_w,permission,cb)=>{permissions.add(permission);cb(['local-network','local-network-access','loopback-network'].includes(permission))});
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  win.webContents.on('will-navigate',event=>event.preventDefault());
- const page=path.join(profile,'probe.html');fs.writeFileSync(page,'<!doctype html><title>Urban Director native video QC</title><body></body>');
+ const server=http.createServer((_request,response)=>{response.setHeader('Content-Type','text/html');response.end('<!doctype html><title>Urban Director native video QC</title><body></body>')});
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  try{
-  await win.loadFile(page);
+  await win.loadURL('http://127.0.0.1:'+server.address().port);
   const helper=fs.readFileSync(path.join(__dirname,'../src/webrtc.js'),'utf8');
   const data='data:text/javascript;base64,'+Buffer.from(helper).toString('base64');
   const result=await win.webContents.executeJavaScript(`(async()=>{
@@ -38,7 +38,7 @@ app.whenReady().then(async()=>{
    const result={capabilities,connectionState:receiver.connectionState,videoWidth:video.videoWidth,videoHeight:video.videoHeight,decodedFrames:decoded,pass:receiver.connectionState==='connected'&&decoded>=3&&video.videoWidth===320};
    clearInterval(timer);source.getTracks().forEach(t=>t.stop());sender.close();receiver.close();return result;
   })()`,true);
-  result.engine={electron:process.versions.electron,chromium:process.versions.chrome,platform:process.platform,arch:process.arch};result.test='Synthetic video loopback through actual production createPeerConnection helper; no camera, microphone, user session or external browser used';
+  result.checkedPermissions=[...permissions];result.engine={electron:process.versions.electron,chromium:process.versions.chrome,platform:process.platform,arch:process.arch};result.test='Synthetic video loopback through production createPeerConnection helper using host ICE candidates; no physical camera, LAN traversal, user session or external browser tested';
   fs.writeFileSync(output,JSON.stringify(result,null,2));console.log(JSON.stringify(result));clearTimeout(deadline);win.destroy();app.exit(result.pass?0:1);
  }catch(e){fs.writeFileSync(output,JSON.stringify({pass:false,error:e.message},null,2));console.error(e.message);clearTimeout(deadline);app.exit(1)}
 });

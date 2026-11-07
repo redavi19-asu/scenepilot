@@ -99,6 +99,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
-    "forceCodeSigning": true
+    "forceCodeSigning": true,
+    "afterPack": "electron/afterPack.cjs"
   }
 }

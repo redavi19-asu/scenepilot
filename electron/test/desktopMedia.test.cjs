@@ -49,7 +49,7 @@ test('wrapper allows monitor portal but denies arbitrary blank window',async()=>
 
 test('native monitor placement and local camera routes are allowed only for Studio', async()=>{
  const {handlers}=await setup();
- for(const permission of ['window-management','local-network','fullscreen']) {
+ for(const permission of ['window-management','local-network','local-network-access','loopback-network','fullscreen']) {
   assert.equal(handlers.check(null,permission,'https://urbandirector.icomputeranything.com'),true);
   assert.equal(handlers.check(null,permission,'https://example.com'),false);
  }

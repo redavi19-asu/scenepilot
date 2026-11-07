@@ -5,13 +5,13 @@ The Mac TestFlight build is currently the iPad compatibility app. It lacks the r
 ## Verified work
 
 - Camera session regressions cover stale slot cleanup, same-device reconnect, independent devices sharing an invite, stable slot numbers, nine-camera capacity, on-air signaling and disconnected Program routing.
-- The native-video workflow runs real Electron on Mac and Windows and decodes synthetic video using the production WebRTC helper. It does not exercise physical cameras, remote networking, store sandboxing or account sign-in. Multicast DNS is disabled only in this isolated fixture because hosted runners do not resolve multicast host candidates.
+- The native-video workflow runs real Electron on Mac and Windows and decodes synthetic video using the production WebRTC helper. It does not exercise physical cameras, remote networking, store sandboxing or account sign-in. The isolated fixture serves its own localhost page and permits media permission checks for ICE interface enumeration while denying actual camera/microphone permission requests. No hardware capture API is called. Hosted runner results do not certify real-device networking.
 - Desktop permission checks restrict video, monitor placement and local-network permissions to the configured Studio origin.
 - Screenshot review pack is saved separately. Edited desktop marketing images are not actual Android captures.
 
 ## Direct Mac and Windows distribution
 
-`npm run package:mac:dmg` and `npm run package:win` retain mandatory code signing. Mac distribution additionally requires notarization and stapling; Windows installers require valid Authenticode signatures. The existing production-package workflow publishes download links only after signature verification. A local Developer ID certificate alone does not establish App Store readiness.
+`npm run package:mac:dmg` and `npm run package:win` retain mandatory code signing. Mac distribution additionally requires notarization and stapling; Windows installers require valid Authenticode signatures. The Mac after-pack hook removes Finder/resource-fork metadata from generated app bundles before signing. The existing production-package workflow publishes download links only after signature verification. A local Developer ID certificate alone does not establish App Store readiness.
 
 ## Mac App Store target
 
