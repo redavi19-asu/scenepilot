@@ -1,5 +1,6 @@
 const {app,BrowserWindow}=require('electron');
 const http=require('node:http');
+const dgram=require('node:dgram');
 const fs=require('node:fs');const os=require('node:os');const path=require('node:path');
 const output=path.resolve(process.env.UDS_QC_OUTPUT || 'release-qc/native-engine-qc.json');fs.mkdirSync(path.dirname(output),{recursive:true});
 const permissions=new Set();
@@ -18,6 +19,17 @@ app.whenReady().then(async()=>{
  win.webContents.on('will-navigate',event=>event.preventDefault());
  const server=http.createServer((_request,response)=>{response.setHeader('Content-Type','text/html');response.end('<!doctype html><title>Urban Director native video QC</title><body></body>')});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ // Answer real STUN Binding requests locally. A deliberately closed UDP port
+ // can abort sockets on macOS/Windows and invalidate the transport check.
+ const stun=dgram.createSocket('udp4');
+ stun.on('message',(request,remote)=>{
+  if(request.length<20||request.readUInt16BE(0)!==1||request.readUInt32BE(4)!==0x2112a442)return;
+  const response=Buffer.alloc(32);response.writeUInt16BE(0x101,0);response.writeUInt16BE(12,2);request.copy(response,4,4,20);
+  response.writeUInt16BE(0x20,20);response.writeUInt16BE(8,22);response[25]=1;response.writeUInt16BE(remote.port^0x2112,26);
+  const address=remote.address.split('.').map(Number),cookie=[0x21,0x12,0xa4,0x42];for(let i=0;i<4;i++)response[28+i]=address[i]^cookie[i];
+  stun.send(response,remote.port,remote.address);
+ });
+ await new Promise(resolve=>stun.bind(0,'127.0.0.1',resolve));
  try{
   await win.loadURL('http://127.0.0.1:'+server.address().port);
   if(process.env.CI){win.show();win.focus();app.focus({steal:true})}
@@ -31,10 +43,11 @@ app.whenReady().then(async()=>{
    const canvas=document.createElement('canvas');canvas.width=320;canvas.height=180;const ctx=canvas.getContext('2d');let f=0;
    const paint=()=>{ctx.fillStyle=f++%2?'#267bc4':'#e7a535';ctx.fillRect(0,0,320,180)};paint();const timer=setInterval(paint,50);
    const source=canvas.captureStream(15);const video=document.createElement('video');video.muted=true;video.autoplay=true;video.playsInline=true;document.body.append(video);
+   const iceServers=${JSON.stringify([{urls:'stun:127.0.0.1:'+stun.address().port}])};
    const queues={sender:[],receiver:[]};let sender,receiver;const candidateCounts={seen:0,loopback:0};const iceErrors=[];
    const ice=(target,candidate,key)=>{candidateCounts.seen++;const address=candidate.candidate.split(' ')[4];if(address!=='127.0.0.1'&&address!=='::1')return;candidateCounts.loopback++;if(target?.remoteDescription)target.addIceCandidate(candidate).catch(error=>iceErrors.push(error.message));else queues[key].push(candidate)};
-   sender=createPeerConnection({iceServers:[{urls:'stun:127.0.0.1:9'}],onIceCandidate:c=>ice(receiver,c,'receiver')});
-   receiver=createPeerConnection({iceServers:[{urls:'stun:127.0.0.1:9'}],onIceCandidate:c=>ice(sender,c,'sender'),onTrack:s=>{video.srcObject=s;video.play().catch(()=>{})}});
+   sender=createPeerConnection({iceServers,onIceCandidate:c=>ice(receiver,c,'receiver')});
+   receiver=createPeerConnection({iceServers,onIceCandidate:c=>ice(sender,c,'sender'),onTrack:s=>{video.srcObject=s;video.play().catch(()=>{})}});
    source.getTracks().forEach(t=>sender.addTrack(t,source));receiver.addTransceiver('video',{direction:'recvonly'});
    const offer=await receiver.createOffer();await receiver.setLocalDescription(offer);await sender.setRemoteDescription(offer);for(const c of queues.sender)await sender.addIceCandidate(c);
    const answer=await sender.createAnswer();await sender.setLocalDescription(answer);await receiver.setRemoteDescription(answer);for(const c of queues.receiver)await receiver.addIceCandidate(c);
