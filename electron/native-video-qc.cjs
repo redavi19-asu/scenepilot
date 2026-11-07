@@ -9,8 +9,8 @@ app.commandLine.appendSwitch('allow-loopback-in-peer-connection');
 app.setPath('userData',profile);app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
 const deadline=setTimeout(()=>{fs.writeFileSync(output,JSON.stringify({pass:false,error:'Native engine probe timed out'},null,2));app.exit(1)},30000);
 app.whenReady().then(async()=>{
- if(process.platform==='darwin')app.dock.hide();
- const win=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false}});
+ if(process.platform==='darwin'&&!process.env.CI)app.dock.hide();
+ const win=new BrowserWindow({show:Boolean(process.env.CI),webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false}});
  // Match Studio media/ICE permission handling; the fixture never acquires hardware.
  win.webContents.session.setPermissionCheckHandler((_w,permission)=>{permissions.add('check:'+permission);return ['media','local-network','local-network-access','loopback-network'].includes(permission)});
  win.webContents.session.setPermissionRequestHandler((_w,permission,cb)=>{permissions.add('request:'+permission);cb(['media','local-network','local-network-access','loopback-network'].includes(permission))});
@@ -20,6 +20,7 @@ app.whenReady().then(async()=>{
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
  try{
   await win.loadURL('http://127.0.0.1:'+server.address().port);
+  if(process.env.CI){win.show();win.focus();app.focus({steal:true})}
   const helper=fs.readFileSync(path.join(__dirname,'../src/webrtc.js'),'utf8');
   const data='data:text/javascript;base64,'+Buffer.from(helper).toString('base64');
   const result=await win.webContents.executeJavaScript(`(async()=>{
