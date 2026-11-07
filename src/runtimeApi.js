@@ -36,6 +36,8 @@ export async function apiFetch(path, options = {}) {
   const headers = new Headers(options.headers || {});
   const token = getNativeSessionToken();
 
+  if (globalThis.window?.urbanDirectorDesktop?.store === "mac-app-store") headers.set("X-Urban-Director-Platform", "macos");
+
   if (isNativeApp()) {
     headers.set("X-Urban-Director-Platform", Capacitor.getPlatform());
     if (token) headers.set("Authorization", `Bearer ${token}`);

@@ -1,0 +1,49 @@
+name: Urban Director Native Desktop QC
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'electron/**'
+      - 'src/webrtc.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/desktop-qc.yml'
+permissions:
+  contents: read
+jobs:
+  native-video:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Check desktop permission boundaries
+        run: node --test electron/test/*.test.cjs
+      - name: Decode synthetic video inside the native app engine
+        run: npx --no-install electron electron/native-video-qc.cjs
+      - name: Build Windows installer for QC only
+        if: runner.os == 'Windows'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx --no-install electron-builder --win nsis --x64 --publish never --config.forceCodeSigning=false --config.directories.output=release-qc/windows --config.appId=com.icomputeranything.scenepilot.nativeqc --config.productName="Urban Director Studio Native QC" --config.extraMetadata.productName="Urban Director Studio Native QC" --config.artifactName=Urban-Director-Studio-Native-QC-Windows-x64-UNSIGNED.exe
+      - name: Retain unsigned Windows QC installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-Installer-UNSIGNED-QC
+          path: release-qc/windows/*.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-video-qc-${{ matrix.os }}
+          path: release-qc/*.json
+          if-no-files-found: error

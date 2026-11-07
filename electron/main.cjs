@@ -1,10 +1,16 @@
-const { app, BrowserWindow, session, shell, desktopCapturer, dialog } = require("electron");
+const { app, BrowserWindow, session, shell, desktopCapturer, dialog, ipcMain, inAppPurchase } = require("electron");
 
+const path = require('node:path');
+const { createStoreKit } = require('./storeKit.cjs');
+const { createDesktopAuth } = require('./desktopAuth.cjs');
 const { isMonitorPopup } = require("./windowPolicy.cjs");
 
 const APP_URL = process.env.SCENEPILOT_APP_URL ||
-  "https://scenepilot.ryanedavis.workers.dev/app";
+  "https://urbandirector.icomputeranything.com/app";
 const APP_ORIGIN = new URL(APP_URL).origin;
+// Chromium 152 gates local ICE routes and monitor placement separately.
+// These capabilities are restricted to the configured first-party app origin.
+const STUDIO_PERMISSIONS = new Set(["media", "display-capture", "window-management", "local-network", "local-network-access", "loopback-network", "fullscreen"]);
 
 function isScenePilotUrl(value) {
   try {
@@ -27,12 +33,12 @@ function configurePermissions() {
   const appSession = session.defaultSession;
 
   appSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
-    return ["media", "display-capture"].includes(permission) && isScenePilotUrl(requestingOrigin);
+    return STUDIO_PERMISSIONS.has(permission) && isScenePilotUrl(requestingOrigin);
   });
 
   appSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const requestingUrl = details?.requestingUrl || webContents.getURL();
-    callback(["media", "display-capture"].includes(permission) && isScenePilotUrl(requestingUrl));
+    callback(STUDIO_PERMISSIONS.has(permission) && isScenePilotUrl(requestingUrl));
   });
 
   appSession.setDisplayMediaRequestHandler(async (request, callback) => {
@@ -62,6 +68,8 @@ function createWindow() {
     autoHideMenuBar: true,
     show: false,
     webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      additionalArguments: [process.mas && process.platform==='darwin' ? '--uds-mas' : '--uds-direct'],
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -90,6 +98,29 @@ function createWindow() {
 
 app.whenReady().then(() => {
   configurePermissions();
+  const auth=createDesktopAuth({origin:APP_ORIGIN,openExternal:url=>shell.openExternal(url),cookies:session.defaultSession.cookies});
+  const trusted=event=>event.senderFrame && event.senderFrame===event.sender.mainFrame && isScenePilotUrl(event.senderFrame.url);
+  ipcMain.handle('uds:auth:start',event=>{
+    if(!trusted(event)) throw new Error('Untrusted sign-in request');
+    return auth.start();
+  });
+  ipcMain.handle('uds:auth:cancel',event=>{
+    if(!trusted(event)) throw new Error('Untrusted sign-in request');
+    auth.cancel();
+  });
+  app.on('before-quit',()=>auth.cancel());
+  if(process.mas && process.platform==='darwin') {
+    const store=createStoreKit({store:inAppPurchase,openExternal:url=>shell.openExternal(url),request:async(route,body)=>{
+      const response=await session.defaultSession.fetch(`${APP_ORIGIN}${route}`,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','X-Urban-Director-Platform':'macos','Origin':APP_ORIGIN},...(body?{body:JSON.stringify(body)}:{})});
+      const data=await response.json();if(!response.ok)throw new Error(data.error||'Apple verification failed.');return data;
+    }});
+    for(const method of ['getProduct','purchase','restore','currentEntitlement','manageSubscriptions']) {
+      ipcMain.handle(`uds:store:${method}`,event=>{
+        if(!trusted(event))throw new Error('Untrusted purchase request');
+        return store[method]();
+      });
+    }
+  }
   createWindow();
 
   app.on("activate", () => {

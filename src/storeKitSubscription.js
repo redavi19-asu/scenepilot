@@ -5,9 +5,10 @@ export const APPLE_SUBSCRIPTION_PRODUCT_ID =
   "com.icomputeranything.scenepilot.pro.monthly";
 
 const NativeStoreKit = registerPlugin("StoreKitSubscription");
+const desktopStore = () => globalThis.window?.urbanDirectorDesktop?.storeKit;
 
 export function isAppleStoreKitAvailable() {
-  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios";
+  return Boolean(desktopStore()) || (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "ios");
 }
 
 async function apiJson(path, options = {}) {
@@ -47,17 +48,17 @@ export async function getAppleSubscriptionProduct() {
     return { available: false, native: false };
   }
 
-  return NativeStoreKit.getProduct({
+  return (desktopStore() || NativeStoreKit).getProduct({
     productId: APPLE_SUBSCRIPTION_PRODUCT_ID
   });
 }
 
 export async function purchaseAppleSubscription(appAccountToken) {
   if (!isAppleStoreKitAvailable()) {
-    throw new Error("Apple subscriptions are available in the iPhone/iPad app.");
+    throw new Error("Apple subscriptions are available in the Apple app.");
   }
 
-  const result = await NativeStoreKit.purchase({
+  const result = await (desktopStore() || NativeStoreKit).purchase({
     productId: APPLE_SUBSCRIPTION_PRODUCT_ID,
     appAccountToken
   });
@@ -74,12 +75,14 @@ export async function purchaseAppleSubscription(appAccountToken) {
 
 export async function restoreAppleSubscription() {
   if (!isAppleStoreKitAvailable()) {
-    throw new Error("Restore Purchases is available in the iPhone/iPad app.");
+    throw new Error("Restore Purchases is available in the Apple app.");
   }
 
-  const result = await NativeStoreKit.restore({
+  const result = await (desktopStore() || NativeStoreKit).restore({
     productId: APPLE_SUBSCRIPTION_PRODUCT_ID
   });
+
+  if (desktopStore() && result.entitlement) return result;
 
   if (result?.active && result.transaction) {
     return {
@@ -98,10 +101,11 @@ export async function restoreAppleSubscription() {
 
 export async function refreshAppleSubscription() {
   if (isAppleStoreKitAvailable()) {
-    const local = await NativeStoreKit.currentEntitlement({
+    const local = await (desktopStore() || NativeStoreKit).currentEntitlement({
       productId: APPLE_SUBSCRIPTION_PRODUCT_ID
     }).catch(() => null);
 
+    if (desktopStore() && local?.entitlement) return local.entitlement;
     if (local?.active && local.transaction?.transactionId) {
       return syncTransaction(local.transaction);
     }
@@ -115,7 +119,7 @@ export async function refreshAppleSubscription() {
 
 export async function manageAppleSubscription() {
   if (!isAppleStoreKitAvailable()) {
-    throw new Error("Subscription management is available in the iPhone/iPad app.");
+    throw new Error("Subscription management is available in the Apple app.");
   }
-  return NativeStoreKit.manageSubscriptions();
+  return (desktopStore() || NativeStoreKit).manageSubscriptions();
 }

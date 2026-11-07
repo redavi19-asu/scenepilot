@@ -1,8 +1,10 @@
+import { latestAppleSubscription, assertAppleAccountBinding } from "./apple-subscription-status.js";
 import { handleGooglePlayBilling } from "./google-play-billing.js";
 import { readMasterFreeAccess } from './master-free-access.js';
 import { handleStripeBilling, stripeConfig } from "./stripe-billing.js";
 import { ensureBundledMigrations } from "./migrations.js";
 import { handleSocialAuth } from "./social-auth.js";
+import { handleDesktopAuth } from "./desktop-auth.js";
 import { requestPasswordReset, resetPassword } from "./password-recovery.js";
 import { issueDirectorIceServers } from "./director-turn.js";
 
@@ -588,11 +590,13 @@ async function appleTransactionInfo(env, transactionId) {
     const data = await response.json().catch(() => ({}));
 
     if (response.ok && data.signedTransactionInfo) {
-      return {
-        environment: host.environment,
-        signedTransactionInfo: data.signedTransactionInfo,
-        payload: decodeAppleJwsPayload(data.signedTransactionInfo)
-      };
+      const latest = await latestAppleSubscription({
+        base: host.base, token, transactionId: id,
+        initial: decodeAppleJwsPayload(data.signedTransactionInfo),
+        productId: appleBillingConfig(env).productId, bundleId: appleBillingConfig(env).bundleId,
+        decode: decodeAppleJwsPayload
+      });
+      return { environment: host.environment, ...latest };
     }
 
     if (response.status === 404) {
@@ -726,11 +730,7 @@ async function applyAppleEntitlement(env, user, verified) {
      LIMIT 1`
   ).bind(verified.originalTransactionId).first();
 
-  if (existingLink?.user_id && existingLink.user_id !== user.id) {
-    throw new Error(
-      "This Apple subscription is already linked to another Urban Director Studio account."
-    );
-  }
+  assertAppleAccountBinding(verified, user.id, existingLink?.user_id);
 
   const now = Date.now();
   const status = verified.active ? "active" : "expired";
@@ -861,9 +861,10 @@ async function handleAppleBillingSync(request, env) {
     return json({ error: "Sign in before purchasing Urban Director Studio Pro." }, 401);
   }
 
-  if (!isNativeAppRequest(request)) {
+  const macStoreRequest = request.headers.get("X-Urban-Director-Platform") === "macos" && request.headers.get("Origin") === new URL(request.url).origin;
+  if (!isNativeAppRequest(request) && !macStoreRequest) {
     return json({
-      error: "Apple purchase verification must start from the iPhone/iPad app."
+      error: "Apple purchase verification must start from the Apple app."
     }, 403);
   }
 
@@ -3930,6 +3931,16 @@ async function handleApi(request, env, url) {
   if (url.pathname === "/api/auth/social/status" || url.pathname.startsWith("/api/auth/social/")) {
     const socialResponse = await handleSocialAuth(request, env);
     if (socialResponse) return socialResponse;
+  }
+
+  if (url.pathname.startsWith("/api/auth/desktop/")) {
+    return handleDesktopAuth(request, env, {
+      getCurrentUser,
+      sessionHash: async current => {
+        const raw = bearerToken(current) || parseCookies(current)[SESSION_COOKIE];
+        return raw ? sha256(raw) : "";
+      }
+    });
   }
 
   if (url.pathname === "/api/auth/register" && request.method === "POST") {
