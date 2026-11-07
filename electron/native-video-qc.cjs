@@ -30,8 +30,8 @@ app.whenReady().then(async()=>{
    const canvas=document.createElement('canvas');canvas.width=320;canvas.height=180;const ctx=canvas.getContext('2d');let f=0;
    const paint=()=>{ctx.fillStyle=f++%2?'#267bc4':'#e7a535';ctx.fillRect(0,0,320,180)};paint();const timer=setInterval(paint,50);
    const source=canvas.captureStream(15);const video=document.createElement('video');video.muted=true;video.autoplay=true;video.playsInline=true;document.body.append(video);
-   const queues={sender:[],receiver:[]};let sender,receiver;
-   const ice=(target,candidate,key)=>{const address=candidate.candidate.split(' ')[4];if(address!=='127.0.0.1'&&address!=='::1')return;if(target?.remoteDescription)target.addIceCandidate(candidate).catch(()=>{});else queues[key].push(candidate)};
+   const queues={sender:[],receiver:[]};let sender,receiver;const candidateCounts={seen:0,loopback:0};const iceErrors=[];
+   const ice=(target,candidate,key)=>{candidateCounts.seen++;const address=candidate.candidate.split(' ')[4];if(address!=='127.0.0.1'&&address!=='::1')return;candidateCounts.loopback++;if(target?.remoteDescription)target.addIceCandidate(candidate).catch(error=>iceErrors.push(error.message));else queues[key].push(candidate)};
    sender=createPeerConnection({iceServers:[{urls:'stun:127.0.0.1:9'}],onIceCandidate:c=>ice(receiver,c,'receiver')});
    receiver=createPeerConnection({iceServers:[{urls:'stun:127.0.0.1:9'}],onIceCandidate:c=>ice(sender,c,'sender'),onTrack:s=>{video.srcObject=s;video.play().catch(()=>{})}});
    source.getTracks().forEach(t=>sender.addTrack(t,source));receiver.addTransceiver('video',{direction:'recvonly'});
@@ -39,7 +39,8 @@ app.whenReady().then(async()=>{
    const answer=await sender.createAnswer();await sender.setLocalDescription(answer);await receiver.setRemoteDescription(answer);for(const c of queues.receiver)await receiver.addIceCandidate(c);
    const end=Date.now()+15000;let decoded=0;
    while(Date.now()<end){const stats=await receiver.getStats();stats.forEach(r=>{if(r.type==='inbound-rtp'&&r.kind==='video')decoded=r.framesDecoded||0});if(decoded>=3&&video.videoWidth===320)break;await new Promise(r=>setTimeout(r,100))}
-   const result={capabilities,connectionState:receiver.connectionState,videoWidth:video.videoWidth,videoHeight:video.videoHeight,decodedFrames:decoded,pass:receiver.connectionState==='connected'&&decoded>=3&&video.videoWidth===320};
+   const pairs=[];(await receiver.getStats()).forEach(r=>{if(r.type==='candidate-pair')pairs.push({state:r.state,nominated:r.nominated,requestsSent:r.requestsSent,responsesReceived:r.responsesReceived})});
+   const result={candidateCounts,iceErrors,pairs,capabilities,connectionState:receiver.connectionState,videoWidth:video.videoWidth,videoHeight:video.videoHeight,decodedFrames:decoded,pass:receiver.connectionState==='connected'&&decoded>=3&&video.videoWidth===320};
    clearInterval(timer);source.getTracks().forEach(t=>t.stop());sender.close();receiver.close();return result;
   })()`,true);
   result.checkedPermissions=[...permissions];result.engine={electron:process.versions.electron,chromium:process.versions.chrome,platform:process.platform,arch:process.arch};result.test='Synthetic video loopback through production createPeerConnection helper using genuine loopback-interface ICE candidates; no physical camera, LAN traversal, user session or external browser tested';
