@@ -28,7 +28,9 @@
     "mobile:android": "npm run mobile:sync && cap open android",
     "mobile:ios": "npm run mobile:sync && cap open ios",
     "ios:repair": "bash scripts/repair-ios.sh",
-    "ios:icon": "xcrun swift scripts/generate-ios-icon.swift"
+    "ios:icon": "xcrun swift scripts/generate-ios-icon.swift",
+    "package:mac:store": "electron-builder --config electron/mas.config.cjs --mac mas --universal --publish never",
+    "package:mac:store:dev": "electron-builder --config electron/mas.config.cjs --mac mas-dev --arm64 --publish never"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
@@ -80,15 +82,18 @@
       "category": "public.app-category.video",
       "extendInfo": {
         "NSCameraUsageDescription": "Urban Director Studio uses the camera for live production video.",
-        "NSMicrophoneUsageDescription": "Urban Director Studio uses the microphone for live production audio."
+        "NSMicrophoneUsageDescription": "Urban Director Studio uses the microphone for live production audio.",
+        "NSLocalNetworkUsageDescription": "Urban Director Studio connects to cameras and production devices on your local network."
       },
       "hardenedRuntime": true,
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "icon": "public/urban-director-icon.png"
     },
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "public/urban-director-icon.png"
     },
     "nsis": {
       "oneClick": false,

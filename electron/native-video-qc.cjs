@@ -2,6 +2,9 @@ const {app,BrowserWindow}=require('electron');
 const fs=require('node:fs');const os=require('node:os');const path=require('node:path');
 const output=path.resolve(process.env.UDS_QC_OUTPUT || 'release-qc/native-engine-qc.json');fs.mkdirSync(path.dirname(output),{recursive:true});
 const profile=fs.mkdtempSync(path.join(os.tmpdir(),'uds-native-qc-'));
+// Hosted CI runners cannot resolve multicast DNS between virtual interfaces.
+// This affects only synthetic same-process ICE, never the shipping app.
+app.commandLine.appendSwitch('disable-features','WebRtcHideLocalIpsWithMdns');
 app.setPath('userData',profile);app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
 const deadline=setTimeout(()=>{fs.writeFileSync(output,JSON.stringify({pass:false,error:'Native engine probe timed out'},null,2));app.exit(1)},30000);
 app.whenReady().then(async()=>{
