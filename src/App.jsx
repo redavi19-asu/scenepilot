@@ -4285,6 +4285,16 @@ async function enableCamera() {
           </div>
           {popoutWorkspace.desktop ? (
             <>
+              <div className="uds-display-placement">
+                <button type="button" onClick={popoutWorkspace.enableScreens}>ENABLE MONITOR PLACEMENT</button>
+                {popoutWorkspace.screens.length > 0 && <label>OPEN NEW WINDOWS ON
+                  <select value={popoutWorkspace.targetScreen} onChange={event => popoutWorkspace.setTargetScreen(event.target.value)}>
+                    <option value="">SAVED POSITION / CURRENT MONITOR</option>
+                    {popoutWorkspace.screens.map((screen, index) => <option key={index} value={index}>{`MONITOR ${index + 1} · ${screen.label || "DISPLAY"}`}{screen.isPrimary ? " (PRIMARY)" : ""}</option>)}
+                  </select>
+                </label>}
+                <small>Allow Chrome to place windows on your displays. You can also drag a pop-out's top bar.</small>
+              </div>
               <div className="uds-multimonitor-quick">
                 {[
                   ["program", "PROGRAM (PGM)"], ["preview", "PREVIEW (PVW)"],
@@ -4323,7 +4333,7 @@ async function enableCamera() {
             <div className="monitor-head">
               <span>PREVIEW</span>
               <div className="uds-monitor-head-tools">
-                <PopoutHandle workspace={popoutWorkspace} view="preview"><MonitorUp size={14}/> DRAG / POP OUT</PopoutHandle>
+                <PopoutHandle workspace={popoutWorkspace} view="preview"><MonitorUp size={14}/> POP OUT</PopoutHandle>
                 <strong>PVW</strong>
               </div>
             </div>
@@ -4417,7 +4427,7 @@ async function enableCamera() {
             <div className="monitor-head">
               <span>PROGRAM</span>
               <div className="program-head-status">
-                <PopoutHandle workspace={popoutWorkspace} view="program"><MonitorUp size={14}/> DRAG / POP OUT</PopoutHandle>
+                <PopoutHandle workspace={popoutWorkspace} view="program"><MonitorUp size={14}/> POP OUT</PopoutHandle>
                 <span className={`program-live-status ${standby || (!programComposition.primary && instantReplayMode !== "program") ? "standby" : "live"}`}>
                   <i/> {standby ? "PROGRAM STANDBY" : !programComposition.primary && instantReplayMode !== "program" ? "PROGRAM EMPTY" : "PROGRAM LIVE"}
                 </span>
@@ -4740,7 +4750,7 @@ async function enableCamera() {
             <div className="main-camera-home-copy">
               <span>HOME SHOT</span>
               <strong>MAIN CAM</strong>
-              <PopoutHandle workspace={popoutWorkspace} view="main">DRAG / POP OUT</PopoutHandle>
+              <PopoutHandle workspace={popoutWorkspace} view="main">POP OUT</PopoutHandle>
               <small>Drag a connected camera here, or tap below to set Main Cam. TAKE returns to the selected source.</small>
               <select
                 className="main-camera-source-select"

@@ -31,3 +31,19 @@ test("the desktop-only feature stays off in native phone apps", () => {
   assert.equal(isDesktopWindowSupported(true, desktop), false);
   assert.equal(isDesktopWindowSupported(false, () => ({ matches: false })), false);
 });
+
+test('display placement uses actual extended-screen coordinates, including left and above', async () => {
+  const { boundsForDisplay, windowIsOnDisplay } = await import('./popoutWorkspace.js');
+  const left = { availLeft: -1920, availTop: 0, availWidth: 1920, availHeight: 1080 };
+  const above = { availLeft: 0, availTop: -1080, availWidth: 1920, availHeight: 1080 };
+  assert.equal(boundsForDisplay(left).left, -1896);
+  assert.equal(boundsForDisplay(above).top, -1056);
+  assert.equal(windowIsOnDisplay(boundsForDisplay(left), left), true);
+  assert.equal(windowIsOnDisplay(boundsForDisplay(left), above), false);
+  const smaller = boundsForDisplay({ availLeft: 100, availTop: 20, availWidth: 800, availHeight: 600 }, { width: 2000, height: 1500 });
+  assert.deepEqual(smaller, { left: 124, top: 44, width: 752, height: 520 });
+});
+test('dragging the pop-out header uses screen coordinates across display boundaries', async () => {
+  const { draggedWindowPosition } = await import('./popoutWorkspace.js');
+  assert.deepEqual(draggedWindowPosition({ left: -1000, top: 100, screenX: -800, screenY: 120 }, { screenX: 300, screenY: 320 }), { left: 100, top: 300 });
+});

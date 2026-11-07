@@ -2,14 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Capacitor } from "@capacitor/core";
 import {
+  boundsForDisplay, draggedWindowPosition, windowIsOnDisplay,
   getWindowBounds, isDesktopWindowSupported, parseWorkspace, popupFeatures,
   readWorkspace, safeBounds, validPopoutView, WORKSPACE_STORAGE_KEY
 } from "./popoutWorkspace";
 
 const WINDOW_STYLE = `
+.uds-window-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.uds-window-controls select{max-width:240px;padding:7px;background:#172a35;color:#e9f4ff;border:1px solid #607d92;font-size:11px}.uds-window-head:active{cursor:grabbing}
 :root{color-scheme:dark}*{box-sizing:border-box}html,body,#uds-popout-root{width:100%;height:100%;margin:0;overflow:hidden;background:#080e11;color:#f0f6f5;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 .uds-window{height:100%;width:100%;display:flex;flex-direction:column;background:#091216}
-.uds-window-head{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 16px;background:#111c22;border-bottom:1px solid #38545d;min-height:53px}
+.uds-window-head{cursor:grab;user-select:none;touch-action:none;flex-wrap:wrap;display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 16px;background:#111c22;border-bottom:1px solid #38545d;min-height:53px}
 .uds-window-head strong{font-size:13px;letter-spacing:.09em}.uds-window-head span{display:block;color:#96acb5;font-size:10px;letter-spacing:.09em;margin-top:4px}
 .uds-window-head button{color:#f4f9fa;border:1px solid #60717c;background:#26373f;padding:7px 10px;cursor:pointer;font-size:11px}
 .uds-window-screen{flex:1;min-height:0;position:relative;display:grid;place-items:stretch;background:#050707;overflow:hidden}
@@ -40,7 +42,7 @@ export function PopoutHandle({ workspace, view, children = "POP OUT" }) {
   const dragged = useRef(false);
   if (!workspace.desktop) return null;
   return <button type="button" className="uds-monitor-popout"
-    title="Click to pop out, or drag this handle to detach; then move the new window by its title bar"
+    title="Open a separate window, then drag its top bar or choose Move to monitor"
     onPointerDown={event => {
       if (event.button !== 0) return;
       start.current = { x: event.clientX, y: event.clientY };
@@ -64,9 +66,36 @@ export function PopoutHandle({ workspace, view, children = "POP OUT" }) {
 
 export function usePopoutWorkspace() {
   const windowsRef = useRef(new Map());
+  const windowGroupRef = useRef(null);
   const rememberedRef = useRef(readWorkspace(typeof window !== "undefined" ? window.localStorage : null));
   const [windows, setWindows] = useState([]);
   const [message, setMessage] = useState("");
+  const [screens, setScreens] = useState([]);
+  const [targetScreen, setTargetScreen] = useState("");
+  const screenDetailsRef = useRef(null);
+  const refreshScreens = useCallback(() => {
+    setScreens(Array.from(screenDetailsRef.current?.screens || []));
+    setTargetScreen("");
+  }, []);
+  const enableScreens = useCallback(async (sourceWindow = window) => {
+    const requester = typeof sourceWindow?.getScreenDetails === "function" ? sourceWindow : window;
+    if (typeof requester.getScreenDetails !== "function") {
+      setMessage("This browser cannot choose a monitor automatically. Drag the pop-out's desktop title bar to your other display, or use desktop Chrome.");
+      return;
+    }
+    try {
+      const granted = await requester.getScreenDetails();
+      const details = requester === window ? granted : await window.getScreenDetails();
+      screenDetailsRef.current?.removeEventListener?.("screenschange", refreshScreens);
+      screenDetailsRef.current = details;
+      details.addEventListener?.("screenschange", refreshScreens);
+      refreshScreens();
+      setMessage("Monitors connected. Choose where to open new views, or use Move to monitor in a pop-out.");
+    } catch {
+      setMessage("Monitor placement was not allowed. You can still move a separate window using its desktop title bar. Click Enable monitor placement to try again.");
+    }
+  }, [refreshScreens]);
+  useEffect(() => () => screenDetailsRef.current?.removeEventListener?.("screenschange", refreshScreens), [refreshScreens]);
   const desktop = typeof window !== "undefined" &&
     isDesktopWindowSupported(Capacitor.isNativePlatform(), window.matchMedia?.bind(window));
 
@@ -116,11 +145,14 @@ export function usePopoutWorkspace() {
 
     const previous = rememberedRef.current.bounds[id];
     const offset = windowsRef.current.size * 32;
-    const bounds = safeBounds(previous || { left: window.screenX + 100 + offset, top: window.screenY + 90 + offset, width: 940, height: 560 });
+    const selectedScreen = targetScreen === "" ? null : screens[Number(targetScreen)];
+    const bounds = selectedScreen ? boundsForDisplay(selectedScreen, previous) : safeBounds(previous || { left: window.screenX + 100 + offset, top: window.screenY + 90 + offset, width: 940, height: 560 });
     const label = id.startsWith("camera-") ? id.replace("camera-", "CAM ") : id.toUpperCase();
     // about:blank inherits the opener's origin. React portals use the same JS
     // context/streams and NEVER establish a second WebRTC peer connection.
-    const popup = window.open("about:blank", `uds-popout-${id}`, popupFeatures(bounds));
+    // Never reuse another Director tab's named popup (which may now be a tab).
+    windowGroupRef.current ||= crypto.randomUUID().replaceAll("-", "");
+    const popup = window.open("about:blank", `uds-popout-${id}--${windowGroupRef.current}`, popupFeatures(bounds));
     if (!popup) {
       setMessage("Your browser blocked the pop-out. Allow pop-ups for Urban Director Studio and click again.");
       return false;
@@ -147,7 +179,7 @@ export function usePopoutWorkspace() {
       windowsRef.current.set(id, entry);
       snapshot();
       notify();
-      setMessage(`${label} opened. Drag its title bar onto any connected monitor.`);
+      setMessage(`${label} opened. Drag the pop-out's top bar, or choose Move to monitor inside it.`);
       popup.focus();
       return true;
     } catch {
@@ -155,7 +187,26 @@ export function usePopoutWorkspace() {
       setMessage("Unable to attach the view to this window; check browser pop-up permissions.");
       return false;
     }
-  }, [desktop, snapshot, notify]);
+  }, [desktop, snapshot, notify, screens, targetScreen]);
+
+  const moveToScreen = useCallback(async (id, screenIndex) => {
+    const entry = windowsRef.current.get(id);
+    const display = screens[Number(screenIndex)];
+    if (!entry || entry.popup.closed || !display || screenIndex === "") return;
+    try {
+      const bounds = boundsForDisplay(display, getWindowBounds(entry.popup));
+      entry.popup.resizeTo(bounds.width, bounds.height);
+      entry.popup.moveTo(bounds.left, bounds.top);
+      entry.popup.focus();
+      await new Promise(resolve => window.setTimeout(resolve, 300));
+      if (entry.popup.closed) return;
+      const moved = windowIsOnDisplay(getWindowBounds(entry.popup), display);
+      setMessage(moved ? `${id.toUpperCase()} moved to ${display.label || `monitor ${Number(screenIndex) + 1}`}.` : "The browser kept this window on its current display. Allow monitor placement, or drag the desktop title bar to the other monitor.");
+      snapshot();
+    } catch {
+      setMessage("The browser could not move this window. Allow monitor placement, or drag its desktop title bar.");
+    }
+  }, [screens, snapshot]);
 
   const restore = useCallback(() => {
     const saved = rememberedRef.current;
@@ -205,7 +256,7 @@ export function usePopoutWorkspace() {
     windowsRef.current.clear();
   }, []);
 
-  return { windows, open, restore, close, closeAll, save: snapshot, desktop, message, savedCount: rememberedRef.current.views.length };
+  return { windows, open, restore, close, closeAll, save: snapshot, desktop, message, screens, targetScreen, setTargetScreen, enableScreens, moveToScreen, savedCount: rememberedRef.current.views.length };
 }
 
 function SharedStream({ stream }) {
@@ -234,7 +285,16 @@ function ProgramStream({ acquire }) {
   return stream ? <SharedStream stream={stream}/> : <div className="uds-hold"><strong>PROGRAM UNAVAILABLE</strong><small>CHOOSE A SOURCE AND TAKE</small></div>;
 }
 
-function PopoutView({ entry, close, sources, preview, program, main, mode, secondary, standby, replay, roomCode, cameraNames, acquireProgramStream }) {
+function PopoutView({ workspace, entry, close, sources, preview, program, main, mode, secondary, standby, replay, roomCode, cameraNames, acquireProgramStream }) {
+  const dragRef = useRef(null);
+  const dragFrameRef = useRef(null);
+  const pendingMoveRef = useRef(null);
+  useEffect(() => () => {
+    try {
+      if (dragFrameRef.current !== null) entry.popup.cancelAnimationFrame(dragFrameRef.current);
+    } catch { /* A closed or navigated pop-out cannot retain a drag callback. */ }
+  }, [entry.popup]);
+  const [dragMessage, setDragMessage] = useState("");
   const { id, popup } = entry;
   const title = id === "program" ? "PROGRAM / PGM" : id === "preview" ? "PREVIEW / PVW" :
     id === "main" ? "MAIN CAM" : id === "multiview" ? "9-CAMERA MULTIVIEW" :
@@ -295,10 +355,55 @@ function PopoutView({ entry, close, sources, preview, program, main, mode, secon
   const kind = id === "program" ? "ON AIR / PROGRAM MIRROR" : id === "preview" ? "NEXT SHOT / NOT ON AIR" : id === "multiview" ? "ALL NINE CAMERA SLOTS" : "SOURCE MONITOR / NOT A SECOND CONNECTION";
   return createPortal(
     <div className="uds-window">
-      <header className="uds-window-head">
-        <div><strong>{title}</strong><span>{kind}</span></div>
-        <button type="button" onClick={() => close(id)} aria-label={`Close ${title} pop-out`}>CLOSE VIEW ×</button>
+      <header className="uds-window-head" title="Drag this bar to move the window" onPointerDown={event => {
+        if (event.button !== 0 || event.target.closest("button,select,option,a,input")) return;
+        dragRef.current = { left: entry.popup.screenX, top: entry.popup.screenY, screenX: event.screenX, screenY: event.screenY };
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }} onPointerMove={event => {
+        if (!dragRef.current) return;
+        pendingMoveRef.current = draggedWindowPosition(dragRef.current, event);
+        // Use the visible pop-out's frame clock; its opener can be backgrounded.
+        if (dragFrameRef.current !== null) return;
+        dragFrameRef.current = entry.popup.requestAnimationFrame(() => {
+          dragFrameRef.current = null;
+          const position = pendingMoveRef.current;
+          pendingMoveRef.current = null;
+          if (position && !entry.popup.closed) {
+            try { entry.popup.moveTo(position.left, position.top); } catch { /* Desktop title bar remains available. */ }
+          }
+        });
+      }} onPointerUp={event => {
+        if (dragFrameRef.current !== null) entry.popup.cancelAnimationFrame(dragFrameRef.current);
+        dragFrameRef.current = null;
+        const lastPosition = pendingMoveRef.current;
+        pendingMoveRef.current = null;
+        if (lastPosition) {
+          try { entry.popup.moveTo(lastPosition.left, lastPosition.top); } catch { /* Report the browser limit below. */ }
+        }
+        const start = dragRef.current;
+        if (start && Math.hypot(event.screenX - start.screenX, event.screenY - start.screenY) > 8) {
+          const moved = Math.hypot(entry.popup.screenX - start.left, entry.popup.screenY - start.top) > 2;
+          setDragMessage(moved ? "" : "Your browser limited this drag. Use the desktop title bar above this page, or choose Move to monitor. If this view opened as a tab, drag the browser tab out into its own window first.");
+        }
+        dragRef.current = null;
+      }} onPointerCancel={() => {
+        if (dragFrameRef.current !== null) entry.popup.cancelAnimationFrame(dragFrameRef.current);
+        dragFrameRef.current = null;
+        pendingMoveRef.current = null;
+        dragRef.current = null;
+      }}>
+        <div><strong>{title}</strong><span>DRAG THIS BAR · {kind}</span></div>
+        <div className="uds-window-controls">
+          {workspace.screens.length ? (
+            <select aria-label={`Move ${title} to monitor`} value="" onChange={event => void workspace.moveToScreen(id, event.target.value)}>
+              <option value="">MOVE TO MONITOR…</option>
+              {workspace.screens.map((screen, index) => <option key={index} value={index}>{`MONITOR ${index + 1} · ${screen.label || "DISPLAY"}`}{screen.isPrimary ? " (PRIMARY)" : ""}</option>)}
+            </select>
+          ) : <button type="button" onClick={() => workspace.enableScreens(entry.popup)}>CHOOSE MONITOR</button>}
+          <button type="button" onClick={() => close(id)} aria-label={`Close ${title} pop-out`}>CLOSE VIEW ×</button>
+        </div>
       </header>
+      {(dragMessage || workspace.message) && <div role="status" style={{padding:"6px 12px",fontSize:11,color:"#c5d8e6",background:"#142530"}}>{dragMessage || workspace.message}</div>}
       <main className="uds-window-screen">{picture}</main>
       <footer className="uds-window-footer"><span className={id==="program"&&!standby?"uds-live-indicator":""}>UDS • {roomCode}</span><span>VIDEO MIRROR • AUDIO MUTED • DRAG WINDOW TO ANOTHER DISPLAY</span></footer>
     </div>, entry.host);
@@ -306,5 +411,5 @@ function PopoutView({ entry, close, sources, preview, program, main, mode, secon
 
 export function PopoutPortals({ workspace, ...props }) {
   return <>{workspace.windows.map(entry =>
-    <PopoutView key={entry.id} entry={entry} close={workspace.close} {...props}/>)}</>;
+    <PopoutView key={entry.id} workspace={workspace} entry={entry} close={workspace.close} {...props}/>)}</>;
 }

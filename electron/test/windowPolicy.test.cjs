@@ -11,3 +11,9 @@ test('desktop wrapper does not permit arbitrary blank or external popups', () =>
     assert.equal(isMonitorPopup(url,name),false);
   }
 });
+
+ test('isolated Director workspaces can name their own monitor windows without sharing targets', () => {
+  assert.equal(isMonitorPopup('about:blank', 'uds-popout-multiview--' + 'a'.repeat(32)), true);
+  assert.equal(isMonitorPopup('about:blank', 'uds-popout-multiview--invalid'), false);
+  assert.equal(isMonitorPopup('https://example.com', 'uds-popout-multiview--' + 'a'.repeat(32)), false);
+ });
