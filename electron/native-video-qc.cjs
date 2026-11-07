@@ -4,6 +4,8 @@ const fs=require('node:fs');const os=require('node:os');const path=require('node
 const output=path.resolve(process.env.UDS_QC_OUTPUT || 'release-qc/native-engine-qc.json');fs.mkdirSync(path.dirname(output),{recursive:true});
 const permissions=new Set();
 const profile=fs.mkdtempSync(path.join(os.tmpdir(),'uds-native-qc-'));
+// Synthetic same-machine test only: expose the real loopback interface.
+app.commandLine.appendSwitch('allow-loopback-in-peer-connection');
 app.setPath('userData',profile);app.commandLine.appendSwitch('autoplay-policy','no-user-gesture-required');
 const deadline=setTimeout(()=>{fs.writeFileSync(output,JSON.stringify({pass:false,error:'Native engine probe timed out'},null,2));app.exit(1)},30000);
 app.whenReady().then(async()=>{
@@ -27,7 +29,7 @@ app.whenReady().then(async()=>{
    const paint=()=>{ctx.fillStyle=f++%2?'#267bc4':'#e7a535';ctx.fillRect(0,0,320,180)};paint();const timer=setInterval(paint,50);
    const source=canvas.captureStream(15);const video=document.createElement('video');video.muted=true;video.autoplay=true;video.playsInline=true;document.body.append(video);
    const queues={sender:[],receiver:[]};let sender,receiver;
-   const ice=(target,candidate,key)=>{if(target?.remoteDescription)target.addIceCandidate(candidate).catch(()=>{});else queues[key].push(candidate)};
+   const ice=(target,candidate,key)=>{const address=candidate.candidate.split(' ')[4];if(address!=='127.0.0.1'&&address!=='::1')return;if(target?.remoteDescription)target.addIceCandidate(candidate).catch(()=>{});else queues[key].push(candidate)};
    sender=createPeerConnection({iceServers:[{urls:'stun:127.0.0.1:9'}],onIceCandidate:c=>ice(receiver,c,'receiver')});
    receiver=createPeerConnection({iceServers:[{urls:'stun:127.0.0.1:9'}],onIceCandidate:c=>ice(sender,c,'sender'),onTrack:s=>{video.srcObject=s;video.play().catch(()=>{})}});
    source.getTracks().forEach(t=>sender.addTrack(t,source));receiver.addTransceiver('video',{direction:'recvonly'});
@@ -38,7 +40,7 @@ app.whenReady().then(async()=>{
    const result={capabilities,connectionState:receiver.connectionState,videoWidth:video.videoWidth,videoHeight:video.videoHeight,decodedFrames:decoded,pass:receiver.connectionState==='connected'&&decoded>=3&&video.videoWidth===320};
    clearInterval(timer);source.getTracks().forEach(t=>t.stop());sender.close();receiver.close();return result;
   })()`,true);
-  result.checkedPermissions=[...permissions];result.engine={electron:process.versions.electron,chromium:process.versions.chrome,platform:process.platform,arch:process.arch};result.test='Synthetic video loopback through production createPeerConnection helper using host ICE candidates; no physical camera, LAN traversal, user session or external browser tested';
+  result.checkedPermissions=[...permissions];result.engine={electron:process.versions.electron,chromium:process.versions.chrome,platform:process.platform,arch:process.arch};result.test='Synthetic video loopback through production createPeerConnection helper using genuine loopback-interface ICE candidates; no physical camera, LAN traversal, user session or external browser tested';
   fs.writeFileSync(output,JSON.stringify(result,null,2));console.log(JSON.stringify(result));clearTimeout(deadline);win.destroy();app.exit(result.pass?0:1);
  }catch(e){fs.writeFileSync(output,JSON.stringify({pass:false,error:e.message},null,2));console.error(e.message);clearTimeout(deadline);app.exit(1)}
 });
