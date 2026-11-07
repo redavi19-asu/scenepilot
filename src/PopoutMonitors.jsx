@@ -285,6 +285,11 @@ function ProgramStream({ acquire }) {
 
 function PopoutView({ workspace, entry, close, sources, preview, program, main, mode, secondary, standby, replay, roomCode, cameraNames, acquireProgramStream }) {
   const dragRef = useRef(null);
+  const dragFrameRef = useRef(null);
+  const pendingMoveRef = useRef(null);
+  useEffect(() => () => {
+    if (dragFrameRef.current !== null) entry.popup.cancelAnimationFrame(dragFrameRef.current);
+  }, [entry.popup]);
   const [dragMessage, setDragMessage] = useState("");
   const { id, popup } = entry;
   const title = id === "program" ? "PROGRAM / PGM" : id === "preview" ? "PREVIEW / PVW" :
@@ -352,16 +357,37 @@ function PopoutView({ workspace, entry, close, sources, preview, program, main, 
         event.currentTarget.setPointerCapture(event.pointerId);
       }} onPointerMove={event => {
         if (!dragRef.current) return;
-        const position = draggedWindowPosition(dragRef.current, event);
-        try { entry.popup.moveTo(position.left, position.top); } catch { /* Desktop title bar remains available. */ }
+        pendingMoveRef.current = draggedWindowPosition(dragRef.current, event);
+        // Use the visible pop-out's frame clock; its opener can be backgrounded.
+        if (dragFrameRef.current !== null) return;
+        dragFrameRef.current = entry.popup.requestAnimationFrame(() => {
+          dragFrameRef.current = null;
+          const position = pendingMoveRef.current;
+          pendingMoveRef.current = null;
+          if (position && !entry.popup.closed) {
+            try { entry.popup.moveTo(position.left, position.top); } catch { /* Desktop title bar remains available. */ }
+          }
+        });
       }} onPointerUp={event => {
+        if (dragFrameRef.current !== null) entry.popup.cancelAnimationFrame(dragFrameRef.current);
+        dragFrameRef.current = null;
+        const lastPosition = pendingMoveRef.current;
+        pendingMoveRef.current = null;
+        if (lastPosition) {
+          try { entry.popup.moveTo(lastPosition.left, lastPosition.top); } catch { /* Report the browser limit below. */ }
+        }
         const start = dragRef.current;
         if (start && Math.hypot(event.screenX - start.screenX, event.screenY - start.screenY) > 8) {
           const moved = Math.hypot(entry.popup.screenX - start.left, entry.popup.screenY - start.top) > 2;
           setDragMessage(moved ? "" : "Your browser limited this drag. Use the desktop title bar above this page, or choose Move to monitor. If this view opened as a tab, drag the browser tab out into its own window first.");
         }
         dragRef.current = null;
-      }} onPointerCancel={() => { dragRef.current = null; }}>
+      }} onPointerCancel={() => {
+        if (dragFrameRef.current !== null) entry.popup.cancelAnimationFrame(dragFrameRef.current);
+        dragFrameRef.current = null;
+        pendingMoveRef.current = null;
+        dragRef.current = null;
+      }}>
         <div><strong>{title}</strong><span>DRAG THIS BAR · {kind}</span></div>
         <div className="uds-window-controls">
           {workspace.screens.length ? (
