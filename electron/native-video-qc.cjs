@@ -11,9 +11,9 @@ const deadline=setTimeout(()=>{fs.writeFileSync(output,JSON.stringify({pass:fals
 app.whenReady().then(async()=>{
  if(process.platform==='darwin')app.dock.hide();
  const win=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false}});
- // The isolated fixture needs local ICE traffic; deny all hardware permissions.
- win.webContents.session.setPermissionCheckHandler((_w,permission)=>{permissions.add(permission);return ['media','local-network','local-network-access','loopback-network'].includes(permission)});
- win.webContents.session.setPermissionRequestHandler((_w,permission,cb)=>{permissions.add(permission);cb(['local-network','local-network-access','loopback-network'].includes(permission))});
+ // Match Studio media/ICE permission handling; the fixture never acquires hardware.
+ win.webContents.session.setPermissionCheckHandler((_w,permission)=>{permissions.add('check:'+permission);return ['media','local-network','local-network-access','loopback-network'].includes(permission)});
+ win.webContents.session.setPermissionRequestHandler((_w,permission,cb)=>{permissions.add('request:'+permission);cb(['media','local-network','local-network-access','loopback-network'].includes(permission))});
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
  win.webContents.on('will-navigate',event=>event.preventDefault());
  const server=http.createServer((_request,response)=>{response.setHeader('Content-Type','text/html');response.end('<!doctype html><title>Urban Director native video QC</title><body></body>')});
@@ -24,6 +24,8 @@ app.whenReady().then(async()=>{
   const data='data:text/javascript;base64,'+Buffer.from(helper).toString('base64');
   const result=await win.webContents.executeJavaScript(`(async()=>{
    const capabilities={secureContext:isSecureContext,peerConnection:typeof RTCPeerConnection,mediaStream:typeof MediaStream,mediaRecorder:typeof MediaRecorder,cameraAPI:typeof navigator.mediaDevices?.getUserMedia,screenCaptureAPI:typeof navigator.mediaDevices?.getDisplayMedia};
+   navigator.mediaDevices.getUserMedia=()=>Promise.reject(new Error('Hardware capture is disabled in this synthetic fixture'));
+   navigator.mediaDevices.getDisplayMedia=()=>Promise.reject(new Error('Hardware capture is disabled in this synthetic fixture'));
    const {createPeerConnection}=await import(${JSON.stringify(data)});
    const canvas=document.createElement('canvas');canvas.width=320;canvas.height=180;const ctx=canvas.getContext('2d');let f=0;
    const paint=()=>{ctx.fillStyle=f++%2?'#267bc4':'#e7a535';ctx.fillRect(0,0,320,180)};paint();const timer=setInterval(paint,50);
