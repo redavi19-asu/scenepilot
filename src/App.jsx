@@ -5545,6 +5545,7 @@ async function enableCamera() {
               <div className="camera-invite-status" role="status">{cameraInviteStatus}</div>
             )}
 
+            <p className="camera-battery-invite-note">For iPhone battery status, choose OPEN IPHONE APP on the phone's setup screen. Browser video does not include an iPhone battery reading.</p>
             <div className="camera-invite-actions">
               <button type="button" onClick={() => void shareCameraInvite("copy")}>
                 <Copy size={15}/> COPY LINK
