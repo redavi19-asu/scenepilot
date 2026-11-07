@@ -1,0 +1,26 @@
+[
+  {
+    "file": "studio-editor.jpg",
+    "sha256": "42627e52d0de0a8b9bf738b11b55495c2e4d1a431d27f8440a53a9945f55d2cb",
+    "type": "Genuine browser screenshot, cropped to the actual product panel",
+    "source": "https://urbandirector.icomputeranything.com/app",
+    "captured": "2026-11-07",
+    "privateCameraFeedsIncluded": false
+  },
+  {
+    "file": "studio-graphics.jpg",
+    "sha256": "aee38da013cb3a5b731032f7e2a0aeb13254ef90d45300729f0d3dfec4784324",
+    "type": "Genuine browser screenshot, cropped to the actual product panel",
+    "source": "https://urbandirector.icomputeranything.com/app",
+    "captured": "2026-11-07",
+    "privateCameraFeedsIncluded": false
+  },
+  {
+    "file": "studio-soundboard.jpg",
+    "sha256": "1cb55ac829b8e26c1d657c64faf6bc6f0c44909e3edd0457d726a90520a99665",
+    "type": "Genuine browser screenshot, cropped to the actual product panel",
+    "source": "https://urbandirector.icomputeranything.com/app",
+    "captured": "2026-11-07",
+    "privateCameraFeedsIncluded": false
+  }
+]
