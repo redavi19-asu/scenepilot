@@ -77,13 +77,15 @@ export function usePopoutWorkspace() {
     setScreens(Array.from(screenDetailsRef.current?.screens || []));
     setTargetScreen("");
   }, []);
-  const enableScreens = useCallback(async () => {
-    if (typeof window.getScreenDetails !== "function") {
+  const enableScreens = useCallback(async (sourceWindow = window) => {
+    const requester = typeof sourceWindow?.getScreenDetails === "function" ? sourceWindow : window;
+    if (typeof requester.getScreenDetails !== "function") {
       setMessage("This browser cannot choose a monitor automatically. Drag the pop-out's desktop title bar to your other display, or use desktop Chrome.");
       return;
     }
     try {
-      const details = await window.getScreenDetails();
+      const granted = await requester.getScreenDetails();
+      const details = requester === window ? granted : await window.getScreenDetails();
       screenDetailsRef.current?.removeEventListener?.("screenschange", refreshScreens);
       screenDetailsRef.current = details;
       details.addEventListener?.("screenschange", refreshScreens);
@@ -288,7 +290,9 @@ function PopoutView({ workspace, entry, close, sources, preview, program, main, 
   const dragFrameRef = useRef(null);
   const pendingMoveRef = useRef(null);
   useEffect(() => () => {
-    if (dragFrameRef.current !== null) entry.popup.cancelAnimationFrame(dragFrameRef.current);
+    try {
+      if (dragFrameRef.current !== null) entry.popup.cancelAnimationFrame(dragFrameRef.current);
+    } catch { /* A closed or navigated pop-out cannot retain a drag callback. */ }
   }, [entry.popup]);
   const [dragMessage, setDragMessage] = useState("");
   const { id, popup } = entry;
@@ -395,7 +399,7 @@ function PopoutView({ workspace, entry, close, sources, preview, program, main, 
               <option value="">MOVE TO MONITOR…</option>
               {workspace.screens.map((screen, index) => <option key={index} value={index}>{`MONITOR ${index + 1} · ${screen.label || "DISPLAY"}`}{screen.isPrimary ? " (PRIMARY)" : ""}</option>)}
             </select>
-          ) : <button type="button" onClick={workspace.enableScreens}>CHOOSE MONITOR</button>}
+          ) : <button type="button" onClick={() => workspace.enableScreens(entry.popup)}>CHOOSE MONITOR</button>}
           <button type="button" onClick={() => close(id)} aria-label={`Close ${title} pop-out`}>CLOSE VIEW ×</button>
         </div>
       </header>
