@@ -20,6 +20,14 @@ const sandbox = {
 };
 module.exports = {
   ...build,
+  // Use the checksums shipped in the integrity-locked Electron npm package.
+  // This keeps archive verification enabled when GitHub's checksum URL is unavailable.
+  electronDist: async ({version, platformName, arch}) => {
+    const electronPackage = require('electron/package.json');
+    if (electronPackage.version !== version) throw new Error('Electron checksum version mismatch');
+    const {downloadArtifact} = await import('@electron/get');
+    return downloadArtifact({version, platform: platformName, arch, artifactName: 'electron', checksums: require('electron/checksums.json')});
+  },
   buildVersion: buildNumber,
   extraFiles: [...(build.extraFiles || []), { from: 'ios/App/App/PrivacyInfo.xcprivacy', to: 'Resources/PrivacyInfo.xcprivacy' }],
   directories: { ...build.directories, output: 'release/mas' },
