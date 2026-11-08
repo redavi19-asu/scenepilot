@@ -1272,13 +1272,15 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
       <div className="sp-auth-card sp-access-status-card">
         <div className="sp-auth-logo"><LockKeyhole size={26}/></div>
         <span className="sp-kicker">URBAN DIRECTOR STUDIO ACCOUNT</span>
-        <h1>{pending ? "Choose your access." : suspended ? "Subscription inactive." : "Account access."}</h1>
+        <h1>{user.accessStatus === "active" ? "Billing & subscription." : pending ? "Choose your access." : suspended ? "Subscription inactive." : "Account access."}</h1>
         <p>
           {pending
             ? "Your ICA Software account is ready. Activate Urban Director Studio Pro to open the Director console."
             : suspended
               ? "Your Urban Director Studio Pro entitlement is not currently active. Renew or restore through Apple to reopen the Director console."
-              : "Your account is signed in, but Director access is not currently available."}
+              : user.accessStatus === "active"
+                ? "Your Director access is active. Manage your subscription or restore an Apple purchase below."
+                : "Your account is signed in, but Director access is not currently available."}
         </p>
 
         {user.freeAccessVerificationRequired && <div className="sp-billing-status" role="status">
@@ -1347,6 +1349,7 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
           </div>
         )}
         <div className="sp-access-status-actions">
+          {user.accessStatus === "active" && <button className="sp-secondary" type="button" onClick={() => go("/app")}>BACK TO DIRECTOR</button>}
           {!appleNative && pending && (
             <button className="sp-auth-submit" type="button" disabled={accessBusy} onClick={checkAccess}>
               <RefreshCw size={17}/> {accessBusy ? "CHECKING..." : "CHECK ACCESS"}

@@ -4197,6 +4197,9 @@ async function enableCamera() {
 
             <div className="director-menu-group">
               <span>SETTINGS & HELP</span>
+              <button type="button" onClick={() => window.location.assign("/billing")}>
+                <Settings size={17}/> BILLING / SUBSCRIPTION
+              </button>
               <button type="button" onClick={() => {
                 openSetNames();
                 setDirectorMenuOpen(false);
