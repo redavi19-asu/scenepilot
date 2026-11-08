@@ -1,3 +1,4 @@
+import { lookupAppleTransaction } from "./apple-transaction-lookup.js";
 import { renewReviewerAccess } from "./reviewer-access.js";
 import { latestAppleSubscription, assertAppleAccountBinding } from "./apple-subscription-status.js";
 import { handleGooglePlayBilling } from "./google-play-billing.js";
@@ -575,52 +576,14 @@ async function appleTransactionInfo(env, transactionId) {
     }
   ];
 
-  let lastError = null;
-
-  for (const host of hosts) {
-    const response = await fetch(
-      `${host.base}/inApps/v1/transactions/${id}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json"
-        }
-      }
-    );
-
-    const data = await response.json().catch(() => ({}));
-
-    if (response.ok && data.signedTransactionInfo) {
-      const latest = await latestAppleSubscription({
-        base: host.base, token, transactionId: id,
-        initial: decodeAppleJwsPayload(data.signedTransactionInfo),
-        productId: appleBillingConfig(env).productId, bundleId: appleBillingConfig(env).bundleId,
-        decode: decodeAppleJwsPayload
-      });
-      return { environment: host.environment, ...latest };
-    }
-
-    if (response.status === 404) {
-      lastError = new Error(
-        `Apple transaction was not found in ${host.environment}.`
-      );
-      continue;
-    }
-
-    if (response.status === 401) {
-      throw new Error(
-        "Apple server billing credentials were rejected."
-      );
-    }
-
-    throw new Error(
-      data.errorMessage ||
-      data.error ||
-      `Apple transaction verification failed (HTTP ${response.status}).`
-    );
-  }
-
-  throw lastError || new Error("Apple transaction could not be verified.");
+  const host = await lookupAppleTransaction({token,id,hosts});
+  const latest = await latestAppleSubscription({
+    base: host.base, token, transactionId: id,
+    initial: decodeAppleJwsPayload(host.data.signedTransactionInfo),
+    productId: appleBillingConfig(env).productId, bundleId: appleBillingConfig(env).bundleId,
+    decode: decodeAppleJwsPayload
+  });
+  return { environment: host.environment, ...latest };
 }
 
 function validateAppleTransaction(env, result, expectedUserId = "") {
