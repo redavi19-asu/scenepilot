@@ -26,7 +26,12 @@ module.exports = {
     const electronPackage = require('electron/package.json');
     if (electronPackage.version !== version) throw new Error('Electron checksum version mismatch');
     const {downloadArtifact} = await import('@electron/get');
-    return downloadArtifact({version, platform: platformName, arch, artifactName: 'electron', checksums: require('electron/checksums.json')});
+    const releaseResponse = await fetch(`https://api.github.com/repos/electron/electron/releases/tags/v${version}`, {headers:{'User-Agent':'Urban-Director-Studio-build'}});
+    if (!releaseResponse.ok) throw new Error('Official Electron release lookup failed');
+    const release = await releaseResponse.json();
+    const asset = release.assets.find(item => item.name === `electron-v${version}-${platformName}-${arch}.zip`);
+    if (!asset || !/^https:\/\/api\.github\.com\/repos\/electron\/electron\/releases\/assets\/\d+$/.test(asset.url)) throw new Error('Official Electron archive not found');
+    return downloadArtifact({version, platform: platformName, arch, artifactName: 'electron', checksums: require('electron/checksums.json'), mirrorOptions:{resolveAssetURL:async()=>asset.url}, downloadOptions:{headers:{Accept:'application/octet-stream'}}});
   },
   buildVersion: buildNumber,
   extraFiles: [...(build.extraFiles || []), { from: 'ios/App/App/PrivacyInfo.xcprivacy', to: 'Resources/PrivacyInfo.xcprivacy' }],
