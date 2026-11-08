@@ -1,3 +1,4 @@
+import { renewReviewerAccess } from "./reviewer-access.js";
 import { latestAppleSubscription, assertAppleAccountBinding } from "./apple-subscription-status.js";
 import { handleGooglePlayBilling } from "./google-play-billing.js";
 import { readMasterFreeAccess } from './master-free-access.js';
@@ -3992,6 +3993,13 @@ async function handleApi(request, env, url) {
     (request.method === "GET" || request.method === "POST")
   ) {
     return handleCampaigns(request, env);
+  }
+
+  if (url.pathname === "/api/admin/app-review/extend" && request.method === "POST") {
+    const auth = await requireAdmin(request, env);
+    if (auth.response) return auth.response;
+    try { return json(await renewReviewerAccess(env.DB)); }
+    catch (error) { return json({ error: error.message }, 409); }
   }
 
   if (url.pathname === "/api/admin/app-review" && request.method === "POST") {

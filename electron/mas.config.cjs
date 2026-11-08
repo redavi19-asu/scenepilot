@@ -21,6 +21,7 @@ const sandbox = {
 module.exports = {
   ...build,
   buildVersion: buildNumber,
+  extraFiles: [...(build.extraFiles || []), { from: 'ios/App/App/PrivacyInfo.xcprivacy', to: 'Resources/PrivacyInfo.xcprivacy' }],
   directories: { ...build.directories, output: 'release/mas' },
   mac: { ...build.mac, notarize: false },
   mas: { ...sandbox, type: 'distribution' },

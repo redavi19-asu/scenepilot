@@ -2327,6 +2327,17 @@ function AdminPage({ user, onLogout }) {
     }
   }
 
+  async function extendAppReviewAccess() {
+    setReviewBusy(true);
+    setStatus("");
+    try {
+      const data = await api("/api/admin/app-review/extend", { method: "POST", body: "{}" });
+      setStatus(`Reviewer access extended through ${new Date(data.expiresAt).toLocaleDateString()}. Existing review login stays valid.`);
+      await load();
+    } catch (error) { setStatus(error.message); }
+    finally { setReviewBusy(false); }
+  }
+
   async function generateAppReviewAccess() {
     setReviewBusy(true);
     setStatus("");
@@ -2457,6 +2468,7 @@ function AdminPage({ user, onLogout }) {
             <ShieldCheck size={16}/>
             {reviewBusy ? "GENERATING..." : reviewAccount ? "REGENERATE REVIEW LOGIN" : "GENERATE REVIEW LOGIN"}
           </button>
+          <button type="button" onClick={extendAppReviewAccess} disabled={reviewBusy}>EXTEND EXISTING REVIEW ACCESS</button>
         </div>
 
         {reviewAccount && (
