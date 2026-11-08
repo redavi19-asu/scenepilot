@@ -1,27 +1,34 @@
 const PRODUCT='com.icomputeranything.scenepilot.pro.monthly';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function createStoreKit({store,request,openExternal,timeoutMs=120000,restoreMs=15000}){
+function createStoreKit({store,request,openExternal,timeoutMs=120000,restoreMs=45000,diagnostic=()=>{}}){
  let pending;const processing=new Set();
  function complete(value,error){if(!pending)return;const job=pending;pending=null;clearTimeout(job.timer);if(error)job.reject(error);else job.resolve(value);}
+ function trace(stage,detail={}){try{diagnostic({stage,...detail});}catch{}}
  async function updated(_event,transactions){
+  if(!Array.isArray(transactions)){trace('invalid-event');return;}
+  trace('transactions',{count:transactions.length});
   for(const transaction of transactions){
-   if(transaction.payment?.productIdentifier!==PRODUCT)continue;
+   if(transaction.payment?.productIdentifier!==PRODUCT){trace('other-product');continue;}
+   trace('transaction',{state:transaction.transactionState});
    if(transaction.transactionState==='failed'){
     if(transaction.transactionDate)store.finishTransactionByDate(transaction.transactionDate);
     complete(transaction.errorCode===2?{status:'cancelled'}:null,transaction.errorCode===2?null:new Error('Apple could not complete this purchase.'));continue;
    }
    if(transaction.transactionState==='deferred'){complete({status:'pending'});continue;}
    if(!['purchased','restored'].includes(transaction.transactionState))continue;
-   const id=transaction.originalTransactionIdentifier||transaction.transactionIdentifier;
-   if(!/^\d{4,40}$/.test(id||'')||processing.has(id))continue;
+   const id=[transaction.originalTransactionIdentifier,transaction.transactionIdentifier].find(value=>/^\d{4,40}$/.test(value||''));
+   if(!id){trace('missing-transaction-id');continue;}
+   if(processing.has(id)){trace('verification-in-progress');continue;}
    processing.add(id);
    try{
     // The server validates Apple's signed transaction, account binding and expiry.
     // Never finish an unverified transaction: StoreKit will redeliver it.
+    trace('verification-start');
     const entitlement=await request('/api/billing/apple/sync',{transactionId:id});
+    trace('verification-complete',{active:Boolean(entitlement?.entitlement?.active)});
     if(transaction.transactionDate)store.finishTransactionByDate(transaction.transactionDate);
     complete({status:'purchased',active:Boolean(entitlement?.entitlement?.active),entitlement});
-   }catch{complete(null,new Error('Purchase verification did not complete. Use Restore Purchases to retry.'));}
+   }catch(error){trace('verification-failed',{reason:String(error?.message||'Unknown error').slice(0,240)});complete(null,new Error('Purchase verification did not complete. Use Restore Purchases to retry.'));}
    finally{processing.delete(id);}
   }
  }
@@ -29,7 +36,8 @@ function createStoreKit({store,request,openExternal,timeoutMs=120000,restoreMs=1
  function wait(kind,action){
   if(pending)throw new Error('An Apple purchase or restore is already in progress.');
   return new Promise((resolve,reject)=>{
-   pending={resolve,reject,timer:setTimeout(()=>complete(kind==='restore'?{active:false,status:'pending'}:{status:'pending'}),kind==='restore'?restoreMs:timeoutMs)};
+   trace('operation-start',{kind});
+   pending={resolve,reject,timer:setTimeout(()=>{trace('operation-timeout',{kind});complete({status:'pending'});},kind==='restore'?restoreMs:timeoutMs)};
    Promise.resolve().then(action).catch(error=>complete(null,error));
   });
  }

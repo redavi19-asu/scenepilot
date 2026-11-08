@@ -15,10 +15,16 @@ test('unverified transactions stay unfinished for a safe retry',async()=>{
  const f=fixture(false);const pending=f.client.purchase();const rejected=assert.rejects(pending,/verification/);await new Promise(resolve=>setImmediate(resolve));f.store.emit('transactions-updated',{},[transaction]);await rejected;assert.equal(f.finished.length,0);
 });
 test('restore has a bounded wait when Apple delivers no transactions',async()=>{
- const f=fixture();assert.deepEqual(await f.client.restore(),{active:false,status:'pending'});
+ const f=fixture();assert.deepEqual(await f.client.restore(),{status:'pending'});
 });
 test('cancel and deferred purchase states never claim entitlement',async()=>{
  for(const [state,expected] of [['failed','cancelled'],['deferred','pending']]){
  const f=fixture();const pending=f.client.purchase();await new Promise(resolve=>setImmediate(resolve));f.store.emit('transactions-updated',{},[{...transaction,transactionState:state,errorCode:2}]);assert.equal((await pending).status,expected);
  }
+});
+
+test('restored transaction falls back to valid current identifier',async()=>{
+ const f=fixture();const pending=f.client.restore();await new Promise(resolve=>setImmediate(resolve));
+ f.store.emit('transactions-updated',{},[{...transaction,transactionState:'restored',originalTransactionIdentifier:'invalid'}]);
+ assert.equal((await pending).active,true);assert.equal(f.finished.length,1);
 });
