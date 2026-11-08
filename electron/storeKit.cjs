@@ -1,6 +1,7 @@
+const {receiptTransactions}=require('./appleReceipt.cjs');
 const PRODUCT='com.icomputeranything.scenepilot.pro.monthly';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function createStoreKit({store,request,openExternal,timeoutMs=120000,restoreMs=45000,diagnostic=()=>{}}){
+function createStoreKit({store,request,openExternal,timeoutMs=120000,restoreMs=45000,diagnostic=()=>{},readReceipt=()=>null}){
  let pending;const processing=new Set();
  function complete(value,error){if(!pending)return;const job=pending;pending=null;clearTimeout(job.timer);if(error)job.reject(error);else job.resolve(value);}
  function trace(stage,detail={}){try{diagnostic({stage,...detail});}catch{}}
@@ -33,11 +34,21 @@ function createStoreKit({store,request,openExternal,timeoutMs=120000,restoreMs=4
   }
  }
  store.on('transactions-updated',updated);
+ async function verifyReceipt(){
+  const receipt=readReceipt();const ids=receipt?receiptTransactions(receipt,PRODUCT):[];
+  trace('receipt-recovery',{candidates:ids.length});
+  for(const id of ids){
+   try{const entitlement=await request('/api/billing/apple/sync',{transactionId:id});
+    if(entitlement?.entitlement?.active)return {status:'purchased',active:true,entitlement};
+   }catch(error){trace('receipt-verification-failed',{reason:String(error?.message||'Unknown error').slice(0,240)});}
+  }
+  return {status:'pending'};
+ }
  function wait(kind,action){
   if(pending)throw new Error('An Apple purchase or restore is already in progress.');
   return new Promise((resolve,reject)=>{
    trace('operation-start',{kind});
-   pending={resolve,reject,timer:setTimeout(()=>{trace('operation-timeout',{kind});complete({status:'pending'});},kind==='restore'?restoreMs:timeoutMs)};
+   pending={resolve,reject,timer:setTimeout(()=>{trace('operation-timeout',{kind});verifyReceipt().then(result=>complete(result),()=>complete({status:'pending'}));},kind==='restore'?restoreMs:timeoutMs)};
    Promise.resolve().then(action).catch(error=>complete(null,error));
   });
  }
@@ -50,7 +61,7 @@ function createStoreKit({store,request,openExternal,timeoutMs=120000,restoreMs=4
    return wait('purchase',async()=>{if(!await store.purchaseProduct(PRODUCT,{quantity:1,username:account}))throw new Error('This subscription is unavailable from Apple.');});
   },
   restore(){return wait('restore',()=>store.restoreCompletedTransactions());},
-  currentEntitlement(){return request('/api/billing/apple/refresh',{}).then(entitlement=>({active:Boolean(entitlement?.entitlement?.active),entitlement}));},
+  async currentEntitlement(){const entitlement=await request('/api/billing/apple/refresh',{});return entitlement?.entitlement?.active?{active:true,entitlement}:verifyReceipt();},
   manageSubscriptions(){return openExternal('https://apps.apple.com/account/subscriptions').then(()=>({opened:true}));}
  };
 }
