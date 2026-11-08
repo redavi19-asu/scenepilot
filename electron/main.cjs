@@ -110,7 +110,7 @@ app.whenReady().then(() => {
   });
   app.on('before-quit',()=>auth.cancel());
   if(process.mas && process.platform==='darwin') {
-    const store=createStoreKit({store:inAppPurchase,openExternal:url=>shell.openExternal(url),request:async(route,body)=>{
+    const store=createStoreKit({diagnostic:entry=>{const fs=require('node:fs');const folder=app.getPath('logs');fs.mkdirSync(folder,{recursive:true});fs.appendFileSync(path.join(folder,'apple-billing.jsonl'),JSON.stringify({time:new Date().toISOString(),...entry})+'\n',{mode:0o600});},store:inAppPurchase,openExternal:url=>shell.openExternal(url),request:async(route,body)=>{
       const response=await session.defaultSession.fetch(`${APP_ORIGIN}${route}`,{method:body?'POST':'GET',credentials:'include',redirect:'error',signal:AbortSignal.timeout(30000),headers:{'Content-Type':'application/json','X-Urban-Director-Platform':'macos','Origin':APP_ORIGIN},...(body?{body:JSON.stringify(body)}:{})});
       const data=await response.json();if(!response.ok)throw new Error(data.error||'Apple verification failed.');return data;
     }});

@@ -1250,7 +1250,9 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
         window.location.reload();
         return;
       }
-      setBillingStatus("No active Urban Director Studio Pro subscription was found.");
+      setBillingStatus(result?.status === "pending"
+        ? "Apple has not returned a verified purchase yet. No new purchase is needed. Try Restore Purchases again shortly or contact support."
+        : "No active Urban Director Studio Pro subscription was found.");
     } catch (error) {
       setBillingStatus(error.message);
     } finally {
