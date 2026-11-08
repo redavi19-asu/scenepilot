@@ -31,7 +31,7 @@ module.exports = {
   buildVersion: buildNumber,
   extraFiles: [...(build.extraFiles || []), { from: 'ios/App/App/PrivacyInfo.xcprivacy', to: 'Resources/PrivacyInfo.xcprivacy' }],
   directories: { ...build.directories, output: 'release/mas' },
-  mac: { ...build.mac, notarize: false },
+  mac: { ...build.mac, icon: 'public/urban-director-icon.icns', notarize: false },
   mas: { ...sandbox, type: 'distribution' },
   masDev: { ...sandbox, type: 'development' },
   forceCodeSigning: true
