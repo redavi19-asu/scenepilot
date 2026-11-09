@@ -1321,10 +1321,14 @@ async function ensureDcLiveSubmissionSchema(env) {
   ).run();
 }
 
-async function handleDcLiveSubmissionTicket(request, env) {
-  await ensureDcLiveSubmissionSchema(env);
+export async function handleDcLiveSubmissionTicket(request, env) {
   const auth = await requireScenePilotNetworkMember(request, env);
   if (auth.response) return auth.response;
+
+  if (auth.user?.role !== "owner") {
+    return json({ error: "DC Live publishing is reserved for the ICA owner." }, 403);
+  }
+  await ensureDcLiveSubmissionSchema(env);
 
   const token = randomToken(32);
   const tokenHash = await sha256(token);
@@ -1358,7 +1362,7 @@ async function handleDcLiveSubmissionTicket(request, env) {
   }, 201);
 }
 
-async function handleDcLiveVerifyTicket(request, env) {
+export async function handleDcLiveVerifyTicket(request, env) {
   await ensureDcLiveSubmissionSchema(env);
   const authorization = String(request.headers.get("Authorization") || "");
   const token = authorization.toLowerCase().startsWith("bearer ")
@@ -1395,7 +1399,8 @@ async function handleDcLiveVerifyTicket(request, env) {
   if (
     !row ||
     row.status !== "active" ||
-    row.access_status !== "active"
+    row.access_status !== "active" ||
+    row.role !== "owner"
   ) {
     return json({ valid: false, error: "Submission ticket is invalid or expired." }, 401);
   }

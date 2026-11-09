@@ -1428,7 +1428,7 @@ export default function ReplayStudio({
                   </span>
                 </div>
                 <div>
-                  {onPublishProgram && (
+                  {isOwner && onPublishProgram && (
                     <button type="button" onClick={onPublishProgram}>PUBLISH TO DC LIVE</button>
                   )}
                   {onDeleteProgram && (

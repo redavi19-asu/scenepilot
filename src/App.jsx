@@ -2010,18 +2010,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
           return;
         }
 
-        setPendingProgramMaster(current => {
-          if (current?.url) URL.revokeObjectURL(current.url);
-          return {
-            blob,
-            filename,
-            url: URL.createObjectURL(blob),
-            createdAt: Date.now(),
-            size: blob.size,
-            status: "ready"
-          };
-        });
-        setRecordStatus("PROGRAM MASTER READY • DC LIVE OR DELETE");
+        // Customer recording is raw / ISO only; never retain a publishable Program.
         return;
       }
 
@@ -2129,6 +2118,10 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
   }
 
   async function publishPendingProgramMaster() {
+    if (!isOwner) {
+      setRecordStatus("DC LIVE PUBLISHING IS OWNER ONLY");
+      return;
+    }
     if (!pendingProgramMaster?.blob) {
       setRecordStatus("NO PROGRAM MASTER READY");
       return;
@@ -5377,7 +5370,7 @@ async function enableCamera() {
               )}
             </div>
 
-            {pendingProgramMaster && (
+            {isOwner && pendingProgramMaster && (
               <div className={`program-master-policy ${isOwner ? "owner" : ""}`}>
                 <div>
                   <strong>{isOwner ? "ICA OWNER PROGRAM MASTER" : "FINISHED PROGRAM MASTER"}</strong>
@@ -5491,9 +5484,9 @@ async function enableCamera() {
             roomCode={roomCode}
             networkId={networkId}
             isOwner={isOwner}
-            programMaster={pendingProgramMaster}
-            onPublishProgram={publishPendingProgramMaster}
-            onDeleteProgram={deletePendingProgramMaster}
+            programMaster={isOwner ? pendingProgramMaster : null}
+            onPublishProgram={isOwner ? publishPendingProgramMaster : null}
+            onDeleteProgram={isOwner ? deletePendingProgramMaster : null}
           />
         </Suspense>
       </main>
