@@ -2143,7 +2143,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
     setPendingProgramMaster(current =>
       current ? { ...current, status: "uploading" } : current
     );
-    setRecordStatus("DC LIVE • CREATING PENDING REVIEW");
+    setRecordStatus("DC LIVE • PREPARING UPLOAD");
 
     try {
       const ticketResponse = await apiFetch("/api/dc-live/submission-ticket", {
@@ -2253,7 +2253,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
 
       if (isOwner) {
         setPendingProgramMaster(current =>
-          current ? { ...current, status: "submitted", submissionId: submissionData.eventId } : current
+          current ? { ...current, status: completeData.published ? "published" : "submitted", submissionId: submissionData.eventId } : current
         );
       } else {
         setPendingProgramMaster(current => {
@@ -2262,7 +2262,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
         });
       }
 
-      setRecordStatus("DC LIVE • SUBMITTED • PENDING REVIEW");
+      setRecordStatus(completeData.published ? "DC LIVE • PUBLISHED • READY TO WATCH" : "DC LIVE • UPLOADED • PENDING REVIEW");
     } catch (error) {
       console.error("Urban Director Studio DC Live submission failed", error);
       setPendingProgramMaster(current =>
@@ -5370,13 +5370,13 @@ async function enableCamera() {
               )}
             </div>
 
-            {isOwner && pendingProgramMaster && (
+            {isOwner && (
               <div className={`program-master-policy ${isOwner ? "owner" : ""}`}>
                 <div>
                   <strong>{isOwner ? "ICA OWNER PROGRAM MASTER" : "FINISHED PROGRAM MASTER"}</strong>
                   <small>
                     {isOwner
-                      ? "Owner Program ready: download, keep, publish, or delete."
+                      ? pendingProgramMaster ? "Owner Program ready: download, keep, publish, or delete." : "Record PROGRAM or BOTH, then Stop & Save to enable publishing."
                       : "This composed production is not downloadable. Raw ISO camera files remain yours to download."}
                   </small>
                 </div>
@@ -5386,6 +5386,7 @@ async function enableCamera() {
                       type="button"
                       className="program-download"
                       onClick={downloadPendingProgramMaster}
+                      disabled={!pendingProgramMaster || pendingProgramMaster.status === "uploading"}
                     >
                       DOWNLOAD MASTER
                     </button>
@@ -5394,6 +5395,7 @@ async function enableCamera() {
                     type="button"
                     className="program-delete"
                     onClick={deletePendingProgramMaster}
+                    disabled={!pendingProgramMaster || pendingProgramMaster.status === "uploading"}
                   >
                     DELETE PROGRAM
                   </button>
@@ -5401,11 +5403,13 @@ async function enableCamera() {
                     type="button"
                     className="program-publish"
                     onClick={publishPendingProgramMaster}
-                    disabled={pendingProgramMaster.status === "uploading" || pendingProgramMaster.status === "submitted"}
+                    disabled={recording || !pendingProgramMaster || ["uploading", "submitted", "published"].includes(pendingProgramMaster.status)}
                   >
-                    {pendingProgramMaster.status === "uploading"
+                    {pendingProgramMaster?.status === "uploading"
                       ? "UPLOADING TO DC LIVE…"
-                      : pendingProgramMaster.status === "submitted"
+                      : pendingProgramMaster?.status === "published"
+                        ? "PUBLISHED ON DC LIVE"
+                        : pendingProgramMaster?.status === "submitted"
                         ? "PENDING REVIEW"
                         : "PUBLISH TO DC LIVE"}
                   </button>
