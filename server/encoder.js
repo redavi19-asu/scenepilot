@@ -21,7 +21,7 @@ const RECORDING_ROOT = String(
 ).replace(/\/+$/, "");
 const RECORDING_RETENTION_HOURS = Math.max(
   1,
-  Number(process.env.SCENEPILOT_RECORDING_RETENTION_HOURS || 72)
+  Number(process.env.SCENEPILOT_RECORDING_RETENTION_HOURS || 48)
 );
 const OWNER_RECORDING_ROOT = join(RECORDING_ROOT, "owner");
 const STORAGE_WARNING_PERCENT = Math.min(
