@@ -5481,6 +5481,7 @@ async function enableCamera() {
         <Suspense fallback={<div className="panel-loading" role="status">LOADING PRODUCTION TOOLS…</div>}>
           <BroadcastGraphics />
           <BroadcastPanel
+            isOwner={isOwner}
             roomCode={roomCode}
             getProgramStream={() => startProgramCompositor() || currentProgramMediaStream()}
           />

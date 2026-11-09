@@ -3287,6 +3287,9 @@ async function handleBroadcastSession(request, env, action, url) {
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(room)) {
     return json({ error: "Invalid live production room." }, 400);
   }
+  if (room.startsWith("dclive-") && auth.user?.role !== "owner") {
+    return json({ error: "DC Live broadcasting is reserved for the ICA owner." }, 403);
+  }
   // All broadcast rooms are scoped to the authenticated company network.
   if (!room.endsWith(`-${auth.network.id}`) && room !== String(auth.network.id)) {
     return json({ error: "This broadcast belongs to another company network." }, 403);
@@ -3302,7 +3305,11 @@ async function handleBroadcastSession(request, env, action, url) {
     if (!encoder.ok) {
       return json({ error: encoder.data?.error || "Broadcast status unavailable." }, encoder.status || 503);
     }
-    return json(encoder.data);
+    let dcLive = null;
+    if (room.startsWith("dclive-") && encoder.data.active) {
+      dcLive = await updateDcLiveEvent(request, env, room, "status");
+    }
+    return json({ ...encoder.data, dcLive });
   } catch {
     return json({ error: "Broadcast server is temporarily unavailable." }, 503);
   }
@@ -3316,11 +3323,30 @@ async function handleBroadcastUsage(request, env) {
   return json({ ok: true, usage });
 }
 
+async function updateDcLiveEvent(request, env, room, action, title = "") {
+  const ticketResponse = await handleDcLiveSubmissionTicket(request, env);
+  if (!ticketResponse.ok) throw new Error("Owner authorization required for DC Live.");
+  const ticket = await ticketResponse.json();
+  const response = await fetch("https://dc-live-api.ryanedavis.workers.dev/api/creator/live-events", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ticket.token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ room, action, title })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "DC Live event update failed.");
+  return data;
+}
+
 async function handleBroadcastControl(request, env, action) {
   const auth = await requireScenePilotNetworkMember(request, env);
   if (auth.response) return auth.response;
 
   const body = await readJson(request);
+  const room = String(body.room || "SP-4827").slice(0, 80);
+  const dcLive = room.startsWith("dclive-");
+  if (dcLive && (auth.user?.role !== "owner" || !room.endsWith(`-${auth.network.id}`))) {
+    return json({ error: "DC Live broadcasting is reserved for the ICA owner." }, 403);
+  }
   const destinationIds = Array.isArray(body.destinations)
     ? [...new Set(
         body.destinations
@@ -3362,6 +3388,13 @@ async function handleBroadcastControl(request, env, action) {
     }, 400);
   }
 
+  if (dcLive && action === "start" && (destinationIds.length !== 1 || destinationIds[0] !== "self")) {
+    return json({ error: "DC Live uses its protected server destination only." }, 400);
+  }
+  if (dcLive && action === "start") {
+    try { await updateDcLiveEvent(request, env, room, "prepare", String(body.title || "")); }
+    catch (error) { return json({ error: error.message }, 503); }
+  }
   const eventId = crypto.randomUUID();
   const now = Date.now();
 
@@ -3374,7 +3407,7 @@ async function handleBroadcastControl(request, env, action) {
     ownerUserId: auth.user?.id || null,
     ownerRole: auth.user?.role || "user",
     retentionClass,
-    room: String(body.room || "SP-4827").slice(0, 80),
+    room,
     destinations: targets,
     maxDurationSeconds: allowance?.sessionLimitSeconds || null
   };
@@ -3422,9 +3455,18 @@ async function handleBroadcastControl(request, env, action) {
     }, encoder.status || 502);
   }
 
+  let dcLiveEvent = null;
+  if (dcLive) {
+    try { dcLiveEvent = await updateDcLiveEvent(request, env, room, action === "start" ? "start" : "end"); }
+    catch (error) {
+      if (action === "start") await callEncoder(env, "/broadcast/stop", encoderPayload).catch(() => {});
+      return json({ error: error.message }, 503);
+    }
+  }
   return json({
     ok: true,
     eventId,
+    dcLive: dcLiveEvent,
     status: encoder.data.status || (action === "start" ? "starting" : "stopping"),
     encoder: encoder.data
   });
@@ -3527,7 +3569,7 @@ async function handleRealtimeViewer(request, env) {
 
 function validRealtimeRoom(value) {
   const room = String(value || "").trim();
-  return /^[A-Za-z0-9_-]{1,80}$/.test(room) ? room : "";
+  return !room.startsWith("dclive-") && /^[A-Za-z0-9_-]{1,80}$/.test(room) ? room : "";
 }
 
 async function callRealtime(env, path, body = null, method = "POST") {

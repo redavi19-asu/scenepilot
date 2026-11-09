@@ -46,8 +46,11 @@ async function api(path, options = {}) {
   return data;
 }
 
-export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream }) {
-  const [selected, setSelected] = useState([]);
+export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream, isOwner = false }) {
+  const [dcLiveMode, setDcLiveMode] = useState(() => isOwner && localStorage.getItem("uds-owner-dc-live") === "1");
+  const [dcLiveWatchUrl, setDcLiveWatchUrl] = useState("");
+  const [dcLiveTitle, setDcLiveTitle] = useState("DC Live Broadcast");
+  const [selected, setSelected] = useState(() => isOwner && localStorage.getItem("uds-owner-dc-live") === "1" ? ["self"] : []);
   const [showSettings, setShowSettings] = useState(false);
   const [showSecrets, setShowSecrets] = useState(false);
   const [broadcasting, setBroadcasting] = useState(false);
@@ -102,13 +105,14 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
       .trim()
       .replace(/[^A-Za-z0-9_-]/g, "")
       .slice(0, 40);
-    return networkRoom ? `${baseRoom}-${networkRoom}`.slice(0, 80) : baseRoom;
-  }, [roomCode, broadcastNetworkId]);
+    return networkRoom ? `${dcLiveMode ? "dclive-" : ""}${baseRoom.slice(0, dcLiveMode ? 24 : 32)}-${networkRoom}`.slice(0, 80) : baseRoom;
+  }, [roomCode, broadcastNetworkId, dcLiveMode]);
 
   const publicWatchUrl = useMemo(() => {
+    if (dcLiveMode) return dcLiveWatchUrl;
     if (typeof window === "undefined") return "";
     return `${publicOrigin()}/watch/${encodeURIComponent(serviceRoomCode)}`;
-  }, [serviceRoomCode]);
+  }, [serviceRoomCode, dcLiveMode, dcLiveWatchUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,6 +157,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
       api(`/api/broadcast/status?room=${encodeURIComponent(serviceRoomCode)}`)
         .then(session => {
           if (cancelled) return;
+          if (session.dcLive?.watchUrl) setDcLiveWatchUrl(session.dcLive.watchUrl);
           setSessionActive(Boolean(session.active));
           setServerMode(session.mode || "off");
           if (session.active) {
@@ -463,7 +468,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         body: JSON.stringify({ room: serviceRoomCode })
       });
       await startBrowserIngest(resumed.ingest);
-      if ((resumed.destinations || []).includes("self")) {
+      if (!dcLiveMode && (resumed.destinations || []).includes("self")) {
         try {
           realtimeRef.current = await publishProgramToRealtime(
             serviceRoomCode, getProgramStream?.()
@@ -519,9 +524,12 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           method: "POST",
           body: JSON.stringify({
             room: serviceRoomCode,
-            destinations: selected
+            destinations: selected,
+            title: dcLiveMode ? dcLiveTitle : undefined
           })
         });
+
+        if (data.dcLive?.watchUrl) setDcLiveWatchUrl(data.dcLive.watchUrl);
 
         // The server owns the session from START until END or allowance expiry.
         // Even if browser capture fails, it publishes a standby frame.
@@ -534,7 +542,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           return;
         }
 
-        if (selected.includes("self")) {
+        if (!dcLiveMode && selected.includes("self")) {
           try {
             realtimeRef.current = await publishProgramToRealtime(
               serviceRoomCode,
@@ -657,6 +665,19 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         </div>
       )}
 
+      {isOwner && (
+        <section className="broadcast-share-panel">
+          <label><input type="checkbox" checked={dcLiveMode} disabled={sessionActive || broadcasting} onChange={event => {
+            const enabled = event.target.checked;
+            setDcLiveMode(enabled);
+            localStorage.setItem("uds-owner-dc-live", enabled ? "1" : "0");
+            setSelected(enabled ? ["self"] : []);
+            setDcLiveWatchUrl("");
+          }}/>{" "}GO LIVE ON DC LIVE</label>
+          {dcLiveMode && <label>SHOW TITLE <input value={dcLiveTitle} disabled={sessionActive} onChange={event => setDcLiveTitle(event.target.value)}/></label>}
+          {dcLiveMode && <small>Owner broadcast · Free viewing on DC Live · Program output only</small>}
+        </section>
+      )}
       <div className="broadcast-destinations">
         {DESTINATIONS.map(destination => {
           const Icon = destination.icon;
@@ -668,7 +689,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
               key={destination.id}
               className={`broadcast-destination ${active ? "selected" : ""}`}
               onClick={() => toggleDestination(destination.id)}
-              disabled={broadcasting}
+              disabled={broadcasting || sessionActive || dcLiveMode}
             >
               <span className="destination-check">{active ? "✓" : ""}</span>
               <Icon size={22}/>
@@ -799,7 +820,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
           onClick={toggleBroadcast}
         >
           {broadcasting ? <Square size={17}/> : <Play size={17}/>}
-          {broadcasting ? "END SESSION" : sessionActive ? "RESUME LIVE" : "START SESSION / GO LIVE"}
+          {broadcasting ? "END SESSION" : sessionActive ? "RESUME LIVE" : dcLiveMode ? "GO LIVE ON DC LIVE" : "START SESSION / GO LIVE"}
         </button>
         {sessionActive && !broadcasting && (
           <button type="button" className="broadcast-go-live is-live" onClick={() => {
@@ -812,7 +833,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
 
       {(usageStatus || status) && <div className="broadcast-status-message">{usageStatus || status}</div>}
 
-      {showShare && (
+      {showShare && publicWatchUrl && (
         <section className="broadcast-share-panel">
           <div className="broadcast-share-copy">
             <span className="panel-label">PUBLIC WATCH ACCESS</span>
@@ -848,7 +869,7 @@ export default function BroadcastPanel({ roomCode = "SP-4827", getProgramStream 
         </section>
       )}
 
-      {!showShare && (
+      {!showShare && publicWatchUrl && (
         <button type="button" className="broadcast-open-share" onClick={() => setShowShare(true)}>
           <QrCode size={14}/> WATCH LINK / QR CODE
         </button>
