@@ -20,6 +20,7 @@
     "STREAM_MAX_SESSION_MINUTES": 240,
     "REALTIME_MAX_VIEWERS": 100,
     "AI_MONTHLY_TOKENS": 2500,
+    "DIRECTOR_WINDOWS_DOWNLOAD_URL": "https://github.com/redavi19-asu/scenepilot/releases/download/windows-v1.0.0/Urban-Director-Studio-Windows-x64.exe",
     "APP_STORE_BUNDLE_ID": "com.icomputeranything.scenepilot",
     "APP_STORE_SUBSCRIPTION_PRODUCT_ID": "com.icomputeranything.scenepilot.pro.monthly",
     "ICA_AUTH_FROM_EMAIL": "I Computer Anything <accounts@mail.icomputeranything.com>",

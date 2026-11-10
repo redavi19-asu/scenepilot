@@ -285,7 +285,7 @@ function CameraAppHandoff() {
         <Smartphone size={30}/>
         <span className="sp-kicker">URBAN DIRECTOR STUDIO CAMERA</span>
         <h1>Open the camera in Urban Director Studio.</h1>
-        <p>The installed iPhone app can share battery status. iPhone browsers do not provide battery readings. If needed, install Urban Director Studio from TestFlight on the phone first.</p>
+        <p>The installed iPhone app can share battery status. iPhone browsers do not provide battery readings. If needed, download Urban Director Studio from the App Store on the phone first.</p>
         <button className="sp-auth-submit" onClick={() => window.location.assign(appUrl)}>
           OPEN URBAN DIRECTOR STUDIO APP
         </button>
@@ -425,6 +425,7 @@ function LandingPage() {
               </button>
             </div>
 
+            <div className="sp-store-downloads"><a href="https://apps.apple.com/us/app/urban-director-studio/id6811694662" target="_blank" rel="noopener noreferrer" aria-label="Download Urban Director Studio on the App Store" style={{display:'inline-flex',padding:12,alignSelf:'flex-start'}}><img src="/images/download-on-the-app-store.svg" alt="Download on the App Store" width="144" height="48" style={{display:'block',width:144,height:48}} /></a><a className="sp-secondary" href="/downloads#windows">Download for Windows</a><span>Available now for iPhone and iPad</span></div>
             <div className="sp-hero-proof">
               <span><CheckCircle2 size={15}/> Wireless phone cameras</span>
               <span><CheckCircle2 size={15}/> Director-to-crew comms</span>
@@ -680,7 +681,7 @@ function LandingPage() {
       <footer className="sp-landing-footer sp-product-footer">
         <div>
           <strong>URBAN DIRECTOR STUDIO</strong>
-          <span>Built by I Computer Anything</span>
+          <span>Built by I Computer Anything</span><a href="https://apps.apple.com/us/app/urban-director-studio/id6811694662" target="_blank" rel="noopener noreferrer" aria-label="Download Urban Director Studio on the App Store" style={{display:'inline-flex',padding:12,alignSelf:'flex-start'}}><img src="/images/download-on-the-app-store.svg" alt="Download on the App Store" width="144" height="48" style={{display:'block',width:144,height:48}} /></a>
         </div>
         <div>
           <button onClick={() => go("/privacy")}>PRIVACY</button>
@@ -2647,7 +2648,7 @@ function DownloadsPage() {
 
       <section className="sp-download-grid">
         {cards.map(card => (
-          <article key={card.platform} className={card.url ? "ready" : ""}>
+          <article id={card.platform === "WINDOWS" ? "windows" : undefined} key={card.platform} className={card.url ? "ready" : ""}>
             <div className="sp-download-card-top"><span>{card.platform}</span><b>{card.url ? "READY" : "SIGNING / RELEASE"}</b></div>
             <Monitor size={30}/>
             <h2>{card.title}</h2>
@@ -2658,11 +2659,11 @@ function DownloadsPage() {
           </article>
         ))}
         <article>
-          <div className="sp-download-card-top"><span>IPHONE + IPAD</span><b>COMING SOON</b></div>
+          <div className="sp-download-card-top"><span>IPHONE + IPAD</span><b>AVAILABLE NOW</b></div>
           <Smartphone size={30}/>
           <h2>Urban Director Studio Mobile</h2>
-          <p>iPhone and iPad distribution will activate through Apple after App Store approval.</p>
-          <span className="sp-download-disabled">APP STORE RELEASE PENDING</span>
+          <p>Now available on the App Store for iPhone and iPad.</p>
+          <a href="https://apps.apple.com/us/app/urban-director-studio/id6811694662" target="_blank" rel="noopener noreferrer" aria-label="Download Urban Director Studio on the App Store" style={{display:'inline-flex',padding:12,alignSelf:'flex-start'}}><img src="/images/download-on-the-app-store.svg" alt="Download on the App Store" width="144" height="48" style={{display:'block',width:144,height:48}} /></a>
         </article>
       </section>
     </main>

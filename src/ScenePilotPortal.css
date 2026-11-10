@@ -2960,3 +2960,6 @@
 .sp-mobile-product-menu nav a:hover { background:#2b3225; }
 @media(max-width:1100px) { .sp-mobile-product-menu { display:block; margin-left:auto; } }
 @media(max-width:760px) { .sp-product-site .sp-product-hero { min-height:auto; padding-top:36px; } .sp-product-site .sp-product-hero h1 { font-size:clamp(42px,12vw,58px); } }
+
+/* Store release links retain the official badge proportions and clear space. */
+.sp-store-downloads{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:20px}.sp-store-downloads>span{flex-basis:100%;font-size:12px;color:#b9c2b1}.sp-store-downloads .sp-secondary{display:inline-flex;align-items:center;min-height:48px;text-decoration:none;padding:0 20px}.sp-product-footer>div:first-child{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
