@@ -12,7 +12,7 @@ Urban Director Studio is free to download. An ordinary customer needs one active
 
 ## Rollout dependency
 
-Do not deploy the camera subscription gate independently of compatible native clients. Public iOS build 42 and submitted Mac build 36 predate camera tickets. The current Mac review notes also describe the former free camera model. Coordinate compatible iOS and Mac releases and update review metadata before enforcing this gate against existing native installations. Do not cancel an active Apple review merely to deploy this branch.
+Do not deploy the camera subscription gate independently of compatible native clients. Public iOS 1.0 predates camera tickets; submitted Mac build 36 loads the current first-party web assets. The current Mac review notes also describe the former free camera model. Coordinate compatible iOS and Mac releases and update review metadata before enforcing this gate against existing native installations. Do not cancel an active Apple review merely to deploy this branch.
 
 The production Apple subscription still needs approval. Code checks do not certify production charges. The production backend currently accepts sandbox transactions in the same entitlement table. Use a dedicated test account and explicitly reviewed isolation before device payment testing; do not use owner/reviewer access to claim purchase activation.
 
