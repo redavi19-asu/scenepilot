@@ -1,3 +1,4 @@
+import { hasStudioAccess } from "../shared/subscriptionAccess.js";
 import { lookupAppleTransaction } from "./apple-transaction-lookup.js";
 import { renewReviewerAccess } from "./reviewer-access.js";
 import { latestAppleSubscription, assertAppleAccountBinding } from "./apple-subscription-status.js";
@@ -2578,7 +2579,7 @@ async function createSignalTicket(env, userId, networkId, verifiedComp = false) 
   return { token, expiresAt };
 }
 
-export async function userFromSignalTicket(env, networkId, token) {
+export async function userFromSignalTicket(env, networkId, token, cameraOnly = false) {
   if (!networkId || !token) return null;
 
   await ensureSignalTicketSchema(env);
@@ -2595,12 +2596,14 @@ export async function userFromSignalTicket(env, networkId, token) {
       u.created_at,
       u.last_login_at,
       COALESCE(up.plan, 'free') AS plan,
-      COALESCE(up.access_status, 'active') AS access_status
+      COALESCE(up.access_status, 'active') AS access_status,
+      COALESCE(up.source, '') AS entitlement_source,
+      up.expires_at AS entitlement_expires_at
     FROM scenepilot_signal_tickets t
     JOIN users u ON u.id = t.user_id
-    JOIN scenepilot_network_members m
+    ${cameraOnly ? "" : `JOIN scenepilot_network_members m
       ON m.user_id = u.id
-      AND m.network_id = t.network_id
+      AND m.network_id = t.network_id`}
     LEFT JOIN user_products up
       ON up.user_id = u.id
       AND up.product_id = 'product_scenepilot'
@@ -2627,7 +2630,7 @@ async function handleNetwork(request, env) {
   }
 
   const user = await getCurrentUser(request, env);
-  if (!user || user.status !== "active" || user.accessStatus !== "active") {
+  if (!hasStudioAccess(user)) {
     return json({ error: "Urban Director Studio account access required." }, 401);
   }
 
@@ -2735,6 +2738,19 @@ async function validCameraJoinToken(
   return Boolean(row);
 }
 
+async function handleCameraAccess(request, env) {
+  const user = await getCurrentUser(request, env);
+  if (!user) return json({ error: "Sign in to use Urban Director Studio." }, 401);
+  if (!hasStudioAccess(user)) return json({ error: "An active Urban Director Studio subscription is required." }, 403);
+  const body = await readJson(request);
+  const networkId = String(body.network || "").trim();
+  if (!await validCameraJoinToken(env, networkId, String(body.room || ""), String(body.join || ""))) {
+    return json({ error: "This camera invite is invalid or expired." }, 403);
+  }
+  const ticket = await createSignalTicket(env, user.id, networkId, user.billingSource === "master-comp");
+  return json({ ticket: ticket.token, expiresAt: ticket.expiresAt });
+}
+
 async function handleDirectorMediaIce(request, env) {
   if (!env.DB) return json({ error: "Director network database is unavailable." }, 503);
   const body = await readJson(request);
@@ -2743,14 +2759,14 @@ async function handleDirectorMediaIce(request, env) {
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(networkId) || !/^[A-Za-z0-9_-]{1,80}$/.test(room)) {
     return json({ error: "A valid Director network and room are required." }, 400);
   }
-  // The Director proves membership with their account; cameras prove access
-  // with the original short-lived invite, never a shared master TURN secret.
+  // Directors need an entitled network account. Cameras also need paid access
+  // and a scoped invite; an invite alone never grants app access.
   const user = await getCurrentUser(request, env);
   const member = Boolean(
-    user?.id && user.status === "active" && user.accessStatus === "active" &&
+    hasStudioAccess(user) &&
     await userCanAccessNetwork(env, user.id, networkId)
   );
-  const camera = !member && await validCameraJoinToken(
+  const camera = !member && hasStudioAccess(user) && await validCameraJoinToken(
     env, networkId, room, String(body.join || "")
   );
   if (!member && !camera) {
@@ -2867,7 +2883,7 @@ async function decryptBroadcastSecret(value, secret) {
 async function requireScenePilotNetworkMember(request, env) {
   const user = await getCurrentUser(request, env);
 
-  if (!user || user.status !== "active" || user.accessStatus !== "active") {
+  if (!hasStudioAccess(user)) {
     return {
       user: null,
       network: null,
@@ -3857,6 +3873,10 @@ async function handleApi(request, env, url) {
     return handleNetwork(request, env);
   }
 
+  if (url.pathname === "/api/camera/access" && request.method === "POST") {
+    return handleCameraAccess(request, env);
+  }
+
   if (url.pathname === "/api/camera/invite" && request.method === "POST") {
     return handleCameraInvite(request, env);
   }
@@ -4096,11 +4116,14 @@ export default {
       }
 
       const memberAccess = Boolean(
-        user?.id &&
+        hasStudioAccess(user) &&
         await userCanAccessNetwork(env, user.id, networkId)
       );
 
-      const cameraAccess = await validCameraJoinToken(
+      if (!user && signalTicket) {
+        user = await userFromSignalTicket(env, networkId, signalTicket, true);
+      }
+      const cameraAccess = hasStudioAccess(user) && await validCameraJoinToken(
         env,
         networkId,
         room,

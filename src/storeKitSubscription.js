@@ -1,5 +1,7 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { apiFetch } from "./runtimeApi";
+import { App as CapacitorApp } from "@capacitor/app";
+import { createAppleTransactionDelivery, watchAppleTransactionDelivery } from "./appleTransactionDelivery.js";
 
 export const APPLE_SUBSCRIPTION_PRODUCT_ID =
   "com.icomputeranything.scenepilot.pro.monthly";
@@ -30,7 +32,7 @@ async function apiJson(path, options = {}) {
   return data;
 }
 
-async function syncTransaction(transaction) {
+async function verifyTransaction(transaction) {
   if (!transaction?.transactionId) {
     throw new Error("Apple did not return a transaction to verify.");
   }
@@ -40,6 +42,25 @@ async function syncTransaction(transaction) {
     body: JSON.stringify({
       transactionId: transaction.transactionId
     })
+  });
+}
+
+const syncTransaction = createAppleTransactionDelivery({
+  verify: verifyTransaction,
+  finish: transaction => NativeStoreKit.finishTransaction({ transactionId: transaction.transactionId })
+});
+
+export async function watchApplePurchases(onUser) {
+  if (!isAppleStoreKitAvailable() || desktopStore()) return () => {};
+  return watchAppleTransactionDelivery({
+    subscribe: callback => NativeStoreKit.addListener("transactionUpdated", callback),
+    onResume: callback => CapacitorApp.addListener("appStateChange", state => {
+      if (state.isActive) callback();
+    }),
+    pending: () => NativeStoreKit.pendingTransactions(),
+    deliver: syncTransaction,
+    refresh: refreshAppleSubscription,
+    onUser
   });
 }
 

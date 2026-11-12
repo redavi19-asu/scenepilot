@@ -6,6 +6,7 @@ on:
       - '.github/workflows/ios-release.yml'
       - 'ios/**'
       - 'src/**'
+      - 'shared/**'
       - 'public/**'
       - 'index.html'
       - 'package.json'
