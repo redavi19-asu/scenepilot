@@ -1009,13 +1009,13 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
         <h1>{mode === "register" ? "Create your account." : "Welcome back."}</h1>
         <p>
           {mode === "register"
-            ? "Create your ICA Software account. Director access is activated after your account is approved."
-            : "Sign in to open the Director console after your Urban Director Studio access has been activated."}
+            ? "Create your account, then subscribe to use Urban Director Studio."
+            : "Sign in to use Urban Director Studio with your active subscription."}
         </p>
 
         {window.urbanDirectorDesktop && <button type="button" className="sp-auth-submit" disabled={busy} onClick={async()=>{
           setBusy(true);setStatus('Finish signing in in your browser.');
-          try{await window.urbanDirectorDesktop.auth.start();window.location.assign('/app');}
+          try{await window.urbanDirectorDesktop.auth.start();window.location.assign(desktopAuthReturn());}
           catch{setStatus('Browser sign-in did not complete. Please try again.');setBusy(false);}
         }}>Continue in browser</button>}
         {window.urbanDirectorDesktop && busy && <button type="button" onClick={()=>window.urbanDirectorDesktop.auth.cancel()}>Cancel browser sign-in</button>}
@@ -1200,7 +1200,7 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
       if (nextUser) onAccessUpdated?.(nextUser);
       if (nextUser?.accessStatus === "active") {
         setBillingStatus("Access active. Opening Urban Director Studio...");
-        go("/app");
+        window.location.assign(desktopAuthReturn());
       } else {
         setBillingStatus("Your subscription is not active yet.");
       }
