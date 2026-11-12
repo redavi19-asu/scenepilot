@@ -2758,7 +2758,7 @@ async function handleDirectorMediaIce(request, env) {
     hasStudioAccess(user) &&
     await userCanAccessNetwork(env, user.id, networkId)
   );
-  const camera = !member && hasStudioAccess(user) && await validCameraJoinToken(
+  const camera = !member && (hasStudioAccess(user) || env.ALLOW_LEGACY_CAMERA_INVITES === "true") && await validCameraJoinToken(
     env, networkId, room, String(body.join || "")
   );
   if (!member && !camera) {
@@ -4115,7 +4115,7 @@ export default {
       if (!user && signalTicket) {
         user = await userFromSignalTicket(env, networkId, signalTicket, true);
       }
-      const cameraAccess = hasStudioAccess(user) && await validCameraJoinToken(
+      const cameraAccess = (hasStudioAccess(user) || env.ALLOW_LEGACY_CAMERA_INVITES === "true") && await validCameraJoinToken(
         env,
         networkId,
         room,

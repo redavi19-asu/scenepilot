@@ -69,3 +69,19 @@ test('ordinary free/expired accounts are denied while active subscriptions and p
   assert.equal(hasStudioAccess({...user,status:'suspended',role:'owner'},1000),false);
   assert.equal(hasStudioAccess({...user,role:'owner',plan:'free'},3000),true);
 });
+
+// The release bridge preserves only existing invite-based camera connections.
+// Updated clients still obtain paid camera tickets; Director access never changes.
+test('explicit legacy rollout bridge accepts valid camera invites without Director privileges', async () => {
+  const f=await fixture();
+  f.env.ALLOW_LEGACY_CAMERA_INVITES='true';
+  f.db.exec("UPDATE user_products SET plan='free',access_status='pending'");
+  assert.equal((await f.signal()).status,200);
+  assert.equal(f.forwarded().headers.get('X-ScenePilot-Can-Direct'),'0');
+  assert.equal((await f.post('/api/camera/access')).status,403);
+  const invalid=await worker.fetch(new Request('https://unit.test/signal?network=network&room=other&join=invite'),f.env);
+  assert.equal(invalid.status,403);
+  delete f.env.ALLOW_LEGACY_CAMERA_INVITES;
+  assert.equal((await f.signal()).status,403);
+  f.db.close();
+});

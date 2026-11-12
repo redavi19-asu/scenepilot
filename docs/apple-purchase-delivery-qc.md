@@ -20,7 +20,7 @@ The production Apple subscription still needs approval. Code checks do not certi
 
 Local validation on November 12, 2026: 139 Apple, entitlement, Worker and Electron tests passed; web build and release invariants passed. Lint completed with existing unrelated warnings. iOS compilation requires Xcode; this Mac has only command-line tools, so the archive workflow is used for compilation.
 
-## Device acceptance (not completed)
+## Device acceptance
 
 1. Install the corrected signed test build with a working compatible backend; confirm the environment and build number.
 2. Sign in with a dedicated ordinary account that has no entitlement. Verify Director and invited-camera routes require subscription before asking for camera/microphone access.
@@ -38,3 +38,11 @@ The iOS archive workflow has an explicit `billing_qc` input (default false). Wit
 The test app displays a persistent payment-test banner and stores its app session separately from the normal app. An explicit build-time allowlist rejects arbitrary native API origins. The test build uses the existing bundle/product ID so StoreKit can resolve the real subscription in Apple's sandbox; it replaces the prior installed test app rather than being a second public product. Do not submit this QC build as the public release.
 
 The test backend does not carry production streaming or AI credentials. Successful payment activation verifies subscription access, not full broadcast readiness. Sandbox server notifications are not configured for this backend yet; notification delivery and lifecycle tests remain separate acceptance items.
+
+## November 12 production submission
+
+Fresh Apple Sandbox purchase, unlock, full relaunch, manual restore and the first accelerated renewal passed on physical iPhone build 44 against the isolated backend. Build 45 uses the production origin and includes the later recovery-error display fix. No real production charge has been claimed.
+
+Mac 1.0.0 (36), its subscription and subscription group remain In Review, with no newer Apple message requesting another binary. Build 36 loads the first-party web application, including updated camera tickets after deployment; its native StoreKit adapter already verifies before finishing. Preserve this submission.
+
+Production temporarily sets `ALLOW_LEGACY_CAMERA_INVITES=true` to preserve old iOS 1.0 (42) invitation connections while Apple reviews 1.0.1. This preserves only valid camera invitations, never Director access or paid camera ticket issuance. Updated clients require payment. Remove the explicit production bridge once the compatible release is available. All other environments deny unpaid camera connections by default.
