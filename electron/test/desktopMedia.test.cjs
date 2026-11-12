@@ -8,6 +8,7 @@ const localRequire = createRequire(require('node:path').resolve(__dirname, '../m
 async function setup() {
   const handlers = {};
   const electron = {
+    Menu: {buildFromTemplate: value => value, setApplicationMenu(){}},
     ipcMain: {handle(name,fn){handlers[name]=fn;}},
     app: {whenReady:()=>Promise.resolve(),on(){}},
     session: {defaultSession:{
@@ -18,7 +19,7 @@ async function setup() {
     desktopCapturer: {getSources:async()=>[{id:'screen:1',name:'Test Screen'}]},
     dialog: {showMessageBox:async()=>({response:1})},
     shell: {openExternal(){}},
-    BrowserWindow: class { once(){} loadURL(){} webContents={setWindowOpenHandler(fn){handlers.open=fn;},on(){}}; }
+    BrowserWindow: class { on(){} once(){} loadURL(){} webContents={setWindowOpenHandler(fn){handlers.open=fn;},on(){}}; }
   };
   vm.runInNewContext(fs.readFileSync(require('node:path').resolve(__dirname,'../main.cjs'),'utf8'), {
     __dirname:require('node:path').resolve(__dirname,'..'),require:name=>name==='electron'?electron:localRequire(name),process:{env:{},platform:'darwin'},URL
