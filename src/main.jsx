@@ -109,7 +109,7 @@ if (Capacitor.isNativePlatform()) {
 
 createRoot(document.getElementById("root")).render(
   <>
-    {isBillingQC && <div role="status" style={{background:"#ffd45a",color:"#191919",padding:"8px 12px",textAlign:"center",fontWeight:700}}>PAYMENT TEST BUILD — Use an Apple sandbox account. Test purchases only.</div>}
+    {isBillingQC && <div role="status" style={{background:"#ffd45a",color:"#191919",padding:"8px 12px",textAlign:"center",fontWeight:700}}>PAYMENT TEST BUILD — Test purchases only. No real charges in TestFlight.</div>}
     <UrbanDirectorErrorBoundary>
       <ScenePilotPortal />
     </UrbanDirectorErrorBoundary>
