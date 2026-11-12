@@ -60,6 +60,7 @@ test('delayed approval, launch recovery and foreground retry refresh customer ac
   let pending = [transaction];
   let removed = 0;
   const users = [];
+  const errors = [];
   const delivered = [];
   const stop = await watchAppleTransactionDelivery({
     subscribe: async callback => { event = callback; return { remove: async () => { removed++; } }; },
@@ -67,11 +68,13 @@ test('delayed approval, launch recovery and foreground retry refresh customer ac
     pending: async () => ({ transactions: pending }),
     deliver: async tx => { delivered.push(tx.transactionId); if (offline) throw Error('offline'); return active; },
     refresh: async () => ({ user: { id: 'customer', accessStatus: offline ? 'pending' : 'active' } }),
-    onUser: user => users.push(user.accessStatus)
+    onUser: user => users.push(user.accessStatus),
+    onError: error => errors.push(error.message)
   });
   await tick();
   assert.deepEqual(delivered, ['123456']);
   assert.deepEqual(users, ['pending']);
+  assert.deepEqual(errors, ['offline']);
   offline = false;
   await resume();
   assert.equal(users.at(-1), 'active');

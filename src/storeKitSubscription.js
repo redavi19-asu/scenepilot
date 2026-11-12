@@ -50,7 +50,7 @@ const syncTransaction = createAppleTransactionDelivery({
   finish: transaction => NativeStoreKit.finishTransaction({ transactionId: transaction.transactionId })
 });
 
-export async function watchApplePurchases(onUser) {
+export async function watchApplePurchases(onUser, onError) {
   if (!isAppleStoreKitAvailable() || desktopStore()) return () => {};
   return watchAppleTransactionDelivery({
     subscribe: callback => NativeStoreKit.addListener("transactionUpdated", callback),
@@ -60,7 +60,8 @@ export async function watchApplePurchases(onUser) {
     pending: () => NativeStoreKit.pendingTransactions(),
     deliver: syncTransaction,
     refresh: refreshAppleSubscription,
-    onUser
+    onUser,
+    onError
   });
 }
 

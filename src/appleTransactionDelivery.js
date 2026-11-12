@@ -28,13 +28,14 @@ export function canPurchaseAppleSubscription(user) {
 }
 
 // Attach the live listener before recovering events emitted before sign-in.
-export async function watchAppleTransactionDelivery({ subscribe, onResume, pending, deliver, refresh, onUser }) {
+export async function watchAppleTransactionDelivery({ subscribe, onResume, pending, deliver, refresh, onUser, onError = () => {} }) {
   let stopped = false;
   let refreshing;
   const update = result => { if (!stopped && result?.user) onUser(result.user); };
   const receive = async transaction => {
     if (stopped) return;
-    try { update(await deliver(transaction)); } catch {
+    try { update(await deliver(transaction)); } catch (error) {
+      if (!stopped) onError(error);
       // Leave failed deliveries unfinished for resume, relaunch or Restore.
     }
   };
@@ -44,7 +45,7 @@ export async function watchAppleTransactionDelivery({ subscribe, onResume, pendi
       const result = await pending();
       for (const transaction of result.transactions || []) await receive(transaction);
       if (!stopped) update(await refresh());
-    })().catch(() => {}).finally(() => { refreshing = null; });
+    })().catch(error => { if (!stopped) onError(error); }).finally(() => { refreshing = null; });
     return refreshing;
   };
   const transactions = await subscribe(event => receive(event.transaction));

@@ -1146,7 +1146,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
   );
 }
 
-function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) {
+function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated, appleVerificationError = "" }) {
   const pending = user?.accessStatus === "pending";
   const suspended = user?.accessStatus === "suspended";
   const appleNative = isAppleStoreKitAvailable();
@@ -1313,7 +1313,7 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
             {canPurchaseAppleSubscription(user) && <button
               className="sp-auth-submit"
               type="button"
-              disabled={billingBusy || !appleProduct?.available}
+              disabled={billingBusy || !appleProduct?.available || Boolean(appleVerificationError)}
               onClick={subscribeWithApple}
             >
               <Crown size={17}/>
@@ -1340,8 +1340,8 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
               </button>
             )}
 
-            {billingStatus && (
-              <div className="sp-billing-status" role="status">{billingStatus}</div>
+            {(billingStatus || appleVerificationError) && (
+              <div className="sp-billing-status" role="status">{billingStatus || appleVerificationError}</div>
             )}
           </div>
         )}
@@ -2683,6 +2683,7 @@ export default function ScenePilotPortal() {
   const cleanPath = window.location.pathname.replace(/\/+$/, "") || "/";
   const watchMatch = cleanPath.match(/^\/watch\/([A-Za-z0-9_-]{1,80})$/);
   const [user, setUser] = useState(null);
+  const [appleVerificationError, setAppleVerificationError] = useState("");
   const [loading, setLoading] = useState(true);
   const [cameraAccess, setCameraAccess] = useState({ ticket: "", error: "" });
   const cameraNetwork = params.get("network") || "";
@@ -2727,17 +2728,21 @@ export default function ScenePilotPortal() {
     let cancelled = false;
 
     let stop;
-    void watchApplePurchases(next => { if (!cancelled) setUser(next); })
+    const update = next => {
+      if (!cancelled) { setUser(next); setAppleVerificationError(""); }
+    };
+    const report = error => {
+      if (!cancelled) setAppleVerificationError(error.message || "Purchase verification did not complete. Try Restore Purchases.");
+    };
+    void watchApplePurchases(update, report)
       .then(cleanup => { if (cancelled) cleanup(); else stop = cleanup; })
-      .catch(() => {});
+      .catch(report);
 
-    refreshAppleSubscription()
+    if (window.urbanDirectorDesktop?.storeKit) refreshAppleSubscription()
       .then(data => {
-        if (!cancelled && data?.user) {
-          setUser(data.user);
-        }
+        if (data?.user) update(data.user);
       })
-      .catch(() => {});
+      .catch(report);
 
     return () => {
       cancelled = true;
@@ -2814,7 +2819,7 @@ export default function ScenePilotPortal() {
   if (cameraMode) {
     if (loading) return <div className="sp-portal-loading">LOADING ACCOUNT...</div>;
     if (!user) return <AuthPanel onAuthenticated={setUser}/>;
-    if (!hasStudioAccess(user)) return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser}/>;
+    if (!hasStudioAccess(user)) return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser} appleVerificationError={appleVerificationError}/>;
     if (!cameraAccess.ticket || cameraAccess.userId !== user.id) return <div className="sp-portal-loading">{cameraAccess.error || "VERIFYING CAMERA ACCESS..."}</div>;
     return (
       <>
@@ -2865,14 +2870,14 @@ export default function ScenePilotPortal() {
   if (cleanPath === "/billing") {
     if (loading) return <div className="sp-portal-loading">LOADING ACCOUNT...</div>;
     if (!user) return <AuthPanel onAuthenticated={setUser}/>;
-    return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser}/>;
+    return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser} appleVerificationError={appleVerificationError}/>;
   }
 
   if (cleanPath === "/app") {
     if (loading) return <div className="sp-portal-loading"><Radio size={28}/> LOADING ICA ACCOUNT...</div>;
     if (!user) return <AuthPanel onAuthenticated={setUser}/>;
     if (!hasStudioAccess(user)) {
-      return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser}/>;
+      return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser} appleVerificationError={appleVerificationError}/>;
     }
 
     return (
