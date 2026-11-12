@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { nativeBackendOrigin, BILLING_QC_ORIGIN } from "./nativeBackend.js";
 
-const REMOTE_ORIGIN = nativeBackendOrigin(import.meta.env.VITE_NATIVE_API_ORIGIN);
+const REMOTE_ORIGIN = nativeBackendOrigin(import.meta.env?.VITE_NATIVE_API_ORIGIN);
 export const isBillingQC = REMOTE_ORIGIN === BILLING_QC_ORIGIN;
 const SESSION_KEY = isBillingQC ? "urban-director:billing-qc-session" : "urban-director:native-session";
 
