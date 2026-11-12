@@ -105,7 +105,7 @@ function LiveStreamVideo({ stream, className = "", muted = true }) {
   );
 }
 
-function App({ user = null, onLogout = null, onDeleteAccount = null }) {
+function App({ user = null, onLogout = null, onDeleteAccount = null, cameraSignalTicket = "" }) {
   const isOwner = user?.role === "owner";
   const [showSplash, setShowSplash] = useState(true);
   const [cameras] = useState(initialCameras);
@@ -489,7 +489,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
         return;
       }
 
-      socket.setNetwork(networkId, cameraJoinToken);
+      socket.setNetwork(networkId, cameraJoinToken, cameraSignalTicket);
       socket.setRoom(roomCode);
       socket.connect();
 
@@ -535,7 +535,7 @@ function App({ user = null, onLogout = null, onDeleteAccount = null }) {
       appStateListener?.remove?.();
       clearTimeout(resumeTimer);
     };
-  }, [showCamera, stream, networkId, cameraJoinToken, roomCode]);
+  }, [showCamera, stream, networkId, cameraJoinToken, cameraSignalTicket, roomCode]);
 
   useEffect(() => {
     if (showCamera) return;
@@ -2998,7 +2998,7 @@ async function enableCamera() {
       listenForProgramStatus(socket, handleProgramStatus);
       socket.on("camera:control", handleCameraControl);
 
-      socket.setNetwork(networkId, cameraJoinToken);
+      socket.setNetwork(networkId, cameraJoinToken, cameraSignalTicket);
       socket.setRoom(roomCode);
       socket.connect();
       return true;
@@ -3542,7 +3542,7 @@ async function enableCamera() {
                         return;
                       }
 
-                      socket.setNetwork(networkId, cameraJoinToken);
+                      socket.setNetwork(networkId, cameraJoinToken, cameraSignalTicket);
                       socket.setRoom(roomCode);
                       socket.reconnect();
                       setCameraInterrupted(false);

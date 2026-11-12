@@ -9,7 +9,10 @@
   },
   "vars": {
     "ICA_AUTH_PUBLIC_ORIGIN": "https://director-billing-sandbox.ryanedavis.workers.dev",
-    "STRIPE_PRICE_ID": "price_1UNx3yGzgYAIrLjGQ7lxpYFH"
+    "STRIPE_PRICE_ID": "price_1UNx3yGzgYAIrLjGQ7lxpYFH",
+    "APP_STORE_BUNDLE_ID": "com.icomputeranything.scenepilot",
+    "APP_STORE_SUBSCRIPTION_PRODUCT_ID": "com.icomputeranything.scenepilot.pro.monthly",
+    "APP_STORE_TRANSACTION_ENVIRONMENT": "Sandbox"
   },
   "durable_objects": {
     "bindings": [
@@ -34,5 +37,15 @@
       "database_id": "ea8a6e9a-bb4e-4963-b393-a0b68d618be0",
       "migrations_dir": "migrations"
     }
-  ]
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api/*",
+      "/health",
+      "/signal"
+    ]
+  }
 }

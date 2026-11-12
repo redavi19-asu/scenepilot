@@ -12,8 +12,65 @@ public class StoreKitSubscriptionPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "purchase", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "restore", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "currentEntitlement", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "pendingTransactions", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "finishTransaction", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "manageSubscriptions", returnType: CAPPluginReturnPromise)
     ]
+
+    private var transactionUpdates: Task<Void, Never>?
+
+    public override func load() {
+        transactionUpdates = Task { [weak self] in
+            for await result in StoreKit.Transaction.updates {
+                guard let self else { return }
+                guard case .verified(let transaction) = result,
+                      transaction.productID == self.defaultProductID else { continue }
+                self.notifyListeners("transactionUpdated", data: [
+                    "transaction": self.transactionPayload(
+                        transaction, jwsRepresentation: result.jwsRepresentation
+                    )
+                ])
+            }
+        }
+    }
+
+    deinit {
+        transactionUpdates?.cancel()
+    }
+
+    @objc func pendingTransactions(_ call: CAPPluginCall) {
+        Task {
+            var transactions: [[String: Any]] = []
+            for await result in StoreKit.Transaction.unfinished {
+                guard case .verified(let transaction) = result,
+                      transaction.productID == defaultProductID else { continue }
+                transactions.append(transactionPayload(
+                    transaction, jwsRepresentation: result.jwsRepresentation
+                ))
+            }
+            call.resolve(["transactions": transactions])
+        }
+    }
+
+    // JavaScript calls this only after the backend verifies and applies access.
+    @objc func finishTransaction(_ call: CAPPluginCall) {
+        guard let id = call.getString("transactionId"), UInt64(id) != nil else {
+            call.reject("A valid Apple transaction ID is required.")
+            return
+        }
+        Task {
+            for await result in StoreKit.Transaction.unfinished {
+                guard case .verified(let transaction) = result,
+                      transaction.productID == defaultProductID,
+                      String(transaction.id) == id else { continue }
+                await transaction.finish()
+                call.resolve(["finished": true])
+                return
+            }
+            // Another delivery may already have finished the same transaction.
+            call.resolve(["finished": false])
+        }
+    }
 
     private var defaultProductID: String {
         if let value = Bundle.main.object(
@@ -126,6 +183,10 @@ public class StoreKitSubscriptionPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func purchase(_ call: CAPPluginCall) {
         let requestedID = productID(call)
         let appAccountToken = call.getString("appAccountToken")
+        guard let token = appAccountToken, let accountUUID = UUID(uuidString: token) else {
+            call.reject("Sign in before purchasing Urban Director Studio Pro.")
+            return
+        }
 
         Task {
             do {
@@ -136,10 +197,7 @@ public class StoreKitSubscriptionPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
 
                 var options = Set<Product.PurchaseOption>()
-                if let token = appAccountToken,
-                   let accountUUID = UUID(uuidString: token) {
-                    options.insert(.appAccountToken(accountUUID))
-                }
+                options.insert(.appAccountToken(accountUUID))
 
                 let result = try await product.purchase(options: options)
 
@@ -151,7 +209,6 @@ public class StoreKitSubscriptionPlugin: CAPPlugin, CAPBridgedPlugin {
                             transaction,
                             jwsRepresentation: verification.jwsRepresentation
                         )
-                        await transaction.finish()
                         call.resolve([
                             "status": "purchased",
                             "transaction": payload

@@ -6,6 +6,7 @@ on:
       - '.github/workflows/ios-release.yml'
       - 'ios/**'
       - 'src/**'
+      - 'shared/**'
       - 'public/**'
       - 'index.html'
       - 'package.json'
@@ -20,6 +21,10 @@ on:
         description: Upload the signed build to App Store Connect
         type: boolean
         default: true
+      billing_qc:
+        description: Prepare isolated Apple billing backend and build the test app
+        type: boolean
+        default: false
       build_number:
         description: Unique numeric Apple build number (blank uses the run number)
         type: string
@@ -30,18 +35,46 @@ concurrency:
   group: urban-director-ios-release
   cancel-in-progress: false
 jobs:
-  archive:
-    runs-on: macos-26
-    timeout-minutes: 45
-    env:
-      UPLOAD: ${{ github.event_name == 'push' || inputs.upload }}
+  billing_qc:
+    if: inputs.billing_qc == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-      - name: Build and sync production assets
+      - run: npm ci
+      - name: Validate billing changes
+        run: node --test src/nativeBackend.test.js src/appleTransactionDelivery.test.js worker/test/subscription-access.test.js worker/test/apple-transaction-lookup.test.js
+      - name: Build isolated test assets
+        env:
+          VITE_NATIVE_API_ORIGIN: https://director-billing-sandbox.ryanedavis.workers.dev
+        run: npm run build
+      - name: Deploy only the isolated billing backend
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY }}
+        run: node scripts/deploy-apple-billing-qc.mjs
+  archive:
+    needs: billing_qc
+    if: ${{ !cancelled() && (needs.billing_qc.result == 'success' || needs.billing_qc.result == 'skipped') }}
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      UPLOAD: ${{ github.event_name == 'push' || inputs.upload }}
+      VITE_NATIVE_API_ORIGIN: ${{ inputs.billing_qc && 'https://director-billing-sandbox.ryanedavis.workers.dev' || '' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Build and sync native assets
         run: |
           npm ci
           npm run lint

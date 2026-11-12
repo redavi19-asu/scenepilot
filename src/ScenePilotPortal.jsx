@@ -1,3 +1,4 @@
+import { hasStudioAccess } from "../shared/subscriptionAccess.js";
 import DesktopAuth from "./DesktopAuth.jsx";
 import { desktopAuthReturn } from "./desktopAuthReturn.js";
 import GooglePlayBillingCard from "./GooglePlayBillingCard";
@@ -21,8 +22,10 @@ import {
   manageAppleSubscription,
   purchaseAppleSubscription,
   refreshAppleSubscription,
+  watchApplePurchases,
   restoreAppleSubscription
 } from "./storeKitSubscription";
+import { canPurchaseAppleSubscription } from "./appleTransactionDelivery.js";
 import { ForgotPasswordPage, ResetPasswordPage } from "./PasswordRecovery.jsx";
 import "./ScenePilotPortal.css";
 
@@ -601,9 +604,9 @@ function LandingPage() {
 
         <section className="sp-pricing-section" id="pricing">
           <div className="sp-pricing-copy">
-            <span className="sp-kicker">URBAN DIRECTOR STUDIO PRO</span>
+            <span className="sp-kicker">URBAN DIRECTOR STUDIO</span>
             <h2>Professional production software without production-truck pricing.</h2>
-            <p>One monthly plan built around the complete Director workflow.</p>
+            <p>Free to download. One required subscription for camera and Director tools.</p>
           </div>
 
           <div className="sp-price-card">
@@ -640,7 +643,7 @@ function LandingPage() {
           <div className="sp-faq-list">
             <details>
               <summary>Do all camera operators need the Director login?</summary>
-              <p>No. The Director controls the room while camera operators can join through the controlled production-camera workflow.</p>
+              <p>No. Use your own Urban Director Studio account and active subscription, then join with the production camera link or QR code.</p>
             </details>
             <details>
               <summary>Can I use phones as cameras?</summary>
@@ -814,7 +817,7 @@ function TermsPage() {
         </p>
         <h2>Subscription</h2>
         <p>
-          Urban Director Studio Pro is offered as a monthly auto-renewable subscription. The subscription
+          Urban Director Studio is offered as a monthly auto-renewable subscription. The subscription
           renews automatically unless canceled through the applicable platform account settings before renewal.
           Included service limits, such as broadcast minutes and maximum live-session duration, are
           displayed before purchase and within the product.
@@ -1006,13 +1009,13 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
         <h1>{mode === "register" ? "Create your account." : "Welcome back."}</h1>
         <p>
           {mode === "register"
-            ? "Create your ICA Software account. Director access is activated after your account is approved."
-            : "Sign in to open the Director console after your Urban Director Studio access has been activated."}
+            ? "Create your account, then subscribe to use Urban Director Studio."
+            : "Sign in to use Urban Director Studio with your active subscription."}
         </p>
 
         {window.urbanDirectorDesktop && <button type="button" className="sp-auth-submit" disabled={busy} onClick={async()=>{
           setBusy(true);setStatus('Finish signing in in your browser.');
-          try{await window.urbanDirectorDesktop.auth.start();window.location.assign('/app');}
+          try{await window.urbanDirectorDesktop.auth.start();window.location.assign(desktopAuthReturn());}
           catch{setStatus('Browser sign-in did not complete. Please try again.');setBusy(false);}
         }}>Continue in browser</button>}
         {window.urbanDirectorDesktop && busy && <button type="button" onClick={()=>window.urbanDirectorDesktop.auth.cancel()}>Cancel browser sign-in</button>}
@@ -1143,7 +1146,7 @@ function AuthPanel({ onAuthenticated, initialMode = "login" }) {
   );
 }
 
-function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) {
+function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated, appleVerificationError = "" }) {
   const pending = user?.accessStatus === "pending";
   const suspended = user?.accessStatus === "suspended";
   const appleNative = isAppleStoreKitAvailable();
@@ -1197,9 +1200,9 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
       if (nextUser) onAccessUpdated?.(nextUser);
       if (nextUser?.accessStatus === "active") {
         setBillingStatus("Access active. Opening Urban Director Studio...");
-        go("/app");
+        window.location.assign(desktopAuthReturn());
       } else {
-        setBillingStatus("Director Pro access is still pending for this account.");
+        setBillingStatus("Your subscription is not active yet.");
       }
     } catch (error) {
       setBillingStatus(error.message);
@@ -1209,6 +1212,10 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
   }
 
   async function subscribeWithApple() {
+    if (!canPurchaseAppleSubscription(user)) {
+      setBillingStatus("Your account already has access. Use Manage Apple Subscription for an existing subscription.");
+      return;
+    }
     setBillingBusy(true);
     setBillingStatus("");
 
@@ -1253,7 +1260,7 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
       }
       setBillingStatus(result?.status === "pending"
         ? "Apple has not returned a verified purchase yet. No new purchase is needed. Try Restore Purchases again shortly or contact support."
-        : "No active Urban Director Studio Pro subscription was found.");
+        : "No active Urban Director Studio subscription was found.");
     } catch (error) {
       setBillingStatus(error.message);
     } finally {
@@ -1275,14 +1282,14 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
       <div className="sp-auth-card sp-access-status-card">
         <div className="sp-auth-logo"><LockKeyhole size={26}/></div>
         <span className="sp-kicker">URBAN DIRECTOR STUDIO ACCOUNT</span>
-        <h1>{user.accessStatus === "active" ? "Billing & subscription." : pending ? "Choose your access." : suspended ? "Subscription inactive." : "Account access."}</h1>
+        <h1>{hasStudioAccess(user) ? "Billing & subscription." : pending ? "Subscription required." : suspended ? "Subscription inactive." : "Account access."}</h1>
         <p>
           {pending
-            ? "Your ICA Software account is ready. Activate Urban Director Studio Pro to open the Director console."
+            ? "Your ICA Software account is ready. Subscribe to Urban Director Studio to use camera and Director tools."
             : suspended
-              ? "Your Urban Director Studio Pro entitlement is not currently active. Renew or restore through Apple to reopen the Director console."
-              : user.accessStatus === "active"
-                ? "Your Director access is active. Manage your subscription or restore an Apple purchase below."
+              ? "Your Urban Director Studio entitlement is not currently active. Renew or restore through Apple to reopen the Director console."
+              : hasStudioAccess(user)
+                ? "Your Urban Director Studio subscription is active. Manage your subscription or restore an Apple purchase below."
                 : "Your account is signed in, but Director access is not currently available."}
         </p>
 
@@ -1294,7 +1301,7 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
           <div className="sp-apple-billing-card">
             <span className="sp-kicker">APPLE SUBSCRIPTION</span>
             <strong>
-              Urban Director Studio Pro — {appleProduct?.displayPrice || "$39.99"} / month
+              Urban Director Studio — {appleProduct?.displayPrice || "$39.99"} / month
             </strong>
             <small>
               Includes 1,500 broadcast minutes per billing period and up to 4 hours per live session.
@@ -1303,15 +1310,15 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
               <button type="button" onClick={() => go("/privacy")}>Privacy Policy</button>
             </small>
 
-            <button
+            {canPurchaseAppleSubscription(user) && <button
               className="sp-auth-submit"
               type="button"
-              disabled={billingBusy || appleProduct?.available === false}
+              disabled={billingBusy || !appleProduct?.available || Boolean(appleVerificationError)}
               onClick={subscribeWithApple}
             >
               <Crown size={17}/>
               {billingBusy ? "PLEASE WAIT..." : suspended ? "RENEW WITH APPLE" : "SUBSCRIBE WITH APPLE"}
-            </button>
+            </button>}
 
             <button
               className="sp-secondary"
@@ -1333,8 +1340,8 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
               </button>
             )}
 
-            {billingStatus && (
-              <div className="sp-billing-status" role="status">{billingStatus}</div>
+            {(billingStatus || appleVerificationError) && (
+              <div className="sp-billing-status" role="status">{billingStatus || appleVerificationError}</div>
             )}
           </div>
         )}
@@ -1342,7 +1349,7 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated }) 
         {googleNative && !user.freeAccessVerificationRequired && <GooglePlayBillingCard user={user} onAccessUpdated={onAccessUpdated} onNavigate={go}/> }
         {!appleNative && !googleNative && !user.freeAccessVerificationRequired && (
           <div className="sp-apple-billing-card">
-            <strong>Urban Director Studio Pro — $39.99 / month</strong>
+            <strong>Urban Director Studio — $39.99 / month</strong>
             <small>Includes 1,500 broadcast minutes each billing period. Auto-renews until cancelled. Payment details are handled securely by Stripe.</small>
             {user.accessStatus !== "active" && <button className="sp-auth-submit" disabled={billingBusy || !stripeReady} onClick={() => openWebBilling("checkout")}>SUBSCRIBE WITH STRIPE</button>}
             {stripeReady && <button className="sp-secondary" disabled={billingBusy} onClick={() => openWebBilling("portal")}>MANAGE BILLING</button>}
@@ -2462,7 +2469,7 @@ function AdminPage({ user, onLogout }) {
             <span className="sp-kicker">APPLE APP REVIEW</span>
             <h2>Temporary reviewer access</h2>
             <p>
-              Generates or resets a dedicated Pro reviewer account with its own isolated Urban Director Studio network.
+              Generates or resets a dedicated reviewer account with its own isolated Urban Director Studio network.
               Access automatically expires after 45 days.
             </p>
           </div>
@@ -2676,7 +2683,21 @@ export default function ScenePilotPortal() {
   const cleanPath = window.location.pathname.replace(/\/+$/, "") || "/";
   const watchMatch = cleanPath.match(/^\/watch\/([A-Za-z0-9_-]{1,80})$/);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(!cameraMode);
+  const [appleVerificationError, setAppleVerificationError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [cameraAccess, setCameraAccess] = useState({ ticket: "", error: "" });
+  const cameraNetwork = params.get("network") || "";
+  const cameraRoom = params.get("room") || "";
+  const cameraJoin = params.get("join") || "";
+  useEffect(() => {
+    if (!cameraMode || !hasStudioAccess(user)) return;
+    let cancelled = false;
+    api("/api/camera/access", { method: "POST", body: JSON.stringify({ network: cameraNetwork, room: cameraRoom, join: cameraJoin }) })
+      .then(data => { if (!cancelled) setCameraAccess({ ticket: data.ticket, userId: user.id, error: "" }); })
+      .catch(error => { if (!cancelled) setCameraAccess({ ticket: "", error: error.message }); });
+    return () => { cancelled = true; };
+  }, [cameraMode, user, cameraNetwork, cameraRoom, cameraJoin]);
+
 
   useEffect(() => {
     if (loading || !user || (cleanPath !== "/login" && cleanPath !== "/register")) return;
@@ -2684,8 +2705,6 @@ export default function ScenePilotPortal() {
   }, [loading, user, cleanPath]);
 
   useEffect(() => {
-    if (cameraMode) return;
-
     api("/api/auth/me")
       .then(data => setUser(data.user || null))
       .catch(() => setUser(null))
@@ -2708,16 +2727,26 @@ export default function ScenePilotPortal() {
 
     let cancelled = false;
 
-    refreshAppleSubscription()
+    let stop;
+    const update = next => {
+      if (!cancelled) { setUser(next); setAppleVerificationError(""); }
+    };
+    const report = error => {
+      if (!cancelled) setAppleVerificationError(error.message || "Purchase verification did not complete. Try Restore Purchases.");
+    };
+    void watchApplePurchases(update, report)
+      .then(cleanup => { if (cancelled) cleanup(); else stop = cleanup; })
+      .catch(report);
+
+    if (window.urbanDirectorDesktop?.storeKit) refreshAppleSubscription()
       .then(data => {
-        if (!cancelled && data?.user) {
-          setUser(data.user);
-        }
+        if (data?.user) update(data.user);
       })
-      .catch(() => {});
+      .catch(report);
 
     return () => {
       cancelled = true;
+      stop?.();
     };
   }, [user?.id, user?.role]);
 
@@ -2788,9 +2817,13 @@ export default function ScenePilotPortal() {
   }
 
   if (cameraMode) {
+    if (loading) return <div className="sp-portal-loading">LOADING ACCOUNT...</div>;
+    if (!user) return <AuthPanel onAuthenticated={setUser}/>;
+    if (!hasStudioAccess(user)) return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser} appleVerificationError={appleVerificationError}/>;
+    if (!cameraAccess.ticket || cameraAccess.userId !== user.id) return <div className="sp-portal-loading">{cameraAccess.error || "VERIFYING CAMERA ACCESS..."}</div>;
     return (
       <>
-        <App/>
+        <App user={user} cameraSignalTicket={cameraAccess.ticket}/>
         <IntercomPanel mode="camera"/>
         <CommsPanel mode="camera"/>
       </>
@@ -2837,14 +2870,14 @@ export default function ScenePilotPortal() {
   if (cleanPath === "/billing") {
     if (loading) return <div className="sp-portal-loading">LOADING ACCOUNT...</div>;
     if (!user) return <AuthPanel onAuthenticated={setUser}/>;
-    return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser}/>;
+    return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser} appleVerificationError={appleVerificationError}/>;
   }
 
   if (cleanPath === "/app") {
     if (loading) return <div className="sp-portal-loading"><Radio size={28}/> LOADING ICA ACCOUNT...</div>;
     if (!user) return <AuthPanel onAuthenticated={setUser}/>;
-    if (user.accessStatus !== "active") {
-      return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser}/>;
+    if (!hasStudioAccess(user)) {
+      return <AccessStatusPage user={user} onLogout={logout} onDeleteAccount={deleteAccount} onAccessUpdated={setUser} appleVerificationError={appleVerificationError}/>;
     }
 
     return (
