@@ -13,3 +13,14 @@ test('a successful production lookup does not contact Sandbox',async()=>{
  let calls=0;const result=await lookupAppleTransaction({token:'test',id:'123',hosts,fetchImpl:async()=>{calls++;return Response.json({signedTransactionInfo:'signed-production'});}});
  assert.equal(result.environment,'Production');assert.equal(calls,1);
 });
+
+test('isolated Apple QC never contacts production transaction APIs',async()=>{
+ const {appleTransactionHosts}=await import('../apple-transaction-lookup.js');
+ const hosts=appleTransactionHosts('Sandbox');
+ assert.deepEqual(hosts.map(host=>host.environment),['Sandbox']);
+ await lookupAppleTransaction({token:'test',id:'123456',hosts,fetchImpl:async url=>{
+  assert.ok(url.startsWith('https://api.storekit-sandbox.apple.com/'));
+  return {ok:true,json:async()=>({signedTransactionInfo:'verified-by-server'})};
+ }});
+ assert.throws(()=>appleTransactionHosts('unexpected'),/Invalid Apple billing environment/);
+});

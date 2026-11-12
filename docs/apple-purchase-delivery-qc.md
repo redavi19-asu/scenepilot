@@ -30,3 +30,11 @@ Local validation on November 12, 2026: 139 Apple, entitlement, Worker and Electr
 6. Verify delayed approval while open and after relaunch. Verify restore/reinstall and same-account access across devices, renewal, auto-renew cancellation, expiration and resubscription.
 7. Confirm expired/unpaid users cannot connect using an old camera ticket; paid camera tickets still cannot control another network.
 8. Preserve owner access and reject attempts to bind the same Apple subscription to a different app account.
+
+## Isolated signed test build
+
+The iOS archive workflow has an explicit `billing_qc` input (default false). With it enabled, the workflow validates and deploys only `director-billing-sandbox`, restricted to D1 `ea8a6e9a-bb4e-4963-b393-a0b68d618be0`, installs Apple verification secrets without logging their values, checks backend health, then builds native assets pointed at that backend. The sandbox verifies Apple Sandbox transactions only. Production defaults and routing are unchanged.
+
+The test app displays a persistent payment-test banner and stores its app session separately from the normal app. An explicit build-time allowlist rejects arbitrary native API origins. The test build uses the existing bundle/product ID so StoreKit can resolve the real subscription in Apple's sandbox; it replaces the prior installed test app rather than being a second public product. Do not submit this QC build as the public release.
+
+The test backend does not carry production streaming or AI credentials. Successful payment activation verifies subscription access, not full broadcast readiness. Sandbox server notifications are not configured for this backend yet; notification delivery and lifecycle tests remain separate acceptance items.

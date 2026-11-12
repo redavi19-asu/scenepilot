@@ -1,3 +1,13 @@
+export function appleTransactionHosts(environment = "") {
+ const hosts = [
+  {environment:"Production",base:"https://api.storekit.apple.com"},
+  {environment:"Sandbox",base:"https://api.storekit-sandbox.apple.com"}
+ ];
+ if (!environment) return hosts;
+ if (!["Production","Sandbox"].includes(environment)) throw new Error("Invalid Apple billing environment.");
+ return hosts.filter(host=>host.environment===environment);
+}
+
 export async function lookupAppleTransaction({token,id,hosts,fetchImpl=fetch}) {
  let lastError;
  for (const host of hosts) {

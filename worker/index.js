@@ -1,5 +1,5 @@
 import { hasStudioAccess } from "../shared/subscriptionAccess.js";
-import { lookupAppleTransaction } from "./apple-transaction-lookup.js";
+import { lookupAppleTransaction, appleTransactionHosts } from "./apple-transaction-lookup.js";
 import { renewReviewerAccess } from "./reviewer-access.js";
 import { latestAppleSubscription, assertAppleAccountBinding } from "./apple-subscription-status.js";
 import { handleGooglePlayBilling } from "./google-play-billing.js";
@@ -566,16 +566,7 @@ async function appleTransactionInfo(env, transactionId) {
     throw new Error("Apple transaction ID is required.");
   }
 
-  const hosts = [
-    {
-      environment: "Production",
-      base: "https://api.storekit.apple.com"
-    },
-    {
-      environment: "Sandbox",
-      base: "https://api.storekit-sandbox.apple.com"
-    }
-  ];
+  const hosts = appleTransactionHosts(env.APP_STORE_TRANSACTION_ENVIRONMENT);
 
   const host = await lookupAppleTransaction({token,id,hosts});
   const latest = await latestAppleSubscription({
