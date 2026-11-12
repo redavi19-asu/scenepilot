@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, shell, desktopCapturer, dialog, ipcMain, inAppPurchase } = require("electron");
+const { app, BrowserWindow, Menu, session, shell, desktopCapturer, dialog, ipcMain, inAppPurchase } = require("electron");
 
 const path = require('node:path');
 const { createStoreKit } = require('./storeKit.cjs');
@@ -57,6 +57,38 @@ function configurePermissions() {
   }, { useSystemPicker: true });
 }
 
+let mainWindow = null;
+
+function openMainWindow() {
+  // Monitor pop-outs are independent windows and must not block reopening Studio.
+  if (!mainWindow || mainWindow.isDestroyed()) createWindow();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function installMacMenu() {
+  if (process.platform !== "darwin") return;
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { role: "appMenu" },
+    { role: "fileMenu" },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    {
+      label: "Window",
+      role: "windowMenu",
+      submenu: [
+        { label: "Open Main Window", accelerator: "Cmd+Shift+1", click: openMainWindow },
+        { type: "separator" },
+        { role: "minimize" },
+        { role: "zoom" },
+        { type: "separator" },
+        { role: "front" }
+      ]
+    }
+  ]));
+}
+
 function createWindow() {
   const window = new BrowserWindow({
     width: 1440,
@@ -78,6 +110,10 @@ function createWindow() {
     }
   });
 
+  mainWindow = window;
+  window.on("closed", () => {
+    if (mainWindow === window) mainWindow = null;
+  });
   window.once("ready-to-show", () => window.show());
 
   window.webContents.setWindowOpenHandler(({ url, frameName }) => {
@@ -121,11 +157,10 @@ app.whenReady().then(() => {
       });
     }
   }
+  installMacMenu();
   createWindow();
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
+  app.on("activate", openMainWindow);
 });
 
 app.on("window-all-closed", () => {
