@@ -27,7 +27,18 @@ try {
 } finally {
   await unlink(secretFile).catch(()=>{});
 }
-const response=await fetch('https://director-billing-sandbox.ryanedavis.workers.dev/health');
-const health=await response.json();
-if (!response.ok || !health.ok || !health.appleBillingConfigured) throw new Error('Isolated Apple billing backend did not pass readiness checks.');
-console.log(JSON.stringify({isolatedBillingBackendReady:true,migrationCount:health.migrationCount}));
+// New Worker versions and their secrets may take a few seconds to propagate.
+let ready = false;
+for (let attempt = 0; attempt < 10; attempt++) {
+  try {
+    const response = await fetch('https://director-billing-sandbox.ryanedavis.workers.dev/health');
+    const health = await response.json();
+    if (response.ok && health.ok && health.appleBillingConfigured) {
+      console.log(JSON.stringify({isolatedBillingBackendReady:true,migrationCount:health.migrationCount}));
+      ready = true;
+      break;
+    }
+  } catch { /* Retry transient deployment propagation failures. */ }
+  await new Promise(resolve => setTimeout(resolve, 2000));
+}
+if (!ready) throw new Error('Isolated Apple billing backend did not pass readiness checks.');
