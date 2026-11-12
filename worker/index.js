@@ -850,6 +850,7 @@ async function handleAppleBillingSync(request, env) {
       user: refreshedUser
     });
   } catch (error) {
+    console.warn(JSON.stringify({ event: "apple-purchase-verification-failed", reason: error instanceof Error ? error.message : "Unknown verification failure" }));
     return json({
       error:
         error instanceof Error
