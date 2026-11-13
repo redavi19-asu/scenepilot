@@ -428,7 +428,17 @@ function LandingPage() {
               </button>
             </div>
 
-            <div className="sp-store-downloads"><a href="https://apps.apple.com/us/app/urban-director-studio/id6811694662" target="_blank" rel="noopener noreferrer" aria-label="Download Urban Director Studio on the App Store" style={{display:'inline-flex',padding:12,alignSelf:'flex-start'}}><img src="/images/download-on-the-app-store.svg" alt="Download on the App Store" width="144" height="48" style={{display:'block',width:144,height:48}} /></a><a className="sp-secondary" href="/downloads#windows">Download for Windows</a><span>Available now for iPhone and iPad</span></div>
+            <div className="sp-store-downloads"><a href="https://apps.apple.com/us/app/urban-director-studio/id6811694662" target="_blank" rel="noopener noreferrer" aria-label="Download Urban Director Studio on the App Store" style={{display:'inline-flex',padding:12,alignSelf:'flex-start'}}><img src="/images/download-on-the-app-store.svg" alt="Download on the App Store" width="144" height="48" style={{display:'block',width:144,height:48}} /></a><a href="/register" aria-label="Create an Urban Director Studio account for Windows" style={{display:'inline-flex',padding:12,alignSelf:'flex-start',textDecoration:'none'}}>
+                  <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:9,width:144,height:48,boxSizing:'border-box',border:'1px solid rgba(255,255,255,.65)',borderRadius:8,background:'#080808',color:'#fff',boxShadow:'0 3px 8px rgba(0,0,0,.2)'}}>
+                    <svg width="25" height="25" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={{flexShrink:0}}>
+                      <path fill="currentColor" d="M2 4.25 10.5 3v8.5H2V4.25Zm10-1.45L22 1.4v10.1H12V2.8ZM2 12.75h8.5v8.5L2 20v-7.25Zm10 0h10v10.1l-10-1.4v-8.7Z"/>
+                    </svg>
+                    <span style={{display:'flex',flexDirection:'column',lineHeight:1.1,textAlign:'left'}}>
+                      <span style={{fontSize:9,fontWeight:600,letterSpacing:'.6px'}}>AVAILABLE FOR</span>
+                      <strong style={{fontSize:18,fontWeight:600,letterSpacing:'-.3px'}}>Windows</strong>
+                    </span>
+                  </span>
+                </a><span>Available now for iPhone, iPad, and Windows</span></div>
             <div className="sp-hero-proof">
               <span><CheckCircle2 size={15}/> Wireless phone cameras</span>
               <span><CheckCircle2 size={15}/> Director-to-crew comms</span>
