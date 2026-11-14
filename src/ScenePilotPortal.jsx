@@ -428,7 +428,7 @@ function LandingPage() {
               </button>
             </div>
 
-            <div className="sp-store-downloads"><a href="https://apps.apple.com/us/app/urban-director-studio/id6811694662" target="_blank" rel="noopener noreferrer" aria-label="Download Urban Director Studio on the App Store" style={{display:'inline-flex',padding:12,alignSelf:'flex-start'}}><img src="/images/download-on-the-app-store.svg" alt="Download on the App Store" width="144" height="48" style={{display:'block',width:144,height:48}} /></a><a href="/register" aria-label="Create an Urban Director Studio account for Windows" style={{display:'inline-flex',padding:12,alignSelf:'flex-start',textDecoration:'none'}}>
+            <div className="sp-store-downloads"><a href="https://apps.apple.com/us/app/urban-director-studio/id6811694662" target="_blank" rel="noopener noreferrer" aria-label="Download Urban Director Studio on the App Store" style={{display:'inline-flex',padding:12,alignSelf:'flex-start'}}><img src="/images/download-on-the-app-store.svg" alt="Download on the App Store" width="144" height="48" style={{display:'block',width:144,height:48}} /></a><a href="/windows" aria-label="Set up Urban Director Studio for Windows" style={{display:'inline-flex',padding:12,alignSelf:'flex-start',textDecoration:'none'}}>
                   <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:9,width:144,height:48,boxSizing:'border-box',border:'1px solid rgba(255,255,255,.65)',borderRadius:8,background:'#080808',color:'#fff',boxShadow:'0 3px 8px rgba(0,0,0,.2)'}}>
                     <svg width="25" height="25" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={{flexShrink:0}}>
                       <path fill="currentColor" d="M2 4.25 10.5 3v8.5H2V4.25Zm10-1.45L22 1.4v10.1H12V2.8ZM2 12.75h8.5v8.5L2 20v-7.25Zm10 0h10v10.1l-10-1.4v-8.7Z"/>
@@ -2604,7 +2604,7 @@ function AdminPage({ user, onLogout }) {
 }
 
 
-function DownloadsPage() {
+function DownloadsPage({ windowsOnly = false, user = null }) {
   const [releases, setReleases] = useState(null);
   const [error, setError] = useState("");
 
@@ -2657,14 +2657,23 @@ function DownloadsPage() {
 
       <section className="sp-download-hero">
         <span className="sp-kicker">VERIFIED RELEASE CENTER</span>
-        <h1>Install Urban Director Studio.</h1>
-        <p>Desktop buttons activate only after ICA verifies the platform signature. Apple mobile releases remain App Store-only.</p>
+        <h1>{windowsOnly ? "Get Urban Director Studio for Windows." : "Install Urban Director Studio."}</h1>
+        <p>{windowsOnly
+          ? "Create your account or sign in, then download the verified Windows 10/11 installer below."
+          : "Desktop buttons activate only after ICA verifies the platform signature. Apple mobile releases remain App Store-only."}</p>
+        {windowsOnly && (user
+          ? <p>You are already signed in. No second account is needed — download the Windows installer below.</p>
+          : <div className="sp-hero-actions">
+              <a className="sp-primary" href="/register">CREATE ACCOUNT</a>
+              <a className="sp-secondary" href="/login">SIGN IN</a>
+            </div>
+        )}
       </section>
 
       {error && <div className="sp-download-error">{error}</div>}
 
       <section className="sp-download-grid">
-        {cards.map(card => (
+        {cards.filter(card => !windowsOnly || card.platform === "WINDOWS").map(card => (
           <article id={card.platform === "WINDOWS" ? "windows" : undefined} key={card.platform} className={card.url ? "ready" : ""}>
             <div className="sp-download-card-top"><span>{card.platform}</span><b>{card.url ? "READY" : "SIGNING / RELEASE"}</b></div>
             <Monitor size={30}/>
@@ -2675,13 +2684,13 @@ function DownloadsPage() {
               : <span className="sp-download-disabled">SIGNED BUILD PENDING</span>}
           </article>
         ))}
-        <article>
+        {!windowsOnly && <article>
           <div className="sp-download-card-top"><span>IPHONE + IPAD</span><b>AVAILABLE NOW</b></div>
           <Smartphone size={30}/>
           <h2>Urban Director Studio Mobile</h2>
           <p>Now available on the App Store for iPhone and iPad.</p>
           <a href="https://apps.apple.com/us/app/urban-director-studio/id6811694662" target="_blank" rel="noopener noreferrer" aria-label="Download Urban Director Studio on the App Store" style={{display:'inline-flex',padding:12,alignSelf:'flex-start'}}><img src="/images/download-on-the-app-store.svg" alt="Download on the App Store" width="144" height="48" style={{display:'block',width:144,height:48}} /></a>
-        </article>
+        </article>}
       </section>
     </main>
   );
@@ -2800,6 +2809,12 @@ export default function ScenePilotPortal() {
 
   if (cleanPath === "/downloads") {
     return <DownloadsPage/>;
+  }
+
+  // Public Windows onboarding must not redirect a signed-in Mac visitor to /app.
+  if (cleanPath === "/windows") {
+    if (loading) return <div className="sp-portal-loading">LOADING WINDOWS SETUP...</div>;
+    return <DownloadsPage windowsOnly user={user}/>;
   }
 
   if (cleanPath === "/privacy") {
