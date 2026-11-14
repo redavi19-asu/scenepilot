@@ -2,6 +2,8 @@ export function desktopAuthReturn(location = window.location) {
   const params = new URLSearchParams(location.search);
   const value = params.get('return_to');
   if (value?.startsWith('/desktop-auth?')) return value;
+  // Approved download destinations survive registration, sign-in, and social login.
+  if (value === '/windows' || value === '/downloads') return value;
   // Keep an invited camera's destination through login and subscription setup.
   if (params.get('camera') === '1') {
     const camera = new URLSearchParams({ camera: '1' });

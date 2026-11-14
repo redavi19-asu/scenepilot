@@ -1,4 +1,5 @@
 import { refreshGoogleSubscriptions } from "./google-play-billing.js";
+import { releaseListingForUser } from "./release-listing.js";
 import baseWorker, { ScenePilotRoom } from "./index.js";
 import { handleAiStudio } from "./ai-studio.js";
 import { applyProfitSafeAiPricing } from "./ai-pricing.js";
@@ -62,16 +63,15 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/releases" && request.method === "GET") {
-      return new Response(JSON.stringify({
-        windows: String(env.DIRECTOR_WINDOWS_DOWNLOAD_URL || "").trim(),
-        macArm: String(env.DIRECTOR_MAC_ARM_DOWNLOAD_URL || "").trim(),
-        macIntel: String(env.DIRECTOR_MAC_INTEL_DOWNLOAD_URL || "").trim(),
-        android: String(env.DIRECTOR_ANDROID_DOWNLOAD_URL || "").trim()
-      }), {
+      // Only authenticated customers with active Studio access receive download URLs.
+      // Availability is public, but actual release links never appear in guest/pending JSON.
+      const user = await currentUserForAi(request, env, ctx);
+      return new Response(JSON.stringify(releaseListingForUser(env, user)), {
         status: 200,
         headers: {
           "Content-Type": "application/json; charset=utf-8",
-          "Cache-Control": "no-store"
+          "Cache-Control": "private, no-store",
+          "Vary": "Cookie, Authorization"
         }
       });
     }

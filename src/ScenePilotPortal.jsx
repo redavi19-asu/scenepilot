@@ -1370,6 +1370,7 @@ function AccessStatusPage({ user, onLogout, onDeleteAccount, onAccessUpdated, ap
         )}
         <div className="sp-access-status-actions">
           {user.accessStatus === "active" && <button className="sp-secondary" type="button" onClick={() => go("/app")}>BACK TO DIRECTOR</button>}
+          {hasStudioAccess(user) && !appleNative && !googleNative && <button className="sp-auth-submit" type="button" onClick={() => go("/windows")}>CONTINUE TO WINDOWS DOWNLOAD</button>}
           {!appleNative && pending && (
             <button className="sp-auth-submit" type="button" disabled={accessBusy} onClick={checkAccess}>
               <RefreshCw size={17}/> {accessBusy ? "CHECKING..." : "CHECK ACCESS"}
@@ -2612,8 +2613,13 @@ function DownloadsPage({ windowsOnly = false, user = null }) {
     api("/api/releases")
       .then(data => setReleases(data))
       .catch(err => setError(err.message || "Release status is unavailable."));
-  }, []);
+  }, [user?.id, user?.accessStatus, user?.plan]);
 
+  const entitled = hasStudioAccess(user);
+  const nextPage = windowsOnly ? "/windows" : "/downloads";
+  const registrationLink = "/register?return_to=" + encodeURIComponent(nextPage);
+  const loginLink = "/login?return_to=" + encodeURIComponent(nextPage);
+  const billingLink = "/billing?return_to=" + encodeURIComponent(nextPage);
   const cards = [
     {
       platform: "WINDOWS",
@@ -2652,38 +2658,50 @@ function DownloadsPage({ windowsOnly = false, user = null }) {
           <span className="sp-landing-mark"><img src="/urban-director-icon.svg" alt="" aria-hidden="true" style={{width:"100%",height:"100%",display:"block",objectFit:"cover",borderRadius:12}} /></span>
           <div><strong>URBAN DIRECTOR STUDIO</strong><small>PRODUCTION DOWNLOADS</small></div>
         </button>
-        <button type="button" className="sp-secondary" onClick={() => go("/login")}>OPEN STUDIO</button>
+        <button type="button" className="sp-secondary" onClick={() => go(user ? "/app" : loginLink)}>OPEN STUDIO</button>
       </header>
 
       <section className="sp-download-hero">
         <span className="sp-kicker">VERIFIED RELEASE CENTER</span>
         <h1>{windowsOnly ? "Get Urban Director Studio for Windows." : "Install Urban Director Studio."}</h1>
         <p>{windowsOnly
-          ? "Create your account or sign in, then download the verified Windows 10/11 installer below."
-          : "Desktop buttons activate only after ICA verifies the platform signature. Apple mobile releases remain App Store-only."}</p>
-        {windowsOnly && (user
-          ? <p>You are already signed in. No second account is needed — download the Windows installer below.</p>
-          : <div className="sp-hero-actions">
-              <a className="sp-primary" href="/register">CREATE ACCOUNT</a>
-              <a className="sp-secondary" href="/login">SIGN IN</a>
+          ? "Create your account, activate your Urban Director Studio subscription, then download the verified Windows 10/11 installer."
+          : "Desktop downloads require an ICA account with active Studio access and a verified installer. Apple mobile releases remain App Store-only."}</p>
+        {!user
+          ? <div className="sp-hero-actions">
+              <a className="sp-primary" href={registrationLink}>CREATE ACCOUNT</a>
+              <a className="sp-secondary" href={loginLink}>SIGN IN</a>
             </div>
-        )}
+          : !entitled
+            ? <div className="sp-hero-actions"><a className="sp-primary" href={billingLink}>ACTIVATE $39.99/MONTH SUBSCRIPTION</a></div>
+            : <p>Your Studio access is active. Verified desktop installers are available below.</p>
+        }
       </section>
 
       {error && <div className="sp-download-error">{error}</div>}
 
       <section className="sp-download-grid">
-        {cards.filter(card => !windowsOnly || card.platform === "WINDOWS").map(card => (
-          <article id={card.platform === "WINDOWS" ? "windows" : undefined} key={card.platform} className={card.url ? "ready" : ""}>
-            <div className="sp-download-card-top"><span>{card.platform}</span><b>{card.url ? "READY" : "SIGNING / RELEASE"}</b></div>
-            <Monitor size={30}/>
-            <h2>{card.title}</h2>
-            <p>{card.copy}</p>
-            {card.url
-              ? <a href={card.url}>{card.action} →</a>
-              : <span className="sp-download-disabled">SIGNED BUILD PENDING</span>}
-          </article>
-        ))}
+        {cards.filter(card => !windowsOnly || card.platform === "WINDOWS").map(card => {
+          const available = Boolean(releases?.available?.[card.platform === "WINDOWS" ? "windows" : card.platform === "MAC · APPLE SILICON" ? "macArm" : card.platform === "MAC · INTEL" ? "macIntel" : "android"]);
+          const downloadUrl = entitled ? card.url : "";
+          return (
+            <article id={card.platform === "WINDOWS" ? "windows" : undefined} key={card.platform} className={downloadUrl ? "ready" : ""}>
+              <div className="sp-download-card-top"><span>{card.platform}</span><b>{downloadUrl ? "READY" : available ? "ACCOUNT / SUBSCRIPTION REQUIRED" : "SIGNING / RELEASE"}</b></div>
+              <Monitor size={30}/>
+              <h2>{card.title}</h2>
+              <p>{card.copy}</p>
+              {downloadUrl
+                ? <a href={downloadUrl}>{card.action} →</a>
+                : !available
+                  ? <span className="sp-download-disabled">SIGNED BUILD PENDING</span>
+                  : !user
+                    ? <a href={registrationLink}>CREATE ACCOUNT FIRST →</a>
+                    : !entitled
+                      ? <a href={billingLink}>ACTIVATE SUBSCRIPTION FIRST →</a>
+                      : <span className="sp-download-disabled">VERIFYING ACCESS / RELEASE</span>}
+            </article>
+          );
+        })}
         {!windowsOnly && <article>
           <div className="sp-download-card-top"><span>IPHONE + IPAD</span><b>AVAILABLE NOW</b></div>
           <Smartphone size={30}/>
@@ -2808,7 +2826,8 @@ export default function ScenePilotPortal() {
   }
 
   if (cleanPath === "/downloads") {
-    return <DownloadsPage/>;
+    if (loading) return <div className="sp-portal-loading">VERIFYING DOWNLOAD ACCESS...</div>;
+    return <DownloadsPage user={user}/>;
   }
 
   // Public Windows onboarding must not redirect a signed-in Mac visitor to /app.

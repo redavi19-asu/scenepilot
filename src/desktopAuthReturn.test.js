@@ -8,4 +8,7 @@ test('ordinary login and desktop browser callbacks keep their destinations',()=>
   assert.equal(desktopAuthReturn({search:''}),'/app');
   assert.equal(desktopAuthReturn({search:'?return_to=https://evil.example'}),'/app');
   assert.equal(desktopAuthReturn({search:'?return_to=%2Fdesktop-auth%3Frequest%3D123'}),'/desktop-auth?request=123');
+  assert.equal(desktopAuthReturn({search:'?return_to=%2Fwindows'}),'/windows');
+  assert.equal(desktopAuthReturn({search:'?return_to=%2Fdownloads'}),'/downloads');
+  assert.equal(desktopAuthReturn({search:'?return_to=%2Fdownloads%3Fexternal%3Dtrue'}),'/app');
 });
