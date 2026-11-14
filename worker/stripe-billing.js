@@ -93,7 +93,7 @@ export async function handleStripeBilling(request, env, user, stripeOverride) {
     return response({ error: "This account already has Director access. Manage its existing subscription instead." }, 409);
   }
   const price = await stripe.prices.retrieve(config.priceId);
-  if (!price.active || price.unit_amount !== DIRECTOR_MONTHLY_CENTS || price.currency !== "usd" || price.recurring?.interval !== "month" || price.recurring?.interval_count !== 1) {
+  if (!price.active || price.unit_amount !== DIRECTOR_MONTHLY_CENTS || price.currency !== "usd" || price.recurring?.interval !== "month" || price.recurring?.interval_count !== 1 || price.tax_behavior !== "exclusive") {
     return response({ error: "The Director price needs administrator attention." }, 503);
   }
   if (!mapping) {
@@ -108,6 +108,10 @@ export async function handleStripeBilling(request, env, user, stripeOverride) {
   }
   const session = await stripe.checkout.sessions.create({ mode: "subscription", customer: mapping.customer_id,
     line_items: [{ price: config.priceId, quantity: 1 }], client_reference_id: user.id,
+    automatic_tax: { enabled: true },
+    billing_address_collection: "required",
+    customer_update: { address: "auto" },
+    tax_id_collection: { enabled: true },
     success_url: `${origin}/billing?checkout=success`, cancel_url: `${origin}/billing?checkout=cancelled`,
     integration_identifier: "urban_director_studio_qpmtxkza" },
     // A canceled subscription starts a new checkout cycle. Time buckets can

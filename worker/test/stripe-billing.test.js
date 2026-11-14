@@ -32,10 +32,12 @@ test("Checkout retries reuse a session and cancellation starts a new checkout cy
   const env = { DB, STRIPE_SECRET_KEY: "sk_test_unit_only", STRIPE_PRICE_ID: "price_director", STRIPE_WEBHOOK_SECRET: "whsec_test" };
   let subscriptions = [];
   const sessions = new Map();
+  let lastCheckoutParams = null;
   const stripe = {
-    prices: { retrieve: async () => ({ active: true, unit_amount: 3999, currency: "usd", recurring: { interval: "month", interval_count: 1 } }) },
+    prices: { retrieve: async () => ({ active: true, unit_amount: 3999, currency: "usd", tax_behavior: "exclusive", recurring: { interval: "month", interval_count: 1 } }) },
     subscriptions: { list: async () => ({ data: subscriptions }) },
     checkout: { sessions: { create: async (_params, { idempotencyKey }) => {
+      lastCheckoutParams = _params;
       if (!sessions.has(idempotencyKey)) sessions.set(idempotencyKey, { url: `https://checkout.example/${sessions.size + 1}` });
       return sessions.get(idempotencyKey);
     } } },
@@ -44,6 +46,10 @@ test("Checkout retries reuse a session and cancellation starts a new checkout cy
     method: "POST", headers: { Origin: "https://example.com" }
   }), env, { id: "u1", role: "user", accessStatus: "suspended" }, stripe);
   const first = await (await checkout()).json();
+  assert.deepEqual(lastCheckoutParams.automatic_tax, { enabled: true });
+  assert.equal(lastCheckoutParams.billing_address_collection, "required");
+  assert.deepEqual(lastCheckoutParams.customer_update, { address: "auto" });
+  assert.deepEqual(lastCheckoutParams.tax_id_collection, { enabled: true });
   assert.deepEqual(await (await checkout()).json(), first);
   subscriptions = [{ id: "sub_previous", status: "canceled", items: { data: [{ price: { id: "price_director" } }] } }];
   const restart = await (await checkout()).json();
