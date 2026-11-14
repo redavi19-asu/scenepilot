@@ -60,15 +60,16 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           $installer = Get-ChildItem release -File -Filter "*.exe" | Select-Object -First 1
           if (-not $installer) { throw "No Windows installer produced." }
           $signature = Get-AuthenticodeSignature $installer.FullName
           if ($signature.Status -ne "Valid") { throw "Windows signature is not valid: $($signature.Status)" }
           Copy-Item $installer.FullName "Urban-Director-Studio-Windows-x64.exe"
-          gh release view director-production --repo "$env:GITHUB_REPOSITORY" *> $null
-          if ($LASTEXITCODE -ne 0) { gh release create director-production --repo "$env:GITHUB_REPOSITORY" --target "$env:GITHUB_SHA" --title "Urban Director Studio Production Apps" --notes "Verified signed production packages." }
-          gh release upload director-production "Urban-Director-Studio-Windows-x64.exe" --repo "$env:GITHUB_REPOSITORY" --clobber
+          npx wrangler@4.160.1 r2 object put "ica-director-private-installers/private/windows/Urban-Director-Studio-Windows-x64.exe" --file="Urban-Director-Studio-Windows-x64.exe" --remote --content-type application/octet-stream
+          if ($LASTEXITCODE -ne 0) { throw "Private Windows upload failed." }
 
   macos:
     needs: preflight
@@ -104,6 +105,8 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ASSET: ${{ matrix.asset }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           DMG="$(find release -maxdepth 1 -type f -name '*.dmg' -print -quit)"
@@ -112,8 +115,7 @@ jobs:
           xcrun stapler staple "$DMG"
           xcrun stapler validate "$DMG"
           cp "$DMG" "$ASSET"
-          gh release view director-production --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create director-production --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Urban Director Studio Production Apps" --notes "Verified signed production packages."
-          gh release upload director-production "$ASSET" --repo "$GITHUB_REPOSITORY" --clobber
+          npx wrangler@4.160.1 r2 object put "ica-director-private-installers/private/macos/$ASSET" --file="$ASSET" --remote --content-type application/octet-stream
 
   android:
     needs: preflight
@@ -152,6 +154,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           APK="android/app/build/outputs/apk/release/app-release.apk"
@@ -160,8 +164,7 @@ jobs:
           test -n "$APKSIGNER"
           "$APKSIGNER" verify --verbose --print-certs "$APK"
           cp "$APK" Urban-Director-Studio-Android.apk
-          gh release view director-production --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create director-production --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Urban Director Studio Production Apps" --notes "Verified signed production packages."
-          gh release upload director-production Urban-Director-Studio-Android.apk --repo "$GITHUB_REPOSITORY" --clobber
+          npx wrangler@4.160.1 r2 object put "ica-director-private-installers/private/android/Urban-Director-Studio-Android.apk" --file="Urban-Director-Studio-Android.apk" --remote --content-type application/octet-stream
 
   report-signing-gaps:
     needs: preflight
@@ -173,22 +176,3 @@ jobs:
           [ "${{ needs.preflight.outputs.apple_ready }}" = "true" ] || echo "::warning::Mac signing/notarization credentials are missing."
           [ "${{ needs.preflight.outputs.android_ready }}" = "true" ] || echo "::warning::Android signing credentials are missing."
 
-  activate-downloads:
-    needs: [windows, macos, android]
-    if: always() && (needs.windows.result == 'success' || needs.macos.result == 'success' || needs.android.result == 'success')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-      - name: Activate only verified release URLs
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          set -euo pipefail
-          BASE="https://github.com/$GITHUB_REPOSITORY/releases/download/director-production"
-          if [ "${{ needs.windows.result }}" = "success" ]; then printf '%s' "$BASE/Urban-Director-Studio-Windows-x64.exe" | npx --yes wrangler@latest secret put DIRECTOR_WINDOWS_DOWNLOAD_URL --name scenepilot; fi
-          if [ "${{ needs.macos.result }}" = "success" ]; then
-            printf '%s' "$BASE/Urban-Director-Studio-macOS-Apple-Silicon.dmg" | npx --yes wrangler@latest secret put DIRECTOR_MAC_ARM_DOWNLOAD_URL --name scenepilot
-            printf '%s' "$BASE/Urban-Director-Studio-macOS-Intel.dmg" | npx --yes wrangler@latest secret put DIRECTOR_MAC_INTEL_DOWNLOAD_URL --name scenepilot
-          fi
-          if [ "${{ needs.android.result }}" = "success" ]; then printf '%s' "$BASE/Urban-Director-Studio-Android.apk" | npx --yes wrangler@latest secret put DIRECTOR_ANDROID_DOWNLOAD_URL --name scenepilot; fi

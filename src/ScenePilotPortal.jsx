@@ -430,9 +430,7 @@ function LandingPage() {
 
             <div className="sp-store-downloads"><a href="https://apps.apple.com/us/app/urban-director-studio/id6811694662" target="_blank" rel="noopener noreferrer" aria-label="Download Urban Director Studio on the App Store" style={{display:'inline-flex',padding:12,alignSelf:'flex-start'}}><img src="/images/download-on-the-app-store.svg" alt="Download on the App Store" width="144" height="48" style={{display:'block',width:144,height:48}} /></a><a href="/windows" aria-label="Set up Urban Director Studio for Windows" style={{display:'inline-flex',padding:12,alignSelf:'flex-start',textDecoration:'none'}}>
                   <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',gap:9,width:144,height:48,boxSizing:'border-box',border:'1px solid rgba(255,255,255,.65)',borderRadius:8,background:'#080808',color:'#fff',boxShadow:'0 3px 8px rgba(0,0,0,.2)'}}>
-                    <svg width="25" height="25" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style={{flexShrink:0}}>
-                      <path fill="currentColor" d="M2 4.25 10.5 3v8.5H2V4.25Zm10-1.45L22 1.4v10.1H12V2.8ZM2 12.75h8.5v8.5L2 20v-7.25Zm10 0h10v10.1l-10-1.4v-8.7Z"/>
-                    </svg>
+                    <WindowsLogo size={25}/>
                     <span style={{display:'flex',flexDirection:'column',lineHeight:1.1,textAlign:'left'}}>
                       <span style={{fontSize:9,fontWeight:600,letterSpacing:'.6px'}}>AVAILABLE FOR</span>
                       <strong style={{fontSize:18,fontWeight:600,letterSpacing:'-.3px'}}>Windows</strong>
@@ -2605,6 +2603,12 @@ function AdminPage({ user, onLogout }) {
 }
 
 
+function WindowsLogo({ size = 26 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" role="img" aria-label="Windows" focusable="false" style={{flexShrink:0}}>
+    <path fill="#00A4EF" d="M2 3.5 10.7 2.25v9H2V3.5Zm10.35-1.48L22 0.65v10.6h-9.65V2.02ZM2 12.75h8.7v9L2 20.5v-7.75Zm10.35 0H22v10.6l-9.65-1.37v-9.23Z"/>
+  </svg>;
+}
+
 function DownloadsPage({ windowsOnly = false, user = null }) {
   const [releases, setReleases] = useState(null);
   const [error, setError] = useState("");
@@ -2663,6 +2667,7 @@ function DownloadsPage({ windowsOnly = false, user = null }) {
 
       <section className="sp-download-hero">
         <span className="sp-kicker">VERIFIED RELEASE CENTER</span>
+        {windowsOnly && <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}><WindowsLogo size={48}/><strong style={{fontSize:15,letterSpacing:"0.09em"}}>WINDOWS INSTALLER</strong></div>}
         <h1>{windowsOnly ? "Get Urban Director Studio for Windows." : "Install Urban Director Studio."}</h1>
         <p>{windowsOnly
           ? "Create your account, activate your Urban Director Studio subscription, then download the verified Windows 10/11 installer."
@@ -2687,7 +2692,7 @@ function DownloadsPage({ windowsOnly = false, user = null }) {
           return (
             <article id={card.platform === "WINDOWS" ? "windows" : undefined} key={card.platform} className={downloadUrl ? "ready" : ""}>
               <div className="sp-download-card-top"><span>{card.platform}</span><b>{downloadUrl ? "READY" : available ? "ACCOUNT / SUBSCRIPTION REQUIRED" : "SIGNING / RELEASE"}</b></div>
-              <Monitor size={30}/>
+              {card.platform === "WINDOWS" ? <WindowsLogo size={35}/> : <Monitor size={30}/>}
               <h2>{card.title}</h2>
               <p>{card.copy}</p>
               {downloadUrl

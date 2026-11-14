@@ -1,5 +1,5 @@
 import { refreshGoogleSubscriptions } from "./google-play-billing.js";
-import { releaseListingForUser } from "./release-listing.js";
+import { releaseListingForUser, releaseObjectForPlatform } from "./release-listing.js";
 import baseWorker, { ScenePilotRoom } from "./index.js";
 import { handleAiStudio } from "./ai-studio.js";
 import { applyProfitSafeAiPricing } from "./ai-pricing.js";
@@ -66,7 +66,7 @@ export default {
       // Only authenticated customers with active Studio access receive download URLs.
       // Availability is public, but actual release links never appear in guest/pending JSON.
       const user = await currentUserForAi(request, env, ctx);
-      return new Response(JSON.stringify(releaseListingForUser(env, user)), {
+      return new Response(JSON.stringify(await releaseListingForUser(env, user)), {
         status: 200,
         headers: {
           "Content-Type": "application/json; charset=utf-8",
@@ -74,6 +74,26 @@ export default {
           "Vary": "Cookie, Authorization"
         }
       });
+    }
+
+    if (url.pathname.startsWith("/api/downloads/")) {
+      if (request.method !== "GET") return new Response("Method not allowed", {status:405});
+      const user=await currentUserForAi(request,env,ctx);
+      const selected=releaseObjectForPlatform(user,url.pathname.slice("/api/downloads/".length));
+      if(selected.status!==200)return new Response(
+        selected.status===401?"Sign in to download.":selected.status===403?"Active Studio subscription required.":"Not found.",
+        {status:selected.status,headers:{"Cache-Control":"private, no-store"}}
+      );
+      if(!env.DIRECTOR_INSTALLERS)return new Response("Private downloads unavailable.",{status:503});
+      const binary=await env.DIRECTOR_INSTALLERS.get(selected.key);
+      if(!binary)return new Response("Installer not available.",{status:404});
+      return new Response(binary.body,{status:200,headers:{
+        "Content-Type":"application/octet-stream",
+        "Content-Length":String(binary.size),
+        "Content-Disposition":`attachment; filename="${selected.filename}"`,
+        "Cache-Control":"private, no-store",
+        "X-Content-Type-Options":"nosniff"
+      }});
     }
 
     if (url.pathname.startsWith("/api/ai/")) {

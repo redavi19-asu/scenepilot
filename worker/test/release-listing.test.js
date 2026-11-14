@@ -1,23 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { releaseListingForUser } from '../release-listing.js';
-
-const env = {
-  DIRECTOR_WINDOWS_DOWNLOAD_URL: 'https://example.com/installer.exe',
-  DIRECTOR_MAC_ARM_DOWNLOAD_URL: 'https://example.com/installer.dmg'
-};
-const active = {status:'active', role:'user', plan:'pro', accessStatus:'active', entitlementExpiresAt:Date.now()+60000};
-test('release availability is visible but direct URLs remain hidden from guests and unpaid accounts', () => {
-  for (const user of [null, {status:'active',role:'user',plan:'free',accessStatus:'pending'}, {...active,accessStatus:'suspended'}, {...active,entitlementExpiresAt:Date.now()-1000}]) {
-    const listing=releaseListingForUser(env,user);
-    assert.equal(listing.available.windows,true);
-    assert.equal(listing.windows,'');
-    assert.equal(listing.macArm,'');
-  }
+import {releaseListingForUser,releaseObjectForPlatform,RELEASE_FILES} from '../release-listing.js';
+const active={status:'active',role:'user',plan:'pro',accessStatus:'active',entitlementExpiresAt:Date.now()+60000};
+const r2={head:async key=>key===RELEASE_FILES.windows.key?{size:119761840}:null};
+test('anonymous, unpaid, suspended and expired users cannot obtain installer URLs',async()=>{
+ for(const user of [null,{status:'active',role:'user',plan:'free',accessStatus:'pending'},{...active,accessStatus:'suspended'},{...active,entitlementExpiresAt:Date.now()-1000}]){
+ const result=await releaseListingForUser({DIRECTOR_INSTALLERS:r2},user);
+ assert.equal(result.available.windows,true);
+ assert.equal(result.windows,'');
+ assert.equal(releaseObjectForPlatform(user,'windows').status,user===null?401:403);
+ }
 });
-test('active subscribed accounts can request verified download URLs', () => {
-  const listing=releaseListingForUser(env,active);
-  assert.equal(listing.windows,env.DIRECTOR_WINDOWS_DOWNLOAD_URL);
-  assert.equal(listing.macArm,env.DIRECTOR_MAC_ARM_DOWNLOAD_URL);
-  assert.equal(listing.available.android,false);
+test('subscribers get same-origin endpoints, never public GitHub URLs',async()=>{
+ const result=await releaseListingForUser({DIRECTOR_INSTALLERS:r2},active);
+ assert.equal(result.windows,'/api/downloads/windows');
+ assert.equal(result.macArm,'');
+ assert.equal(JSON.stringify(result).includes('github'),false);
+ assert.deepEqual(releaseObjectForPlatform(active,'windows'),{status:200,...RELEASE_FILES.windows});
+});
+test('unknown platforms and unbound storage fail closed',async()=>{
+ assert.equal(releaseObjectForPlatform(active,'../bad').status,404);
+ const result=await releaseListingForUser({},active);
+ assert.equal(result.windows,'');
+ assert.equal(result.available.windows,false);
 });
