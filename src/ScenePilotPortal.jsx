@@ -347,6 +347,28 @@ function go(path) {
   window.location.assign(path);
 }
 
+const directorScreenshotSet = [
+  ['01-director-console.png', 'Director Console & Multiview', 'Live preview, program and remote camera grid'],
+  ['02-camera-sources.png', 'Camera Sources & Screen Sharing', 'Select the Director camera, main camera or share a window'],
+  ['03-production-controls.png', 'Live Production Controls', 'Control transitions, audio, recording and replay'],
+  ['04-broadcast-graphics.png', 'Broadcast Graphics', 'Add tickers, lower thirds, countdowns and graphics'],
+  ['05-multistream.png', 'Broadcast & Multistream', 'Configure social and custom broadcast destinations'],
+  ['06-editor-launch.png', 'Pro Editor & Replay Studio', 'Open the editing and replay workspace'],
+]
+function DirectorScreenshot({ file, title, description }) {
+  const [missing, setMissing] = useState(false)
+  if (missing) return null
+  const src = `/screenshots/${file}`
+  return (
+    <figure className="sp-screenshot-card">
+      <a href={src} target="_blank" rel="noreferrer" aria-label={`View ${title} screenshot at full size`}>
+        <img src={src} loading="lazy" alt={title} onError={() => setMissing(true)} />
+      </a>
+      <figcaption><h3>{title}</h3><p>{description}</p></figcaption>
+    </figure>
+  )
+}
+
 function LandingPage() {
   const [showLandingSplash, setShowLandingSplash] = useState(true);
 
@@ -445,10 +467,10 @@ function LandingPage() {
           </div>
 
           <figure className="sp-real-hero">
-            <a href="/screenshots/studio-editor.jpg" target="_blank" rel="noreferrer" aria-label="View the Studio editor screenshot at full size">
-              <img src="/screenshots/studio-editor.jpg" width="1233" height="900" alt="Urban Director Studio editor with sample media, editing tools and a multitrack timeline" fetchPriority="high" />
+            <a href="/screenshots/01-director-console.png" target="_blank" rel="noreferrer" aria-label="View the Director Console screenshot at full size">
+              <img src="/screenshots/01-director-console.png" alt="Real Urban Director Studio Preview and Program monitors, multiview and director controls" fetchPriority="high" onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/screenshots/studio-editor.jpg'; }} />
             </a>
-            <figcaption>Inside Studio · editor shown with sample media</figcaption>
+            <figcaption>Inside Studio · live Director console</figcaption>
           </figure>
         </section>
 
@@ -560,6 +582,9 @@ function LandingPage() {
             <p>See the actual Studio workspace. Open any screenshot for a closer look.</p>
           </div>
           <div className="sp-screenshot-grid">
+            {directorScreenshotSet.map(([file, title, description]) => (
+              <DirectorScreenshot key={file} file={file} title={title} description={description} />
+            ))}
             <figure className="sp-screenshot-card sp-screenshot-wide">
               <a href="/screenshots/studio-soundboard.jpg" target="_blank" rel="noreferrer" aria-label="View the soundboard screenshot at full size">
                 <img src="/screenshots/studio-soundboard.jpg" width="1233" height="707" loading="lazy" alt="Six colorful sound pads with controls to load sounds, record a microphone and adjust monitoring" />
