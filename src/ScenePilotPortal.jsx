@@ -431,7 +431,7 @@ function LandingPage() {
               alt="Urban Director Studio icon"
               width="64"
               height="64"
-              style={{width:64,height:64,maxWidth:"34vw",display:"block",objectFit:"contain",borderRadius:28,background:"#fff",padding:6,boxShadow:"0 22px 56px rgba(0,0,0,.28)",marginBottom:14}}
+              style={{width:64,height:64,maxWidth:"34vw",display:"block",objectFit:"contain",borderRadius:12,boxShadow:"0 22px 56px rgba(0,0,0,.28)",marginBottom:14}}
             />
             <span className="sp-kicker">LIVE PRODUCTION • MULTI-CAMERA • REMOTE CREW</span>
             <h1>Your live show. One control room.</h1>
