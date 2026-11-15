@@ -1,0 +1,36 @@
+name: Mac App Store Signing Preflight
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/mac-store-preflight.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check Apple Mac signing resources without exposing keys
+        env:
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY }}
+          IOS_CERT: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
+          MAC_CERT: ${{ secrets.APPLE_CERTIFICATE }}
+        run: |
+          node --input-type=module <<'JS'
+          import {appleToken} from './scripts/verify-testflight-build.mjs';
+          const env=process.env;
+          const headers={Authorization:'Bearer '+appleToken(env.APP_STORE_PRIVATE_KEY,env.APP_STORE_KEY_ID,env.APP_STORE_ISSUER_ID)};
+          for(const endpoint of ['certificates?limit=200','profiles?limit=200&include=bundleId']){
+            const r=await fetch('https://api.appstoreconnect.apple.com/v1/'+endpoint,{headers});
+            const d=await r.json();
+            if(!r.ok) throw Error(JSON.stringify(d.errors?.map(e=>({code:e.code,detail:e.detail}))));
+            console.log(JSON.stringify({endpoint,items:d.data.map(x=>({id:x.id,type:x.type,name:x.attributes.name,certificateType:x.attributes.certificateType,profileType:x.attributes.profileType,profileState:x.attributes.profileState,expirationDate:x.attributes.expirationDate,relationships:x.relationships})),bundles:d.included?.filter(x=>x.type==='bundleIds').map(x=>({id:x.id,identifier:x.attributes.identifier,platform:x.attributes.platform}))}));
+          }
+          console.log(JSON.stringify({iosSigningBundleAvailable:!!env.IOS_CERT,existingMacSigningBundleAvailable:!!env.MAC_CERT}));
+          JS
