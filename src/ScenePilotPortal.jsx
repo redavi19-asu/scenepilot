@@ -2662,9 +2662,9 @@ function DownloadsPage({ windowsOnly = false, user = null }) {
       key: "macArm",
       platform: "MAC · APPLE SILICON",
       title: "Urban Director Studio for Mac",
-      copy: "Signed and notarized build for Apple Silicon Macs.",
-      url: releases?.macArm || "",
-      action: "DOWNLOAD MAC"
+      copy: "Available on the Mac App Store for Apple Silicon Macs.",
+      url: "https://apps.apple.com/us/app/urban-director-studio/id6811694662",
+      action: "DOWNLOAD macOS VERSION"
     },
     {
       key: "android",
@@ -2708,15 +2708,16 @@ function DownloadsPage({ windowsOnly = false, user = null }) {
 
       <section className="sp-download-grid" aria-label="Urban Director Studio platform downloads">
         {cards.filter(card => !windowsOnly || card.key === "windows").map(card => {
-          const available = Boolean(releases?.available?.[card.key]);
-          const downloadUrl = entitled && card.key !== "android" ? card.url : "";
+          const isMacStore = card.key === "macArm";
+          const available = isMacStore || Boolean(releases?.available?.[card.key]);
+          const downloadUrl = isMacStore ? card.url : entitled && card.key !== "android" ? card.url : "";
           const comingSoon = card.key === "android";
           return (
             <article id={card.key === "windows" ? "windows" : undefined} key={card.key} className={downloadUrl ? "ready" : ""}>
               <div className="sp-download-card-top">
                 <span>{card.platform}</span>
                 <b className={comingSoon ? "sp-soon-status" : downloadUrl ? "sp-ready-status" : ""}>
-                  {comingSoon ? "◷ COMING SOON" : downloadUrl ? "✓ READY" : available ? "ACCOUNT / SUBSCRIPTION REQUIRED" : "SIGNING / RELEASE"}
+                  {comingSoon ? "◷ COMING SOON" : isMacStore ? "✓ AVAILABLE NOW" : downloadUrl ? "✓ READY" : available ? "ACCOUNT / SUBSCRIPTION REQUIRED" : "SIGNING / RELEASE"}
                 </b>
               </div>
               <div className="sp-platform-content">
@@ -2727,7 +2728,7 @@ function DownloadsPage({ windowsOnly = false, user = null }) {
                   {comingSoon
                     ? <span className="sp-download-soon">COMING SOON</span>
                     : downloadUrl
-                      ? <a href={downloadUrl}>{card.action} →</a>
+                      ? <a href={downloadUrl} {...(isMacStore ? {target: "_blank", rel: "noopener noreferrer", "aria-label": "Download Urban Director Studio for macOS on the Mac App Store"} : {})}>{card.action} →</a>
                       : !available
                         ? <span className="sp-download-disabled">SIGNED BUILD PENDING</span>
                         : !user
