@@ -2963,3 +2963,32 @@
 
 /* Store release links retain the official badge proportions and clear space. */
 .sp-store-downloads{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:20px}.sp-store-downloads>span{flex-basis:100%;font-size:12px;color:#b9c2b1}.sp-store-downloads .sp-secondary{display:inline-flex;align-items:center;min-height:48px;text-decoration:none;padding:0 20px}.sp-product-footer>div:first-child{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+
+
+/* Urban Director verified download center — four-card platform art, November 2026 */
+.sp-download-shell .sp-download-hero{padding-top:64px;padding-bottom:36px}
+.sp-download-shell .sp-download-grid{max-width:1440px;gap:20px}
+.sp-download-shell .sp-download-grid article{min-height:280px;padding:25px 30px 28px;border-radius:20px;background:linear-gradient(145deg,#121914,#0b100d);border-color:#63734e;box-shadow:inset 0 1px 0 #ffffff0a}
+.sp-download-shell .sp-download-grid article.ready{border-color:#91ad65}
+.sp-download-shell .sp-download-card-top{margin-bottom:12px;gap:12px}
+.sp-download-shell .sp-download-card-top span{font-size:12px;letter-spacing:.14em;color:#d9ded5}
+.sp-download-shell .sp-download-card-top b{font-size:10px;letter-spacing:.11em;white-space:nowrap;color:#d7b75e;border:1px solid #d7b75e;padding:8px 12px;border-radius:999px}
+.sp-download-shell .sp-download-card-top .sp-ready-status{color:#9cff77;border-color:#71e24b}
+.sp-download-shell .sp-download-card-top .sp-soon-status{color:#efbf57;border-color:#d3a44d}
+.sp-download-shell .sp-platform-content{display:flex;gap:22px;align-items:center;flex:1;width:100%;min-width:0}
+.sp-download-shell .sp-platform-art{width:165px;min-width:165px;height:145px;flex-shrink:0;background-image:url('/images/download-platform-sprite.webp');background-repeat:no-repeat;background-size:660px 145px;background-position:0 0;filter:drop-shadow(0 10px 12px #0005)}
+.sp-download-shell .sp-art-windows{background-position:0 0}
+.sp-download-shell .sp-art-macArm{background-position:-165px 0}
+.sp-download-shell .sp-art-android{background-position:-330px 0}
+.sp-download-shell .sp-art-mobile{background-position:-495px 0}
+.sp-download-shell .sp-platform-details{min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;flex:1}
+.sp-download-shell .sp-platform-details h2{font-size:clamp(19px,2vw,28px);line-height:1.16;letter-spacing:-.025em;margin:0 0 10px;color:#f2f4ee}
+.sp-download-shell .sp-platform-details p{font-size:14px;line-height:1.55;color:#c5cbbf;margin:0 0 22px}
+.sp-download-shell .sp-platform-details>a:not(.sp-store-badge){margin-top:auto;min-height:46px;padding:0 20px;font-size:11px;border-radius:10px}
+.sp-download-shell .sp-download-disabled{margin-top:auto;font-size:10px;color:#9aa695;letter-spacing:.11em}
+.sp-download-shell .sp-download-soon{margin-top:auto;padding:12px 22px;border:1px solid #ddd8ca;border-radius:10px;color:#e9e8dd;font-size:11px;font-weight:900;letter-spacing:.11em}
+.sp-download-shell .sp-download-grid .sp-store-badge{margin-top:auto;display:block;min-height:0;padding:0;border:0;border-radius:8px;line-height:0;background:transparent;letter-spacing:normal}
+.sp-download-shell .sp-store-badge img{display:block;width:180px;height:60px}
+@media(max-width:1100px){.sp-download-shell .sp-download-grid article{padding:22px}.sp-download-shell .sp-platform-content{gap:10px}.sp-download-shell .sp-platform-art{transform:scale(.85);transform-origin:left center;margin-right:-22px}}
+@media(max-width:760px){.sp-download-shell .sp-download-grid{grid-template-columns:1fr;gap:16px}.sp-download-shell .sp-download-grid article{min-height:235px}.sp-download-shell .sp-download-card-top span{font-size:10px}.sp-download-shell .sp-download-card-top b{font-size:9px}.sp-download-shell .sp-platform-art{transform:scale(.9);margin-right:-12px}.sp-download-shell .sp-platform-details h2{font-size:21px}}
+@media(max-width:440px){.sp-download-shell .sp-download-grid article{padding:16px;min-height:215px}.sp-download-shell .sp-platform-content{gap:0}.sp-download-shell .sp-platform-art{transform:scale(.70);margin-right:-48px}.sp-download-shell .sp-platform-details h2{font-size:18px}.sp-download-shell .sp-platform-details p{font-size:12px;margin-bottom:12px}.sp-download-shell .sp-store-badge img{width:144px;height:48px}}

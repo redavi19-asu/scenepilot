@@ -2651,6 +2651,7 @@ function DownloadsPage({ windowsOnly = false, user = null }) {
   const billingLink = "/billing?return_to=" + encodeURIComponent(nextPage);
   const cards = [
     {
+      key: "windows",
       platform: "WINDOWS",
       title: "Urban Director Studio for Windows",
       copy: "Signed x64 production installer for Windows 10/11.",
@@ -2658,6 +2659,7 @@ function DownloadsPage({ windowsOnly = false, user = null }) {
       action: "DOWNLOAD WINDOWS"
     },
     {
+      key: "macArm",
       platform: "MAC · APPLE SILICON",
       title: "Urban Director Studio for Mac",
       copy: "Signed and notarized build for Apple Silicon Macs.",
@@ -2665,18 +2667,12 @@ function DownloadsPage({ windowsOnly = false, user = null }) {
       action: "DOWNLOAD MAC"
     },
     {
-      platform: "MAC · INTEL",
-      title: "Urban Director Studio for Intel Mac",
-      copy: "Signed and notarized build for Intel Core i3, i5, i7 and i9 Macs.",
-      url: releases?.macIntel || "",
-      action: "DOWNLOAD INTEL MAC"
-    },
-    {
+      key: "android",
       platform: "ANDROID",
       title: "Urban Director Studio for Android",
-      copy: "Signed Android production APK for supported phones and tablets.",
-      url: releases?.android || "",
-      action: "DOWNLOAD ANDROID"
+      copy: "Android release for supported phones and tablets is on the way.",
+      url: "",
+      action: "COMING SOON"
     }
   ];
 
@@ -2710,34 +2706,50 @@ function DownloadsPage({ windowsOnly = false, user = null }) {
 
       {error && <div className="sp-download-error">{error}</div>}
 
-      <section className="sp-download-grid">
-        {cards.filter(card => !windowsOnly || card.platform === "WINDOWS").map(card => {
-          const available = Boolean(releases?.available?.[card.platform === "WINDOWS" ? "windows" : card.platform === "MAC · APPLE SILICON" ? "macArm" : card.platform === "MAC · INTEL" ? "macIntel" : "android"]);
-          const downloadUrl = entitled ? card.url : "";
+      <section className="sp-download-grid" aria-label="Urban Director Studio platform downloads">
+        {cards.filter(card => !windowsOnly || card.key === "windows").map(card => {
+          const available = Boolean(releases?.available?.[card.key]);
+          const downloadUrl = entitled && card.key !== "android" ? card.url : "";
+          const comingSoon = card.key === "android";
           return (
-            <article id={card.platform === "WINDOWS" ? "windows" : undefined} key={card.platform} className={downloadUrl ? "ready" : ""}>
-              <div className="sp-download-card-top"><span>{card.platform}</span><b>{downloadUrl ? "READY" : available ? "ACCOUNT / SUBSCRIPTION REQUIRED" : "SIGNING / RELEASE"}</b></div>
-              {card.platform === "WINDOWS" ? <WindowsLogo size={35}/> : <Monitor size={30}/>}
-              <h2>{card.title}</h2>
-              <p>{card.copy}</p>
-              {downloadUrl
-                ? <a href={downloadUrl}>{card.action} →</a>
-                : !available
-                  ? <span className="sp-download-disabled">SIGNED BUILD PENDING</span>
-                  : !user
-                    ? <a href={registrationLink}>CREATE ACCOUNT FIRST →</a>
-                    : !entitled
-                      ? <a href={billingLink}>ACTIVATE SUBSCRIPTION FIRST →</a>
-                      : <span className="sp-download-disabled">VERIFYING ACCESS / RELEASE</span>}
+            <article id={card.key === "windows" ? "windows" : undefined} key={card.key} className={downloadUrl ? "ready" : ""}>
+              <div className="sp-download-card-top">
+                <span>{card.platform}</span>
+                <b className={comingSoon ? "sp-soon-status" : downloadUrl ? "sp-ready-status" : ""}>
+                  {comingSoon ? "◷ COMING SOON" : downloadUrl ? "✓ READY" : available ? "ACCOUNT / SUBSCRIPTION REQUIRED" : "SIGNING / RELEASE"}
+                </b>
+              </div>
+              <div className="sp-platform-content">
+                <div className={`sp-platform-art sp-art-${card.key}`} role="img" aria-label={card.key === "windows" ? "Large Windows logo" : card.key === "macArm" ? "Large Apple logo" : "Large green Android robot"}/>
+                <div className="sp-platform-details">
+                  <h2>{card.title}</h2>
+                  <p>{card.copy}</p>
+                  {comingSoon
+                    ? <span className="sp-download-soon">COMING SOON</span>
+                    : downloadUrl
+                      ? <a href={downloadUrl}>{card.action} →</a>
+                      : !available
+                        ? <span className="sp-download-disabled">SIGNED BUILD PENDING</span>
+                        : !user
+                          ? <a href={registrationLink}>CREATE ACCOUNT FIRST →</a>
+                          : !entitled
+                            ? <a href={billingLink}>ACTIVATE SUBSCRIPTION FIRST →</a>
+                            : <span className="sp-download-disabled">VERIFYING ACCESS / RELEASE</span>}
+                </div>
+              </div>
             </article>
           );
         })}
-        {!windowsOnly && <article>
-          <div className="sp-download-card-top"><span>IPHONE + IPAD</span><b>AVAILABLE NOW</b></div>
-          <Smartphone size={30}/>
-          <h2>Urban Director Studio Mobile</h2>
-          <p>Now available on the App Store for iPhone and iPad.</p>
-          <a href="https://apps.apple.com/us/app/urban-director-studio/id6811694662" target="_blank" rel="noopener noreferrer" aria-label="Download Urban Director Studio on the App Store" style={{display:'inline-flex',padding:12,alignSelf:'flex-start'}}><img src="/images/download-on-the-app-store.svg" alt="Download on the App Store" width="144" height="48" style={{display:'block',width:144,height:48}} /></a>
+        {!windowsOnly && <article className="sp-mobile-store-card ready">
+          <div className="sp-download-card-top"><span>IPHONE + IPAD</span><b className="sp-ready-status">✓ AVAILABLE NOW</b></div>
+          <div className="sp-platform-content">
+            <div className="sp-platform-art sp-art-mobile" role="img" aria-label="Urban Director Studio on an iPad and iPhone with cinematic editor artwork"/>
+            <div className="sp-platform-details">
+              <h2>Urban Director Studio Mobile · iPhone + iPad</h2>
+              <p>Now available on the App Store for iPhone and iPad.</p>
+              <a className="sp-store-badge" href="https://apps.apple.com/us/app/urban-director-studio/id6811694662" target="_blank" rel="noopener noreferrer" aria-label="Download Urban Director Studio on the App Store"><img src="/images/download-on-the-app-store.svg" alt="Download on the App Store" width="180" height="60"/></a>
+            </div>
+          </div>
         </article>}
       </section>
     </main>
