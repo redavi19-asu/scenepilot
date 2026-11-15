@@ -15,7 +15,7 @@ execFileSync('openssl',['pkcs12','-legacy','-in',root+'/distribution.p12','-noce
 const publicKey=execFileSync('openssl',['pkey','-in',root+'/signing-key.pem','-pubout'],{encoding:'utf8'}).trim();
 const profile=(await api('/v1/profiles/7N6N36JFW5')).data;
 if(profile.attributes.profileType!=='MAC_APP_STORE'||profile.attributes.profileState!=='ACTIVE')throw Error('The existing Mac distribution profile is not active.');
-await writeFile(root+'/director-mac.provisionprofile',Buffer.from(profile.attributes.profileContent,'base64'),{mode:0o600});
+await writeFile(root+'/director-mac.provisionprofile',Buffer.from(profile.attributes.profileContent,'base64'),{mode:0o644});
 const certs=(await api('/v1/certificates?filter[certificateType]=MAC_INSTALLER_DISTRIBUTION&limit=200')).data;
 let installer;
 for(const cert of certs){
