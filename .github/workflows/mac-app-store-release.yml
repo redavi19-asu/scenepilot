@@ -1,0 +1,69 @@
+name: Urban Director Mac App Store Release
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/mac-app-store-release.yml']
+permissions:
+  contents: read
+concurrency:
+  group: urban-director-mac-store
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      UDS_BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Validate release source
+        run: |
+          npm ci
+          npm run lint
+          npm run validate:release
+          node --test electron/test/*.test.cjs
+          npm run build
+      - name: Prepare Mac signing
+        env:
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY }}
+          IOS_CERT: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
+          IOS_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+        run: |
+          mkdir -p "$HOME/private_keys"
+          node scripts/prepare-mac-store-signing.mjs
+      - name: Build signed universal Mac App Store package
+        env:
+          CSC_LINK: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+        run: |
+          export UDS_BUILD_NUMBER="$((UDS_BUILD_NUMBER + 100))"
+          npx electron-builder --config electron/mas.config.cjs --mac mas --universal --publish never --config.extraMetadata.version=1.0.1
+      - name: Verify and upload signed package
+        env:
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          PKG="$(find release/mas -name '*.pkg' -print -quit)"
+          test -n "$PKG"
+          pkgutil --check-signature "$PKG"
+          xcrun altool --validate-app -f "$PKG" -t macos --apiKey "$APP_STORE_KEY_ID" --apiIssuer "$APP_STORE_ISSUER_ID"
+          xcrun altool --upload-app -f "$PKG" -t macos --apiKey "$APP_STORE_KEY_ID" --apiIssuer "$APP_STORE_ISSUER_ID"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Urban-Director-Mac-Store-1.0.1
+          path: release/mas/**/*.pkg
+          retention-days: 7
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/signing-key.pem" "$RUNNER_TEMP/installer.csr" "$RUNNER_TEMP/installer.cer" "$RUNNER_TEMP/installer.pem" "$RUNNER_TEMP/installer.p12" "$RUNNER_TEMP/director-mac.provisionprofile"
+          rm -f "$HOME"/private_keys/AuthKey_*.p8
