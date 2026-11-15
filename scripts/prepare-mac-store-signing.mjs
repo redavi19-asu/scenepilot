@@ -10,7 +10,7 @@ async function api(path,method='GET',body){
  return d;
 }
 await writeFile(root+'/distribution.p12',Buffer.from(e.IOS_CERT,'base64'),{mode:0o600});
-execFileSync('openssl',['pkcs12','-in',root+'/distribution.p12','-nocerts','-nodes','-out',root+'/signing-key.pem','-passin','env:IOS_CERT_PASSWORD'],{stdio:'pipe'});
+execFileSync('openssl',['pkcs12','-legacy','-in',root+'/distribution.p12','-nocerts','-nodes','-out',root+'/signing-key.pem','-passin','env:IOS_CERT_PASSWORD'],{stdio:'pipe'});
 const publicKey=execFileSync('openssl',['pkey','-in',root+'/signing-key.pem','-pubout'],{encoding:'utf8'}).trim();
 const profile=(await api('/v1/profiles/7N6N36JFW5')).data;
 if(profile.attributes.profileType!=='MAC_APP_STORE'||profile.attributes.profileState!=='ACTIVE')throw Error('The existing Mac distribution profile is not active.');
