@@ -31,7 +31,7 @@ if(!installer){
 }
 await writeFile(root+'/installer.cer',Buffer.from(installer.attributes.certificateContent,'base64'));
 execFileSync('openssl',['x509','-inform','DER','-in',root+'/installer.cer','-out',root+'/installer.pem']);
-execFileSync('openssl',['pkcs12','-export','-inkey',root+'/signing-key.pem','-in',root+'/installer.pem','-out',root+'/installer.p12','-passout','env:IOS_CERT_PASSWORD'],{stdio:'pipe'});
+execFileSync('openssl',['pkcs12','-legacy','-export','-inkey',root+'/signing-key.pem','-in',root+'/installer.pem','-out',root+'/installer.p12','-passout','env:IOS_CERT_PASSWORD'],{stdio:'pipe'});
 await appendFile(e.GITHUB_ENV,'UDS_MAS_PROFILE='+root+'/director-mac.provisionprofile\nCSC_INSTALLER_LINK='+root+'/installer.p12\n');
 await writeFile(e.HOME+'/private_keys/AuthKey_'+keyId+'.p8',key,{mode:0o600});
 console.log('Mac App Store profile and signing materials ready; no app was submitted.');
