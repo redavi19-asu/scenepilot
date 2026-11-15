@@ -104,7 +104,7 @@ if(process.argv.includes('--upload')) {
     }
     const ordered=[...original.filter(p=>!newPlacementIds.includes(p.id)).map(p=>p.id),...newPlacementIds];
     await api('/v1/appAssetLibraryPlacementOrderingRequests','POST',{data:{type:'appAssetLibraryPlacementOrderingRequests',attributes:{placementGroup:group},relationships:{orderedPlacements:{data:ordered.map(id=>({type:'appAssetLibraryPlacements',id}))},appStoreVersionLocalization:{data:{type:'appStoreVersionLocalizations',id:draft.localization}}}}});
-    const actual=(await list('/v1/appStoreVersionLocalizations/'+draft.localization+'/placements?sort=placementGroupPosition&limit=200')).filter(p=>p.attributes.placementGroup===group);
+    const actual=(await list('/v1/appStoreVersionLocalizations/'+draft.localization+'/placements?include=image&sort=placementGroupPosition&limit=200')).filter(p=>p.attributes.placementGroup===group);
     if(JSON.stringify(actual.map(p=>p.id))!==JSON.stringify(ordered)) throw Error('Gallery order verification failed.');
     for(const old of original) if(!actual.some(p=>p.id===old.id&&p.relationships.image?.data?.id===old.relationships.image?.data?.id)) throw Error('An existing approved screenshot placement changed.');
     result.totalScreenshotCount=actual.length;
