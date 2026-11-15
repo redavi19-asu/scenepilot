@@ -468,7 +468,7 @@ function LandingPage() {
 
           <figure className="sp-real-hero">
             <a href="/screenshots/01-director-console.png" target="_blank" rel="noreferrer" aria-label="View the Director Console screenshot at full size">
-              <img src="/screenshots/01-director-console.png" alt="Real Urban Director Studio Preview and Program monitors, multiview and director controls" fetchPriority="high" onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/screenshots/studio-editor.jpg'; }} />
+              <img src="/screenshots/01-director-console.png" alt="Real Urban Director Studio Preview and Program monitors, multiview and director controls" fetchPriority="high" onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/screenshots/studio-editor.jpg'; event.currentTarget.closest('a')?.setAttribute('href', '/screenshots/studio-editor.jpg'); }} />
             </a>
             <figcaption>Inside Studio · live Director console</figcaption>
           </figure>
