@@ -49,10 +49,17 @@ jobs:
       - name: Build signed universal Mac App Store package
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "true"
+          DEBUG: electron-osx-sign*
         run: |
           unset CSC_LINK CSC_INSTALLER_LINK CSC_KEY_PASSWORD CSC_INSTALLER_KEY_PASSWORD
           export UDS_BUILD_NUMBER="$((UDS_BUILD_NUMBER + 100))"
-          npx electron-builder --config electron/mas.config.cjs --mac mas --universal --publish never --config.extraMetadata.version=1.0.1
+          npx electron-builder --config electron/mas.config.cjs --mac mas --universal --publish never --config.extraMetadata.version=1.0.1 &
+          BUILD_PID=$!
+          while kill -0 "$BUILD_PID" 2>/dev/null; do
+            sleep 30
+            ps -axo pid,ppid,etime,comm | awk '/codesign|productbuild|security/ {print}'
+          done
+          wait "$BUILD_PID"
       - name: Verify and upload signed package
         env:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
