@@ -19,12 +19,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Inspect Apple screenshot drafts
+      - name: Upload and verify Apple screenshots (no review submission)
         env:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
           APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
           APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY }}
-        run: node scripts/manage-app-store-screenshots.mjs
+        run: node scripts/manage-app-store-screenshots.mjs --upload
       - uses: actions/upload-artifact@v4
         if: always()
         with:
