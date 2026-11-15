@@ -1,4 +1,5 @@
 import {readFile,writeFile,appendFile} from 'node:fs/promises';
+import {X509Certificate} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import {appleToken} from './verify-testflight-build.mjs';
 const e=process.env, root=e.RUNNER_TEMP;
@@ -32,6 +33,8 @@ if(!installer){
 await writeFile(root+'/installer.cer',Buffer.from(installer.attributes.certificateContent,'base64'));
 execFileSync('openssl',['x509','-inform','DER','-in',root+'/installer.cer','-out',root+'/installer.pem']);
 execFileSync('openssl',['pkcs12','-legacy','-export','-inkey',root+'/signing-key.pem','-in',root+'/installer.pem','-out',root+'/installer.p12','-passout','env:IOS_CERT_PASSWORD'],{stdio:'pipe'});
+const installerName=new X509Certificate(Buffer.from(installer.attributes.certificateContent,'base64')).subject.split('\n').find(s=>s.startsWith('CN=')).slice(3);
+await appendFile(e.GITHUB_ENV,'UDS_INSTALLER_IDENTITY='+installerName+'\n');
 await appendFile(e.GITHUB_ENV,'UDS_MAS_PROFILE='+root+'/director-mac.provisionprofile\nCSC_INSTALLER_LINK='+root+'/installer.p12\n');
 await writeFile(e.HOME+'/private_keys/AuthKey_'+keyId+'.p8',key,{mode:0o600});
 console.log('Mac App Store profile and signing materials ready; no app was submitted.');
