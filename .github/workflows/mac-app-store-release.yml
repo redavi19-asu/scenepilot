@@ -1,9 +1,6 @@
 name: Urban Director Mac App Store Release
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/mac-app-store-release.yml']
 permissions:
   contents: read
 concurrency:
