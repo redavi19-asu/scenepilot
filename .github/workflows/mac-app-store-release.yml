@@ -38,12 +38,22 @@ jobs:
         run: |
           mkdir -p "$HOME/private_keys"
           node scripts/prepare-mac-store-signing.mjs
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          KEYCHAIN="$RUNNER_TEMP/director-mac.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/distribution.p12" -k "$KEYCHAIN" -P "$IOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security import "$RUNNER_TEMP/installer.p12" -k "$KEYCHAIN" -P "$IOS_CERT_PASSWORD" -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          echo "CSC_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
       - name: Build signed universal Mac App Store package
         env:
-          CSC_LINK: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE }}
-          CSC_KEY_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
-          CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "true"
         run: |
+          unset CSC_LINK CSC_INSTALLER_LINK CSC_KEY_PASSWORD CSC_INSTALLER_KEY_PASSWORD
           export UDS_BUILD_NUMBER="$((UDS_BUILD_NUMBER + 100))"
           npx electron-builder --config electron/mas.config.cjs --mac mas --universal --publish never --config.extraMetadata.version=1.0.1
       - name: Verify and upload signed package
@@ -65,6 +75,7 @@ jobs:
       - name: Remove temporary signing material
         if: always()
         run: |
+          security delete-keychain "$RUNNER_TEMP/director-mac.keychain-db" || true
           rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/signing-key.pem" "$RUNNER_TEMP/installer.csr" "$RUNNER_TEMP/installer.cer" "$RUNNER_TEMP/installer.pem" "$RUNNER_TEMP/installer.p12" "$RUNNER_TEMP/director-mac.provisionprofile"
           rm -f "$HOME"/private_keys/AuthKey_*.p8
 # Retry with OpenSSL 3 compatibility for the existing signing export.
