@@ -1,9 +1,6 @@
 name: Mac App Store Signing Preflight
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/mac-store-preflight.yml']
 permissions:
   contents: read
 jobs:
