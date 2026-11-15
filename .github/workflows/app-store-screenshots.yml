@@ -30,3 +30,4 @@ jobs:
         with:
           name: apple-screenshot-verification
           path: apple-screenshot-*.json
+# Verify processed image relationships; resume safely without duplicate uploads.
